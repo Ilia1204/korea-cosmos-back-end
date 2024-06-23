@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  email    String  @unique
+  password String
+  isAdmin  Boolean @default(false) @map("is_admin")
+
+  name               String? @default("")
+  surname            String? @default("")
+  avatarPath         String? @default("/uploads/default-avatar.png") @map("avatar_path")
+  phone              String? @default("")
+  resetPasswordCount Int     @default(0) @map("reset_password_count")
+
+  region    String @default("")
+  city      String @default("")
+  postCode  String @default("") @map("post_code")
+  street    String @default("")
+  house     String @default("")
+  apartment String @default("")
+
+  orders    Order[]
+  favorites Product[]
+  reviews   Review[]
+
+  @@map("user")
+}
+
+model LabelProduct {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  slug String @unique
+  name String @unique
+
+  products Product[]
+
+  @@map("label_product")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  message   String
+  imagePath String? @default("") @map("image_path")
+  isPublic  Boolean @default(false) @map("is_public")
+  rating    Int     @default(0)
+
+  productId String  @map("product_id")
+  userId    String  @map("user_id")
+  product   Product @relation(fields: [productId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@map("review")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  images      String[]
+  name        String   @unique
+  slug        String   @unique
+  description String
+  composition String?  @default("")
+  rating      Float    @default(0.0)
+  weight      String?  @default("")
+  tags        String[]
+
+  price    Int
+  newPrice Int @default(0) @map("new_price")
+  discount Int @default(0)
+
+  isPublic     Boolean @default(false) @map("is_public")
+  ordersCount  Int     @default(0) @map("orders_count")
+  countOpened  Int     @default(0) @map("count_opened")
+  countReviews Int     @default(0) @map("count_reviews")
+  stock        Int     @default(0)
+
+  labelProductId String?       @map("label_product_id")
+  labelProduct   LabelProduct? @relation(fields: [labelProductId], references: [id])
+
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String?   @map("category_id")
+
+  reviews    Review[]
+  orderItems OrderItem[]
+  User       User?       @relation(fields: [userId], references: [id])
+  userId     String?
+
+  @@map("product")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  name String @unique
+  slug String @unique
+
+  sectionId String?  @map("section_id")
+  section   Section? @relation(fields: [sectionId], references: [id])
+
+  products  Product[]
+  productId String?
+
+  @@map("category")
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  name String @unique
+  slug String @unique
+
+  categories Category[]
+
+  @@map("section")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  comment        String? @default("")
+  coupon         String? @default("")
+  totalPrice     Int     @map("total_price")
+  totalSalePrice Int     @default(0) @map("total_sale_price")
+
+  status         EnumOrderStatus    @default(pending)
+  deliveryMethod EnumDeliveryMethod @default(courier) @map("delivery_method")
+  deliveryPrice  Int                @default(0) @map("delivery_price")
+
+  userId String      @map("user_id")
+  user   User        @relation(fields: [userId], references: [id])
+  items  OrderItem[]
+
+  @@map("order")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  quantity Int
+  price    Int
+
+  orderId   String?  @map("order_id")
+  productId String   @map("product_id")
+  order     Order?   @relation(fields: [orderId], references: [id])
+  product   Product? @relation(fields: [productId], references: [id])
+
+  @@map("order_item")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  image       String
+  title       String  @unique
+  slug        String  @unique
+  description String
+  isPublic    Boolean @default(false) @map("is_public")
+
+  countViews Int @default(0) @map("count_views")
+
+  @@map("post")
+}
+
+enum EnumOrderStatus {
+  pending
+  payed
+  shipped
+  delivered
+}
+
+enum EnumDeliveryMethod {
+  courier
+  mail
+}
