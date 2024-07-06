@@ -47,7 +47,7 @@ export class AuthService {
 
 	async getNewTokens(refreshToken: string) {
 		const result = await this.jwt.verifyAsync(refreshToken)
-		if (!result) throw new UnauthorizedException('Invalid refresh token')
+		if (!result) throw new UnauthorizedException('Невалидный токен')
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...user } = await this.userService.getById(result.id)
@@ -77,11 +77,11 @@ export class AuthService {
 	private async validateUser(dto: AuthDto) {
 		const user = await this.userService.getByEmail(dto.email)
 
-		if (!user) throw new NotFoundException('User not found')
+		if (!user) throw new NotFoundException('Пользователь не найден')
 
 		const isValid = await verify(user.password, dto.password)
 
-		if (!isValid) throw new UnauthorizedException('Invalid password')
+		if (!isValid) throw new UnauthorizedException('Неправильный пароль')
 
 		return user
 	}

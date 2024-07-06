@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client'
 import {
 	IsArray,
 	IsBoolean,
@@ -7,14 +6,13 @@ import {
 	IsString
 } from 'class-validator'
 
-export class ProductDto implements Prisma.ProductUpdateInput {
+export class ProductDto {
 	@IsString()
 	name: string
 
 	@IsNumber()
 	price: number
 
-	@IsOptional()
 	@IsString()
 	description: string
 
@@ -60,3 +58,5 @@ export class ProductDto implements Prisma.ProductUpdateInput {
 	@IsString()
 	labelProductId: string
 }
+
+export type UpdateProductDto = Partial<ProductDto>

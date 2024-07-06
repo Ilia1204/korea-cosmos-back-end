@@ -18,7 +18,7 @@ model User {
 
   name               String? @default("")
   surname            String? @default("")
-  avatarPath         String? @default("/uploads/default-avatar.png") @map("avatar_path")
+  avatarPath         String? @default("/uploads/default/default-avatar.jpg") @map("avatar_path")
   phone              String? @default("")
   resetPasswordCount Int     @default(0) @map("reset_password_count")
 
@@ -54,15 +54,16 @@ model Review {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")
 
-  message   String
-  imagePath String? @default("") @map("image_path")
-  isPublic  Boolean @default(false) @map("is_public")
-  rating    Int     @default(0)
+  message  String
+  images   String[]
+  isPublic Boolean  @default(false) @map("is_public")
+  rating   Int      @default(0)
 
-  productId String  @map("product_id")
-  userId    String  @map("user_id")
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
   product   Product @relation(fields: [productId], references: [id])
-  user      User    @relation(fields: [userId], references: [id])
+  productId String  @map("product_id")
 
   @@map("review")
 }
@@ -73,17 +74,17 @@ model Product {
   updatedAt DateTime @default(now()) @map("updated_at")
 
   images      String[]
-  name        String   @unique
+  name        String?  @unique
   slug        String   @unique
-  description String
+  description String?
   composition String?  @default("")
   rating      Float    @default(0.0)
   weight      String?  @default("")
   tags        String[]
 
-  price    Int
-  newPrice Int @default(0) @map("new_price")
-  discount Int @default(0)
+  price    Int?
+  newPrice Int  @default(0) @map("new_price")
+  discount Int  @default(0)
 
   isPublic     Boolean @default(false) @map("is_public")
   ordersCount  Int     @default(0) @map("orders_count")
@@ -184,6 +185,9 @@ model Post {
   isPublic    Boolean @default(false) @map("is_public")
 
   countViews Int @default(0) @map("count_views")
+
+  countLikes    Int      @default(0) @map("count_likes")
+  likesIdsUsers String[] @default([]) @map("likes_ids_users")
 
   @@map("post")
 }

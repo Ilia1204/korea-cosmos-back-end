@@ -8,17 +8,19 @@ import {
 } from 'class-validator'
 
 export class ReviewDto {
+	@IsOptional()
 	@IsString()
 	message: string
 
+	@IsString({ each: true })
 	@IsOptional()
-	@IsString()
-	imagePath: string
+	images: string[]
 
 	@IsOptional()
 	@IsBoolean()
 	isPublic: boolean
 
+	@IsOptional()
 	@IsNumber()
 	@Min(1)
 	@Max(5)

@@ -23,6 +23,9 @@ export const returnProductObject: Prisma.ProductSelect = {
 	discount: true,
 	category: { select: { ...returnCategoryObject, products: false } },
 	reviews: {
+		where: {
+			isPublic: true
+		},
 		select: returnReviewObject,
 		orderBy: {
 			createdAt: 'desc'

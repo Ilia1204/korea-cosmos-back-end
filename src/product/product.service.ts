@@ -4,10 +4,11 @@ import { CategoryService } from 'src/category/category.service'
 import { LabelProductService } from 'src/label-product/label-product.service'
 import { PaginationService } from 'src/pagination/pagination.service'
 import { PrismaService } from 'src/prisma.service'
+import { returnReviewObject } from 'src/review/return-review.object'
 import { convertToNumber } from 'src/utils/convert-to-number'
 import { generateSlug } from 'src/utils/generate-slug'
 import { EnumProductSort, GetAllProductDto } from './dto/get-all-product.dto'
-import { ProductDto } from './dto/product.dto'
+import { UpdateProductDto } from './dto/product.dto'
 import {
 	returnFullestProductObject,
 	returnProductObject
@@ -77,7 +78,7 @@ export class ProductService {
 			case EnumProductSort.OLDEST:
 				return [{ createdAt: 'asc' }]
 			default:
-				return [{ createdAt: 'desc' }]
+				return [{ createdAt: 'desc' }, { stock: 'asc' }]
 		}
 	}
 
@@ -102,6 +103,26 @@ export class ProductService {
 					description: {
 						contains: searchTerm,
 						mode: 'insensitive'
+					}
+				},
+				{
+					composition: {
+						contains: searchTerm,
+						mode: 'insensitive'
+					}
+				},
+				{
+					weight: {
+						contains: searchTerm,
+						mode: 'insensitive'
+					}
+				},
+				{
+					labelProduct: {
+						name: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
 					}
 				}
 			]
@@ -160,12 +181,38 @@ export class ProductService {
 		})
 	}
 
-	bySlug(slug: string) {
+	updateCountOpened(slug: string) {
+		return this.prisma.product.update({
+			where: { slug },
+			data: {
+				countOpened: {
+					increment: 1
+				}
+			}
+		})
+	}
+
+	async bySlug(slug: string) {
+		await this.updateCountOpened(slug)
 		return this.prisma.product.findUnique({
-			where: {
-				slug
-			},
-			select: returnProductObject
+			where: { slug },
+			select: {
+				...returnProductObject,
+				reviews: {
+					select: {
+						...returnReviewObject,
+						user: {
+							select: {
+								name: true
+							}
+						}
+					},
+					where: { isPublic: true },
+					orderBy: {
+						createdAt: 'desc'
+					}
+				}
+			}
 		})
 	}
 
@@ -211,6 +258,7 @@ export class ProductService {
 				slug: '',
 				description: '',
 				price: 0,
+				rating: 0.0,
 				userId
 			}
 		})
@@ -227,7 +275,7 @@ export class ProductService {
 		})
 	}
 
-	async update(id: string, dto: ProductDto) {
+	async update(id: string, dto: UpdateProductDto) {
 		const {
 			name,
 			description,

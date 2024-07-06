@@ -5,6 +5,9 @@ export const returnLabelProductObject: Prisma.LabelProductSelect = {
 	name: true,
 	slug: true,
 	products: {
+		orderBy: {
+			stock: 'desc'
+		},
 		select: {
 			id: true,
 			createdAt: true,
@@ -13,14 +16,33 @@ export const returnLabelProductObject: Prisma.LabelProductSelect = {
 			slug: true,
 			images: true,
 			price: true,
+			weight: true,
+			newPrice: true,
+			discount: true,
 			stock: true,
+			reviews: {
+				where: {
+					isPublic: true
+				},
+				select: {
+					createdAt: true,
+					message: true,
+					images: true,
+					rating: true,
+					user: {
+						select: {
+							name: true
+						}
+					}
+				}
+			},
 			labelProductId: true,
 			labelProduct: {
 				select: {
 					name: true
 				}
 			},
-			categoryId: true,
+			category: true,
 			userId: true
 		}
 	}

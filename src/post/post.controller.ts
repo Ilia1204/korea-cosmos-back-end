@@ -5,13 +5,15 @@ import {
 	Get,
 	HttpCode,
 	Param,
+	Patch,
 	Post,
 	Put,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
-import { PostDto } from './post.dto'
+import { CurrentUser } from 'src/auth/decorators/user.decorator'
+import { UpdatePostDto } from './post.dto'
 import { PostService } from './post.service'
 import { returnFullestPostObject } from './return-post.object'
 
@@ -48,11 +50,25 @@ export class PostController {
 		return this.postService.create()
 	}
 
+	@HttpCode(200)
+	@Auth()
+	@Patch('toggle-like/:id')
+	async toggleLike(@Param('id') id: string, @CurrentUser('id') userId: string) {
+		return this.postService.toggleFavorite(id, userId)
+	}
+
+	@UsePipes(new ValidationPipe())
+	@Put('update-count-views')
+	@HttpCode(200)
+	async updateCountViews(@Body('slug') slug: string) {
+		return this.postService.updateCountViews(slug)
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
-	async update(@Param('id') id: string, @Body() dto: PostDto) {
+	async update(@Param('id') id: string, @Body() dto: UpdatePostDto) {
 		return this.postService.update(id, dto)
 	}
 

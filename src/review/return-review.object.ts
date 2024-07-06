@@ -3,9 +3,10 @@ import { Prisma } from '@prisma/client'
 export const returnReviewObject: Prisma.ReviewSelect = {
 	id: true,
 	message: true,
-	imagePath: true,
+	images: true,
 	createdAt: true,
-	rating: true
+	rating: true,
+	user: true
 }
 
 export const returnFullestReviewObject: Prisma.ReviewSelect = {

@@ -29,6 +29,25 @@ export class UserService {
 						newPrice: true,
 						images: true,
 						slug: true,
+						discount: true,
+						stock: true,
+						reviews: {
+							where: {
+								isPublic: true
+							},
+							select: {
+								user: {
+									select: {
+										name: true
+									}
+								}
+							}
+						},
+						labelProduct: {
+							select: {
+								name: true
+							}
+						},
 						rating: true
 					}
 				},

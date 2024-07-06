@@ -20,13 +20,14 @@ import { ReviewService } from './review.service'
 export class ReviewController {
 	constructor(private readonly reviewService: ReviewService) {}
 
-	@Get()
+	@Get('')
 	async getAll() {
 		return this.reviewService.getAll()
 	}
 
 	@Get('unpublished')
 	@Auth('admin')
+	@Get()
 	async getUnpublished() {
 		return this.reviewService.getAll(false, returnFullestReviewObject)
 	}

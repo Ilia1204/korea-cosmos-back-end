@@ -13,6 +13,7 @@ import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
+import { EmailModule } from './email/email.module';
 
 @Module({
 	imports: [
@@ -31,7 +32,8 @@ import { UserModule } from './user/user.module'
 		OrderModule,
 		StatisticsModule,
 		LabelProductModule,
-		FileModule
+		FileModule,
+		EmailModule
 	]
 })
 export class AppModule {}

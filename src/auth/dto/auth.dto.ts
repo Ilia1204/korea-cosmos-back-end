@@ -16,7 +16,7 @@ export class AuthDto {
 	@IsString()
 	password: string
 
-	@IsBoolean({})
+	@IsBoolean()
 	@IsOptional()
 	isAdmin: boolean
 }

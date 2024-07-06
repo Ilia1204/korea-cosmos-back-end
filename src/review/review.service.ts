@@ -31,7 +31,11 @@ export class ReviewService {
 			orderBy: {
 				createdAt: 'desc'
 			},
-			select: selectObject
+			select: {...selectObject, user: {
+				select: {
+					name: true,
+				}
+			}}
 		})
 	}
 
@@ -63,6 +67,7 @@ export class ReviewService {
 		})
 
 		const averageRating = await this.getAverageValueByProductId(productId)
+
 		await this.productService.updateProductRating(
 			productId,
 			averageRating.rating
@@ -89,7 +94,7 @@ export class ReviewService {
 			where: { id },
 			data: {
 				message: dto.message,
-				imagePath: dto.imagePath,
+				images: dto.images,
 				rating: dto.rating,
 				isPublic: dto.isPublic
 			}

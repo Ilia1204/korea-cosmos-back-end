@@ -7,12 +7,14 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { ProductDto } from './dto/product.dto'
+import { GetAllProductDto } from './dto/get-all-product.dto'
+import { UpdateProductDto } from './dto/product.dto'
 import { ProductService } from './product.service'
 
 @Controller('products')
@@ -21,8 +23,8 @@ export class ProductController {
 
 	@UsePipes(new ValidationPipe())
 	@Get()
-	async getAll() {
-		return this.productService.getAll()
+	async getAll(@Query() queryDto: GetAllProductDto) {
+		return this.productService.getAll(queryDto)
 	}
 
 	@Get('similar/:id')
@@ -52,7 +54,7 @@ export class ProductController {
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
-	async updateProduct(@Param('id') id: string, @Body() dto: ProductDto) {
+	async updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
 		return this.productService.update(id, dto)
 	}
 
