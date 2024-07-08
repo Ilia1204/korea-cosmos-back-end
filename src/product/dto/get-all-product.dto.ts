@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsString } from 'class-validator'
+import { IsEnum, IsOptional, IsString } from 'class-validator'
 import { PaginationDto } from 'src/pagination/pagination.dto'
 
 export enum EnumProductSort {
@@ -31,5 +31,5 @@ export class GetAllProductDto extends PaginationDto {
 
 	@IsOptional()
 	@IsString()
-	categoryId?: string
+	categoriesIds?: string[]
 }
