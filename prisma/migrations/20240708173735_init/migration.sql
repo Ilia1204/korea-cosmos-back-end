@@ -14,7 +14,7 @@ CREATE TABLE "user" (
     "is_admin" BOOLEAN NOT NULL DEFAULT false,
     "name" TEXT DEFAULT '',
     "surname" TEXT DEFAULT '',
-    "avatar_path" TEXT DEFAULT '/uploads/default-avatar.png',
+    "avatar_path" TEXT DEFAULT '/uploads/default/default-avatar.jpg',
     "phone" TEXT DEFAULT '',
     "reset_password_count" INTEGER NOT NULL DEFAULT 0,
     "region" TEXT NOT NULL DEFAULT '',
@@ -44,11 +44,11 @@ CREATE TABLE "review" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "message" TEXT NOT NULL,
-    "image_path" TEXT DEFAULT '',
+    "images" TEXT[],
     "is_public" BOOLEAN NOT NULL DEFAULT false,
     "rating" INTEGER NOT NULL DEFAULT 0,
-    "product_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
 
     CONSTRAINT "review_pkey" PRIMARY KEY ("id")
 );
@@ -59,14 +59,14 @@ CREATE TABLE "product" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "images" TEXT[],
-    "name" TEXT NOT NULL,
+    "name" TEXT,
     "slug" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
+    "description" TEXT,
     "composition" TEXT DEFAULT '',
     "rating" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     "weight" TEXT DEFAULT '',
     "tags" TEXT[],
-    "price" INTEGER NOT NULL,
+    "price" INTEGER,
     "new_price" INTEGER NOT NULL DEFAULT 0,
     "discount" INTEGER NOT NULL DEFAULT 0,
     "is_public" BOOLEAN NOT NULL DEFAULT false,
@@ -75,7 +75,6 @@ CREATE TABLE "product" (
     "count_reviews" INTEGER NOT NULL DEFAULT 0,
     "stock" INTEGER NOT NULL DEFAULT 0,
     "label_product_id" TEXT,
-    "category_id" TEXT,
     "userId" TEXT,
 
     CONSTRAINT "product_pkey" PRIMARY KEY ("id")
@@ -89,7 +88,6 @@ CREATE TABLE "category" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "section_id" TEXT,
-    "productId" TEXT,
 
     CONSTRAINT "category_pkey" PRIMARY KEY ("id")
 );
@@ -146,8 +144,16 @@ CREATE TABLE "post" (
     "description" TEXT NOT NULL,
     "is_public" BOOLEAN NOT NULL DEFAULT false,
     "count_views" INTEGER NOT NULL DEFAULT 0,
+    "count_likes" INTEGER NOT NULL DEFAULT 0,
+    "likes_ids_users" TEXT[] DEFAULT ARRAY[]::TEXT[],
 
     CONSTRAINT "post_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "_CategoryToProduct" (
+    "A" TEXT NOT NULL,
+    "B" TEXT NOT NULL
 );
 
 -- CreateIndex
@@ -183,17 +189,20 @@ CREATE UNIQUE INDEX "post_title_key" ON "post"("title");
 -- CreateIndex
 CREATE UNIQUE INDEX "post_slug_key" ON "post"("slug");
 
--- AddForeignKey
-ALTER TABLE "review" ADD CONSTRAINT "review_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE UNIQUE INDEX "_CategoryToProduct_AB_unique" ON "_CategoryToProduct"("A", "B");
+
+-- CreateIndex
+CREATE INDEX "_CategoryToProduct_B_index" ON "_CategoryToProduct"("B");
 
 -- AddForeignKey
 ALTER TABLE "review" ADD CONSTRAINT "review_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "product" ADD CONSTRAINT "product_label_product_id_fkey" FOREIGN KEY ("label_product_id") REFERENCES "label_product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "review" ADD CONSTRAINT "review_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "product" ADD CONSTRAINT "product_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "product" ADD CONSTRAINT "product_label_product_id_fkey" FOREIGN KEY ("label_product_id") REFERENCES "label_product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "product" ADD CONSTRAINT "product_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -209,3 +218,9 @@ ALTER TABLE "order_item" ADD CONSTRAINT "order_item_order_id_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "order_item" ADD CONSTRAINT "order_item_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CategoryToProduct" ADD CONSTRAINT "_CategoryToProduct_A_fkey" FOREIGN KEY ("A") REFERENCES "category"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CategoryToProduct" ADD CONSTRAINT "_CategoryToProduct_B_fkey" FOREIGN KEY ("B") REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
