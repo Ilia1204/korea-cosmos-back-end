@@ -42,8 +42,7 @@ export const returnSectionObject: Prisma.SectionSelect = {
 							name: true
 						}
 					},
-					category: true,
-					categoryId: true,
+					categories: true,
 					userId: true
 				}
 			}

@@ -95,8 +95,7 @@ model Product {
   labelProductId String?       @map("label_product_id")
   labelProduct   LabelProduct? @relation(fields: [labelProductId], references: [id])
 
-  category   Category? @relation(fields: [categoryId], references: [id])
-  categoryId String?   @map("category_id")
+  categories Category[]
 
   reviews    Review[]
   orderItems OrderItem[]
@@ -117,8 +116,7 @@ model Category {
   sectionId String?  @map("section_id")
   section   Section? @relation(fields: [sectionId], references: [id])
 
-  products  Product[]
-  productId String?
+  products Product[]
 
   @@map("category")
 }

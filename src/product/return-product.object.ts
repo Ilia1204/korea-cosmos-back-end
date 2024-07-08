@@ -21,7 +21,7 @@ export const returnProductObject: Prisma.ProductSelect = {
 		}
 	},
 	discount: true,
-	category: { select: { ...returnCategoryObject, products: false } },
+	categories: { select: { ...returnCategoryObject, products: false } },
 	reviews: {
 		where: {
 			isPublic: true

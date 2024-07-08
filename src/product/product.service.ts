@@ -86,10 +86,12 @@ export class ProductService {
 		return {
 			OR: [
 				{
-					category: {
-						name: {
-							contains: searchTerm,
-							mode: 'insensitive'
+					categories: {
+						some: {
+							name: {
+								contains: searchTerm,
+								mode: 'insensitive'
+							}
 						}
 					}
 				},
@@ -168,7 +170,11 @@ export class ProductService {
 
 	private getCategoryFilter(categoryId: string): Prisma.ProductWhereInput {
 		return {
-			categoryId
+			categories: {
+				some: {
+					id: categoryId
+				}
+			}
 		}
 	}
 
@@ -219,8 +225,10 @@ export class ProductService {
 	async byCategory(categorySlug: string) {
 		return await this.prisma.product.findMany({
 			where: {
-				category: {
-					slug: categorySlug
+				categories: {
+					some: {
+						slug: categorySlug
+					}
 				}
 			},
 			select: returnProductObject
@@ -235,8 +243,12 @@ export class ProductService {
 
 		const products = await this.prisma.product.findMany({
 			where: {
-				category: {
-					name: currentProduct.category.name
+				categories: {
+					some: {
+						name: {
+							in: currentProduct.categories.map(category => category.name)
+						}
+					}
 				},
 				NOT: {
 					id: currentProduct.id
@@ -324,7 +336,7 @@ export class ProductService {
 				discount,
 				isPublic,
 				stock,
-				category: {
+				categories: {
 					connect: {
 						id: categoryId
 					}

@@ -42,7 +42,7 @@ export const returnLabelProductObject: Prisma.LabelProductSelect = {
 					name: true
 				}
 			},
-			category: true,
+			categories: true,
 			userId: true
 		}
 	}
