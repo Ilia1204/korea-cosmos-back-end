@@ -52,7 +52,7 @@ export class ProductDto {
 	stock: number
 
 	@IsString()
-	categoryId: string
+	categoriesIds: string[]
 
 	@IsOptional()
 	@IsString()

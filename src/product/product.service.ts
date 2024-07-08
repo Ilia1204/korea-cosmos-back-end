@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException
+} from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { CategoryService } from 'src/category/category.service'
 import { LabelProductService } from 'src/label-product/label-product.service'
@@ -301,12 +305,28 @@ export class ProductService {
 			discount,
 			isPublic,
 			stock,
-			categoryId,
+			categoriesIds,
 			labelProductId
 		} = dto
 
-		const category = await this.categoryService.getById(categoryId)
-		if (!category) throw new NotFoundException('Категория не найдена')
+		if (!Array.isArray(categoriesIds) || categoriesIds.length === 0) {
+			throw new BadRequestException('Необходимо указать хотя бы одну категорию')
+		}
+
+		const categoryPromises = categoriesIds.map(async categoryId => {
+			const category = await this.categoryService.getById(categoryId)
+
+			console.log(categoryId)
+
+			if (!category) throw new NotFoundException('Категория не найдена')
+			return {
+				id: categoryId
+			}
+		})
+
+		const categories = await Promise.all(categoryPromises)
+
+		console.log('Категории для установки:', categories)
 
 		let labelProductConnect = {}
 		if (labelProductId) {
@@ -337,9 +357,7 @@ export class ProductService {
 				isPublic,
 				stock,
 				categories: {
-					connect: {
-						id: categoryId
-					}
+					set: categories
 				},
 				labelProduct: labelProductConnect
 			}
