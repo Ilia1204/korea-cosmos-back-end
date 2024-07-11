@@ -319,8 +319,6 @@ export class ProductService {
 		const categoryPromises = categoriesIds.map(async categoryId => {
 			const category = await this.categoryService.getById(categoryId)
 
-			console.log(categoryId)
-
 			if (!category) throw new NotFoundException('Категория не найдена')
 			return {
 				id: categoryId
@@ -328,8 +326,6 @@ export class ProductService {
 		})
 
 		const categories = await Promise.all(categoryPromises)
-
-		console.log('Категории для установки:', categories)
 
 		let labelProductConnect = {}
 		if (labelProductId) {
