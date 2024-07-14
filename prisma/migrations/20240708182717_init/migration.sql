@@ -64,7 +64,7 @@ CREATE TABLE "product" (
     "description" TEXT,
     "composition" TEXT DEFAULT '',
     "rating" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    "weight" TEXT DEFAULT '',
+    "weight" INTEGER NOT NULL DEFAULT 0,
     "tags" TEXT[],
     "price" INTEGER,
     "new_price" INTEGER NOT NULL DEFAULT 0,
@@ -73,7 +73,7 @@ CREATE TABLE "product" (
     "orders_count" INTEGER NOT NULL DEFAULT 0,
     "count_opened" INTEGER NOT NULL DEFAULT 0,
     "count_reviews" INTEGER NOT NULL DEFAULT 0,
-    "stock" INTEGER NOT NULL DEFAULT 0,
+    "inStock" BOOLEAN NOT NULL DEFAULT false,
     "label_product_id" TEXT,
     "userId" TEXT,
 
