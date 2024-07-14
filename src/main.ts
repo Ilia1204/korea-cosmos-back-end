@@ -8,8 +8,8 @@ async function bootstrap() {
 	app.setGlobalPrefix('api')
 	app.use(cookieParser())
 	app.enableCors({
-		// origin: ['https://cosmos-iku3.onrender.com'],
-		origin: ['http://localhost:3000'],
+		origin: ['https://cosmos-iku3.onrender.com'],
+		// origin: ['http://localhost:3000'],
 		credentials: true,
 		exposedHeaders: 'set-cookie'
 	})
