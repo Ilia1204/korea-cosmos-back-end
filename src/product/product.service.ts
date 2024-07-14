@@ -1,8 +1,4 @@
-import {
-	BadRequestException,
-	Injectable,
-	NotFoundException
-} from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { CategoryService } from 'src/category/category.service'
 import { LabelProductService } from 'src/label-product/label-product.service'
@@ -83,7 +79,7 @@ export class ProductService {
 			case EnumProductSort.OLDEST:
 				return [{ createdAt: 'asc' }]
 			default:
-				return [{ createdAt: 'desc' }, { stock: 'asc' }]
+				return [{ createdAt: 'desc' }, { inStock: 'asc' }]
 		}
 	}
 
@@ -114,12 +110,6 @@ export class ProductService {
 				},
 				{
 					composition: {
-						contains: searchTerm,
-						mode: 'insensitive'
-					}
-				},
-				{
-					weight: {
 						contains: searchTerm,
 						mode: 'insensitive'
 					}
@@ -278,6 +268,15 @@ export class ProductService {
 				description: '',
 				price: 0,
 				rating: 0.0,
+				discount: 0,
+				countOpened: 0,
+				countReviews: 0,
+				ordersCount: 0,
+				inStock: true,
+				newPrice: 0,
+				categories: {
+					connect: []
+				},
 				userId
 			}
 		})
@@ -295,46 +294,14 @@ export class ProductService {
 	}
 
 	async update(id: string, dto: UpdateProductDto) {
-		const {
-			name,
-			description,
-			images,
-			price,
-			composition,
-			weight,
-			rating,
-			tags,
-			newPrice,
-			discount,
-			isPublic,
-			stock,
-			categoriesIds,
-			labelProductId
-		} = dto
-
-		if (!Array.isArray(categoriesIds) || categoriesIds.length === 0) {
-			throw new BadRequestException('Необходимо указать хотя бы одну категорию')
-		}
-
-		const categoryPromises = categoriesIds.map(async categoryId => {
-			const category = await this.categoryService.getById(categoryId)
-
-			if (!category) throw new NotFoundException('Категория не найдена')
-			return {
-				id: categoryId
-			}
-		})
-
-		const categories = await Promise.all(categoryPromises)
-
 		let labelProductConnect = {}
-		if (labelProductId) {
+		if (dto.labelProductId) {
 			const labelProduct = await this.labelProductService.getById(
-				labelProductId
+				dto.labelProductId
 			)
 			if (!labelProduct)
 				throw new NotFoundException('Метка для товара не найдена')
-			labelProductConnect = { connect: { id: labelProductId } }
+			labelProductConnect = { connect: { id: dto.labelProductId } }
 		}
 
 		return this.prisma.product.update({
@@ -342,21 +309,23 @@ export class ProductService {
 				id
 			},
 			data: {
-				name,
-				slug: generateSlug(name),
-				price,
-				description,
-				composition,
-				rating,
-				tags,
-				weight,
-				images,
-				newPrice,
-				discount,
-				isPublic,
-				stock,
+				name: dto.name,
+				slug: generateSlug(dto.name),
+				description: dto.description,
+				price: dto.price,
+				composition: dto.composition,
+				rating: dto.rating,
+				weight: dto.weight,
+				images: dto.images,
+				newPrice: dto.newPrice,
+				discount: dto.discount,
+				isPublic: dto.isPublic,
+				inStock: dto.inStock,
 				categories: {
-					set: categories
+					set: dto.categories.map(categoryId => ({ id: categoryId })),
+					disconnect: dto.categories
+						?.filter(categoryId => !dto.categories.includes(categoryId))
+						.map(categoryId => ({ id: categoryId }))
 				},
 				labelProduct: labelProductConnect
 			}
@@ -364,10 +333,7 @@ export class ProductService {
 	}
 
 	async delete(id: string) {
-		const product = await this.prisma.product.findUnique({
-			where: { id },
-			include: { reviews: true }
-		})
+		const product = await this.byId(id)
 
 		if (!product) throw new NotFoundException('Товар не найден')
 

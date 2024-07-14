@@ -18,7 +18,7 @@ export class LabelProductService {
 	getBySlug(slug: string) {
 		return this.prisma.labelProduct.findUnique({
 			where: { slug },
-			select: returnLabelProductObject
+			select: { ...returnLabelProductObject, createdAt: true }
 		})
 	}
 

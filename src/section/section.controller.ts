@@ -7,6 +7,7 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -19,8 +20,8 @@ export class SectionController {
 	constructor(private readonly sectionService: SectionService) {}
 
 	@Get()
-	async getAll() {
-		return this.sectionService.getAll()
+	async getAll(@Query('searchTerm') searchTerm?: string) {
+		return this.sectionService.getAll(searchTerm)
 	}
 
 	@Get('by-slug/:slug')

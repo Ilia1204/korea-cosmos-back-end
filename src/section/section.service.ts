@@ -22,9 +22,36 @@ export class SectionService {
 		})
 	}
 
-	async getAll() {
+	async getAll(searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm)
+
 		return this.prisma.section.findMany({
 			select: returnSectionObject
+		})
+	}
+
+	private async search(searchTerm: string) {
+		return this.prisma.section.findMany({
+			where: {
+				OR: [
+					{
+						name: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
+					},
+					{
+						categories: {
+							some: {
+								name: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								}
+							}
+						}
+					}
+				]
+			}
 		})
 	}
 

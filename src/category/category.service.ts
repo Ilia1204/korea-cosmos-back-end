@@ -63,9 +63,44 @@ export class CategoryService {
 		return categories
 	}
 
-	async getAll() {
+	async getAll(searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm)
+
 		return this.prisma.category.findMany({
 			select: returnCategoryObject
+		})
+	}
+
+	private async search(searchTerm: string) {
+		return this.prisma.category.findMany({
+			where: {
+				OR: [
+					{
+						name: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
+					},
+					{
+						section: {
+							name: {
+								contains: searchTerm,
+								mode: 'insensitive'
+							}
+						}
+					},
+					{
+						products: {
+							some: {
+								name: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								}
+							}
+						}
+					}
+				]
+			}
 		})
 	}
 

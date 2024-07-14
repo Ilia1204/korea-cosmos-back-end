@@ -7,6 +7,7 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -19,8 +20,8 @@ export class CategoryController {
 	constructor(private readonly categoryService: CategoryService) {}
 
 	@Get()
-	async getAll() {
-		return this.categoryService.getAll()
+	async getAll(@Query('searchTerm') searchTerm?: string) {
+		return this.categoryService.getAll(searchTerm)
 	}
 
 	@Get('similar/:id')

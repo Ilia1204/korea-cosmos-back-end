@@ -21,7 +21,6 @@ import { ProductService } from './product.service'
 export class ProductController {
 	constructor(private productService: ProductService) {}
 
-	@UsePipes(new ValidationPipe())
 	@Get()
 	async getAll(@Query() queryDto: GetAllProductDto) {
 		return this.productService.getAll(queryDto)

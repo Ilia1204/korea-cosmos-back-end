@@ -4,6 +4,7 @@ export const returnSectionObject: Prisma.SectionSelect = {
 	id: true,
 	name: true,
 	slug: true,
+	createdAt: true,
 	categories: {
 		select: {
 			id: true,
@@ -22,7 +23,7 @@ export const returnSectionObject: Prisma.SectionSelect = {
 					price: true,
 					weight: true,
 					newPrice: true,
-					stock: true,
+					inStock: true,
 					reviews: {
 						select: {
 							createdAt: true,

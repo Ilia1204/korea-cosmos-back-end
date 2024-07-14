@@ -4,9 +4,10 @@ export const returnLabelProductObject: Prisma.LabelProductSelect = {
 	id: true,
 	name: true,
 	slug: true,
+	createdAt: true,
 	products: {
 		orderBy: {
-			stock: 'desc'
+			inStock: 'desc'
 		},
 		select: {
 			id: true,
@@ -19,7 +20,7 @@ export const returnLabelProductObject: Prisma.LabelProductSelect = {
 			weight: true,
 			newPrice: true,
 			discount: true,
-			stock: true,
+			inStock: true,
 			reviews: {
 				where: {
 					isPublic: true

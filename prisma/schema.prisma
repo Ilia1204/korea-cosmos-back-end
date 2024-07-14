@@ -10,7 +10,7 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   email    String  @unique
   password String
@@ -39,7 +39,7 @@ model User {
 model LabelProduct {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   slug String @unique
   name String @unique
@@ -52,7 +52,7 @@ model LabelProduct {
 model Review {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   message  String
   images   String[]
@@ -71,7 +71,7 @@ model Review {
 model Product {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   images      String[]
   name        String?  @unique
@@ -79,10 +79,9 @@ model Product {
   description String?
   composition String?  @default("")
   rating      Float    @default(0.0)
-  weight      String?  @default("")
-  tags        String[]
+  weight      Int?     @default(0)
 
-  price    Int?
+  price    Int? @default(0)
   newPrice Int  @default(0) @map("new_price")
   discount Int  @default(0)
 
@@ -90,7 +89,7 @@ model Product {
   ordersCount  Int     @default(0) @map("orders_count")
   countOpened  Int     @default(0) @map("count_opened")
   countReviews Int     @default(0) @map("count_reviews")
-  stock        Int     @default(0)
+  inStock      Boolean @default(true) @map("in_stock")
 
   labelProductId String?       @map("label_product_id")
   labelProduct   LabelProduct? @relation(fields: [labelProductId], references: [id])
@@ -108,7 +107,7 @@ model Product {
 model Category {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   name String @unique
   slug String @unique
@@ -124,7 +123,7 @@ model Category {
 model Section {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   name String @unique
   slug String @unique
@@ -137,7 +136,7 @@ model Section {
 model Order {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   comment        String? @default("")
   coupon         String? @default("")
@@ -158,7 +157,7 @@ model Order {
 model OrderItem {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   quantity Int
   price    Int
@@ -174,7 +173,7 @@ model OrderItem {
 model Post {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   image       String
   title       String  @unique

@@ -25,12 +25,8 @@ export class ProductDto {
 	rating: number
 
 	@IsOptional()
-	@IsArray()
-	tags: string[]
-
-	@IsOptional()
-	@IsString()
-	weight: string
+	@IsNumber()
+	weight: number
 
 	@IsOptional()
 	images: string[]
@@ -48,11 +44,13 @@ export class ProductDto {
 	isPublic: boolean
 
 	@IsOptional()
-	@IsNumber()
-	stock: number
+	@IsBoolean()
+	inStock: boolean
 
+	@IsArray()
+	@IsString({ each: true })
 	@IsString()
-	categoriesIds: string[]
+	categories: string[]
 
 	@IsOptional()
 	@IsString()

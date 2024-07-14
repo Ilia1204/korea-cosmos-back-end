@@ -13,13 +13,11 @@ export const returnProductObject: Prisma.ProductSelect = {
 	slug: true,
 	newPrice: true,
 	rating: true,
-	stock: true,
+	inStock: true,
 	weight: true,
-	labelProduct: {
-		select: {
-			name: true
-		}
-	},
+	isPublic: true,
+	countOpened: true,
+	labelProduct: true,
 	discount: true,
 	categories: { select: { ...returnCategoryObject, products: false } },
 	reviews: {
