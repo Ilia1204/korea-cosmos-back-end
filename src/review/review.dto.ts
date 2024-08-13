@@ -1,5 +1,6 @@
 import {
 	IsBoolean,
+	IsDateString,
 	IsNumber,
 	IsOptional,
 	IsString,
@@ -25,4 +26,8 @@ export class ReviewDto {
 	@Min(1)
 	@Max(5)
 	rating: number
+
+	@IsOptional()
+	@IsDateString()
+	createdAt: string
 }

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
 import { PrismaService } from 'src/prisma.service'
 import { generateSlug } from 'src/utils/generate-slug'
 import { UpdatePostDto } from './post.dto'
@@ -23,16 +22,40 @@ export class PostService {
 		})
 	}
 
-	async getPosts(
-		isPublic = true,
-		selectObject: Prisma.PostSelect = returnPostObject
-	) {
+	async getPublishedPosts() {
 		return this.prisma.post.findMany({
-			where: { isPublic },
-			select: selectObject,
+			where: { isPublic: true },
+			select: returnPostObject,
 			orderBy: {
 				createdAt: 'desc'
 			}
+		})
+	}
+
+	async getAllPosts(searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm)
+
+		return this.prisma.post.findMany({
+			select: returnFullestPostObject,
+			orderBy: {
+				createdAt: 'desc'
+			}
+		})
+	}
+
+	private async search(searchTerm: string) {
+		return await this.prisma.post.findMany({
+			where: {
+				OR: [
+					{
+						title: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						}
+					}
+				]
+			},
+			select: returnFullestPostObject
 		})
 	}
 
@@ -70,7 +93,8 @@ export class PostService {
 				slug: generateSlug(dto.title),
 				description: dto.description,
 				image: dto.image,
-				isPublic: dto.isPublic
+				isPublic: dto.isPublic,
+				createdAt: dto.createdAt
 			}
 		})
 	}

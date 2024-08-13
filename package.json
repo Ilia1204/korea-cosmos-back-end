@@ -23,6 +23,7 @@
 		"test:e2e": "jest --config ./test/jest-e2e.json"
 	},
 	"dependencies": {
+		"@a2seven/yoo-checkout": "^1.1.4",
 		"@nestjs-modules/mailer": "^2.0.2",
 		"@nestjs/common": "^10.0.0",
 		"@nestjs/config": "^3.2.2",
@@ -31,6 +32,7 @@
 		"@nestjs/mapped-types": "*",
 		"@nestjs/passport": "^10.0.3",
 		"@nestjs/platform-express": "^10.0.0",
+		"@nestjs/schedule": "^4.1.0",
 		"@nestjs/serve-static": "^4.0.2",
 		"@prisma/client": "5.0.0",
 		"app-root-path": "^3.1.0",
@@ -39,7 +41,9 @@
 		"class-validator": "^0.14.1",
 		"cookie-parser": "^1.4.6",
 		"dayjs": "^1.11.11",
+		"expo-server-sdk": "^3.10.0",
 		"multer": "^1.4.5-lts.1",
+		"nodemailer": "^6.9.14",
 		"passport": "^0.7.0",
 		"passport-jwt": "^4.0.1",
 		"prisma": "5.0.0",
@@ -54,6 +58,7 @@
 		"@types/jest": "^29.5.2",
 		"@types/multer": "^1.4.11",
 		"@types/node": "^20.3.1",
+		"@types/nodemailer": "^6.4.15",
 		"@types/supertest": "^2.0.12",
 		"@typescript-eslint/eslint-plugin": "^5.59.11",
 		"@typescript-eslint/parser": "^5.59.11",

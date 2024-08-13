@@ -1,3 +1,4 @@
+import { MailerService } from '@nestjs-modules/mailer'
 import {
 	BadRequestException,
 	Injectable,
@@ -5,8 +6,9 @@ import {
 	UnauthorizedException
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import { verify } from 'argon2'
+import { hash, verify } from 'argon2'
 import { Response } from 'express'
+import * as nodemailer from 'nodemailer'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
 
@@ -15,7 +17,11 @@ export class AuthService {
 	EXPIRE_DAY_REFRESH_TOKEN = 1
 	REFRESH_TOKEN_NAME = 'refreshToken'
 
-	constructor(private jwt: JwtService, private userService: UserService) {}
+	constructor(
+		private jwt: JwtService,
+		private userService: UserService,
+		private readonly mailService: MailerService
+	) {}
 
 	async login(dto: AuthDto) {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -109,5 +115,53 @@ export class AuthService {
 			// lax if production
 			sameSite: 'none'
 		})
+	}
+
+	async sendPasswordResetEmail(email: string) {
+		const user = await this.userService.getByEmail(email)
+		if (!user) throw new NotFoundException('Пользователь не найден')
+
+		const token = this.jwt.sign({ email }, { expiresIn: '1h' })
+
+		const transporter = nodemailer.createTransport({
+			service: 'gmail',
+			auth: {
+				user: 'lower013634@gmail.com',
+				pass: 'Loaf7890'
+			}
+		})
+
+		const mailOptions = {
+			from: 'lower013634@gmail.com',
+			to: user.email,
+			subject: 'Password Reset',
+			text: `To reset your password, please click the following link: $ergerg/reset-password?token=${token}`
+		}
+
+		await transporter.sendMail(mailOptions)
+	}
+
+	async sendMail() {
+		const message = `Forgot your password? If you didn't forget your password, please ignore this email!`
+
+		this.mailService.sendMail({
+			from: 'demomailtrap.com',
+			to: 'non62526@gmail.com',
+			subject: `How to Send Emails with Nodemailer`,
+			text: message
+		})
+	}
+
+	async resetPassword(token: string, newPassword: string) {
+		const decoded = this.jwt.verify(token)
+		const user = await this.userService.getByEmail(decoded.email)
+
+		if (!user) {
+			throw new UnauthorizedException('Invalid or expired token')
+		}
+
+		const hashedPassword = await hash(newPassword)
+
+		await this.userService.updatePassword(user.id, hashedPassword)
 	}
 }

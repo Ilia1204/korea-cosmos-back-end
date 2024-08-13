@@ -7,12 +7,12 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { returnFullestReviewObject } from './return-review.object'
 import { ReviewDto } from './review.dto'
 import { ReviewService } from './review.service'
 
@@ -20,16 +20,9 @@ import { ReviewService } from './review.service'
 export class ReviewController {
 	constructor(private readonly reviewService: ReviewService) {}
 
-	@Get('')
-	async getAll() {
-		return this.reviewService.getAll()
-	}
-
-	@Get('unpublished')
-	@Auth('admin')
 	@Get()
-	async getUnpublished() {
-		return this.reviewService.getAll(false, returnFullestReviewObject)
+	async getAll(@Query('searchTerm') searchTerm?: string) {
+		return this.reviewService.getAll(searchTerm)
 	}
 
 	@Get(':id')
@@ -41,7 +34,7 @@ export class ReviewController {
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('leave/:productId')
-	@Auth('admin')
+	@Auth()
 	async leaveReview(
 		@CurrentUser('id') id: string,
 		@Body() dto: ReviewDto,

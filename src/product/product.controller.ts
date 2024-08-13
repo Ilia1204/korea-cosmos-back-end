@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { GetAllProductDto } from './dto/get-all-product.dto'
+import {
+	GetAllProductDto,
+	GetProductsByCategoryDto
+} from './dto/get-all-product.dto'
 import { UpdateProductDto } from './dto/product.dto'
 import { ProductService } from './product.service'
 
@@ -24,6 +27,11 @@ export class ProductController {
 	@Get()
 	async getAll(@Query() queryDto: GetAllProductDto) {
 		return this.productService.getAll(queryDto)
+	}
+
+	@Get('most-popular')
+	async getMostPopular(@Param('id') id: string) {
+		return this.productService.getMostPopular()
 	}
 
 	@Get('similar/:id')
@@ -37,8 +45,12 @@ export class ProductController {
 	}
 
 	@Get('by-category/:categorySlug')
-	async getProductsByCategory(@Param('categorySlug') categorySlug: string) {
-		return this.productService.byCategory(categorySlug)
+	async getProductsByCategory(
+		@Param('categorySlug') categorySlug: string,
+		@Query() queryDto: GetProductsByCategoryDto
+	) {
+		queryDto.categorySlug = categorySlug
+		return this.productService.byCategory(queryDto)
 	}
 
 	@UsePipes(new ValidationPipe())

@@ -111,7 +111,6 @@ CREATE TABLE "order" (
     "comment" TEXT DEFAULT '',
     "coupon" TEXT DEFAULT '',
     "total_price" INTEGER NOT NULL,
-    "total_sale_price" INTEGER NOT NULL DEFAULT 0,
     "status" "EnumOrderStatus" NOT NULL DEFAULT 'pending',
     "delivery_method" "EnumDeliveryMethod" NOT NULL DEFAULT 'courier',
     "delivery_price" INTEGER NOT NULL DEFAULT 0,

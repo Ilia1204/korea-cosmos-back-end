@@ -10,20 +10,22 @@ export class StatisticsService {
 	constructor(private prisma: PrismaService) {}
 
 	async getMain() {
+		const totalRevenue = await this.calculateTotalRevenue()
+
 		const ordersCount = await this.prisma.order.count()
 		const reviewsCount = await this.prisma.review.count()
 		const usersCount = await this.prisma.user.count()
 
-		const totalAmount = await this.prisma.order.aggregate({
-			_sum: {
-				totalPrice: true
-			}
-		})
+		const averageRating = await this.calculateAverageRating()
 
 		return [
 			{
 				name: 'Заказы',
 				value: ordersCount
+			},
+			{
+				name: 'Выручка',
+				value: totalRevenue + ' ₽'
 			},
 			{
 				name: 'Отзывы',
@@ -34,10 +36,32 @@ export class StatisticsService {
 				value: usersCount
 			},
 			{
-				name: 'Общая сумма заказов',
-				value: totalAmount._sum.totalPrice || 0
+				name: 'Средний рейтинг',
+				value: averageRating || 0
 			}
 		]
+	}
+
+	private async calculateTotalRevenue() {
+		const orders = await this.prisma.order.findMany({
+			include: { items: true }
+		})
+
+		const totalRevenue = orders.reduce((acc, order) => {
+			const total = order.items.reduce((itemAcc, item) => {
+				return itemAcc + item.price * item.quantity
+			}, 0)
+			return acc + total
+		}, 0)
+
+		return totalRevenue
+	}
+
+	private async calculateAverageRating() {
+		const averageRating = await this.prisma.review.aggregate({
+			_avg: { rating: true }
+		})
+		return averageRating._avg.rating
 	}
 
 	async getNumbers() {

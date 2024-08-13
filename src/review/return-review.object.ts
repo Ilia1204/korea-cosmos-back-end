@@ -6,6 +6,7 @@ export const returnReviewObject: Prisma.ReviewSelect = {
 	images: true,
 	createdAt: true,
 	rating: true,
+	productId: true,
 	user: true
 }
 

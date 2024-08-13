@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client'
 import { hash } from 'argon2'
 import { AuthDto } from 'src/auth/dto/auth.dto'
 import { PrismaService } from 'src/prisma.service'
+import { returnNotificationObject } from './../notifications/return-notification.object'
 import { returnUserObject } from './return-user.object'
 import { UserDto } from './user.dto'
 
@@ -21,6 +22,9 @@ export class UserService {
 			},
 			select: {
 				...returnUserObject,
+				notifications: {
+					select: { ...returnNotificationObject, user: false }
+				},
 				favorites: {
 					select: {
 						id: true,
@@ -153,6 +157,13 @@ export class UserService {
 		})
 	}
 
+	async updatePassword(id: string, password: string) {
+		return this.prisma.user.update({
+			where: { id },
+			data: { password }
+		})
+	}
+
 	async create(dto: AuthDto) {
 		const user = {
 			email: dto.email,
@@ -224,6 +235,25 @@ export class UserService {
 			message: isExists
 				? 'Товар удалён из избранного'
 				: 'Товар добавлен в избранное'
+		}
+	}
+
+	async clearFavorites(userId: string) {
+		const user = await this.getById(userId)
+
+		if (!user) throw new NotFoundException('Пользователь не найден')
+
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: {
+				favorites: {
+					disconnect: user.favorites.map(product => ({ id: product.id }))
+				}
+			}
+		})
+
+		return {
+			message: 'Все товары удалены из избранного'
 		}
 	}
 }

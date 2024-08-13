@@ -35,8 +35,11 @@ export class CategoryController {
 	}
 
 	@Get('by-section/:sectionSlug')
-	async getCategoryBySection(@Param('sectionSlug') sectionSlug: string) {
-		return this.categoryService.getBySection(sectionSlug)
+	async getCategoryBySection(
+		@Param('sectionSlug') sectionSlug: string,
+		@Query('searchTerm') searchTerm?: string
+	) {
+		return this.categoryService.getBySection(sectionSlug, searchTerm)
 	}
 
 	@UsePipes(new ValidationPipe())

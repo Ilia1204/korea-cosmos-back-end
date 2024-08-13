@@ -4,6 +4,7 @@ export const returnPostObject: Prisma.PostSelect = {
 	id: true,
 	title: true,
 	createdAt: true,
+	description: true,
 	slug: true,
 	image: true,
 	countViews: true,
@@ -13,6 +14,5 @@ export const returnPostObject: Prisma.PostSelect = {
 
 export const returnFullestPostObject: Prisma.PostSelect = {
 	...returnPostObject,
-	description: true,
 	isPublic: true
 }

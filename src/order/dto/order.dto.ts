@@ -23,18 +23,16 @@ export class OrderDto {
 	deliveryMethod: EnumDeliveryMethod
 
 	@IsOptional()
-	@IsNumber()
-	deliveryPrice: number
-
-	@IsOptional()
-	@IsEnum(EnumOrderStatus)
+	@IsEnum(EnumOrderStatus, { message: 'Статус заказа обязателен' })
 	status: EnumOrderStatus
 
-	@IsArray()
+	@IsArray({ message: 'В заказе нет ни одного товара' })
 	@ValidateNested({ each: true })
 	@Type(() => OrderItemDto)
 	items: OrderItemDto[]
 }
+
+export type UpdateOrderDto = Pick<OrderDto, 'status'>
 
 export class OrderItemDto {
 	@IsNumber()

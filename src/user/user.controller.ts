@@ -30,6 +30,13 @@ export class UserController {
 		return this.userService.toggleFavorite(id, productId)
 	}
 
+	@HttpCode(200)
+	@Auth()
+	@Delete('profile/favorites')
+	async clearFavorites(@CurrentUser('id') id: string) {
+		return this.userService.clearFavorites(id)
+	}
+
 	@Get('profile')
 	@Auth()
 	async getProfile(@CurrentUser('id') id: string) {

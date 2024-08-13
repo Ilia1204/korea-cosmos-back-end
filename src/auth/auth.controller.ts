@@ -1,6 +1,7 @@
 import {
 	Body,
 	Controller,
+	Get,
 	HttpCode,
 	Post,
 	Req,
@@ -68,5 +69,20 @@ export class AuthController {
 	async logout(@Res({ passthrough: true }) res: Response) {
 		this.authService.removeRefreshTokenFromResponse(res)
 		return true
+	}
+
+	@HttpCode(200)
+	@Get('forgot-password')
+	async forgotPassword() {
+		await this.authService.sendMail()
+	}
+
+	@HttpCode(200)
+	@Post('reset-password')
+	async resetPassword(
+		@Body('token') token: string,
+		@Body('newPassword') newPassword: string
+	) {
+		await this.authService.resetPassword(token, newPassword)
 	}
 }

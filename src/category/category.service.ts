@@ -26,22 +26,29 @@ export class CategoryService {
 		})
 	}
 
-	async getBySection(sectionSlug: string) {
-		const categories = await this.prisma.category.findMany({
+	async getBySection(sectionSlug: string, searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm, sectionSlug)
+
+		return await this.prisma.category.findMany({
 			where: {
 				section: {
 					slug: sectionSlug
 				}
 			},
+			orderBy: [
+				{
+					name: 'asc'
+				},
+				{
+					createdAt: 'asc'
+				}
+			],
 			select: returnCategoryObject
 		})
-
-		return categories
 	}
 
 	async getSimilar(id: string) {
 		const currentCategory = await this.getById(id)
-
 		if (!currentCategory)
 			throw new NotFoundException('Текущая категория не найдена')
 
@@ -57,7 +64,14 @@ export class CategoryService {
 			orderBy: {
 				createdAt: 'desc'
 			},
-			select: returnCategoryObject
+			select: {
+				...returnCategoryObject,
+				products: {
+					select: {
+						images: true
+					}
+				}
+			}
 		})
 
 		return categories
@@ -71,9 +85,14 @@ export class CategoryService {
 		})
 	}
 
-	private async search(searchTerm: string) {
-		return this.prisma.category.findMany({
+	private async search(searchTerm: string, sectionSlug?: string) {
+		if (!searchTerm) return this.getBySection(sectionSlug)
+
+		return await this.prisma.category.findMany({
 			where: {
+				section: {
+					slug: sectionSlug
+				},
 				OR: [
 					{
 						name: {
@@ -100,6 +119,14 @@ export class CategoryService {
 						}
 					}
 				]
+			},
+			select: {
+				...returnCategoryObject,
+				products: {
+					select: {
+						images: true
+					}
+				}
 			}
 		})
 	}
@@ -138,7 +165,6 @@ export class CategoryService {
 
 	async delete(id: string) {
 		const category = await this.getById(id)
-
 		if (!category) throw new NotFoundException('Категория не найдена')
 
 		return this.prisma.category.delete({

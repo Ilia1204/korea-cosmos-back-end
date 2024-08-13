@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsDateString, IsOptional, IsString } from 'class-validator'
 
 export class PostDto {
 	@IsString()
@@ -15,6 +15,10 @@ export class PostDto {
 	@IsBoolean()
 	@IsOptional()
 	isPublic?: boolean
+
+	@IsOptional()
+	@IsDateString()
+	createdAt: string
 }
 
 export type UpdatePostDto = Partial<PostDto>

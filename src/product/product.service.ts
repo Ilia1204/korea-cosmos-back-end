@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import { CategoryService } from 'src/category/category.service'
 import { LabelProductService } from 'src/label-product/label-product.service'
+import { NotificationsService } from 'src/notifications/notifications.service'
 import { PaginationService } from 'src/pagination/pagination.service'
 import { PrismaService } from 'src/prisma.service'
 import { returnReviewObject } from 'src/review/return-review.object'
 import { convertToNumber } from 'src/utils/convert-to-number'
 import { generateSlug } from 'src/utils/generate-slug'
-import { EnumProductSort, GetAllProductDto } from './dto/get-all-product.dto'
+import {
+	EnumProductSort,
+	GetAllProductDto,
+	GetProductsByCategoryDto
+} from './dto/get-all-product.dto'
 import { UpdateProductDto } from './dto/product.dto'
 import {
 	returnFullestProductObject,
@@ -18,14 +22,13 @@ import {
 export class ProductService {
 	constructor(
 		private readonly prisma: PrismaService,
-		private readonly categoryService: CategoryService,
 		private readonly labelProductService: LabelProductService,
-		private paginationService: PaginationService
+		private paginationService: PaginationService,
+		private notificationsService: NotificationsService
 	) {}
 
 	async getAll(dto: GetAllProductDto = {}) {
 		const { perPage, skip } = this.paginationService.getPagination(dto)
-
 		const filters = this.createFilter(dto)
 
 		const products = await this.prisma.product.findMany({
@@ -77,7 +80,11 @@ export class ProductService {
 			case EnumProductSort.HIGH_PRICE:
 				return [{ price: 'desc' }]
 			case EnumProductSort.OLDEST:
-				return [{ createdAt: 'asc' }]
+				return [{ createdAt: 'desc' }]
+			case EnumProductSort.NEWEST:
+				return [{ inStock: 'desc' }, { createdAt: 'asc' }]
+			case EnumProductSort.POPULAR:
+				return [{ countOpened: 'desc' }]
 			default:
 				return [{ createdAt: 'desc' }, { inStock: 'asc' }]
 		}
@@ -158,9 +165,7 @@ export class ProductService {
 			}
 		}
 
-		return {
-			price: priceFilter
-		}
+		return { price: priceFilter }
 	}
 
 	private getCategoryFilter(categoryIds: string[]): Prisma.ProductWhereInput {
@@ -177,9 +182,7 @@ export class ProductService {
 
 	byId(id: string) {
 		return this.prisma.product.findUnique({
-			where: {
-				id
-			},
+			where: { id },
 			select: returnFullestProductObject
 		})
 	}
@@ -187,11 +190,21 @@ export class ProductService {
 	updateCountOpened(slug: string) {
 		return this.prisma.product.update({
 			where: { slug },
-			data: {
-				countOpened: {
-					increment: 1
-				}
-			}
+			data: { countOpened: { increment: 1 } }
+		})
+	}
+
+	updateOrdersCount(productId: string) {
+		return this.prisma.product.update({
+			where: { id: productId },
+			data: { ordersCount: { increment: 1 } }
+		})
+	}
+
+	async updateReviewsCount(productId: string) {
+		return this.prisma.product.update({
+			where: { id: productId },
+			data: { countReviews: { increment: 1 } }
 		})
 	}
 
@@ -219,22 +232,144 @@ export class ProductService {
 		})
 	}
 
-	async byCategory(categorySlug: string) {
-		return await this.prisma.product.findMany({
-			where: {
-				categories: {
+	async byCategory(dto: GetProductsByCategoryDto) {
+		const { categorySlug, sort, searchTerm, minPrice, maxPrice, ratings } = dto
+		const filters: Prisma.ProductWhereInput[] = []
+
+		if (searchTerm)
+			filters.push({
+				OR: [
+					{ name: { contains: searchTerm, mode: 'insensitive' } },
+					{ description: { contains: searchTerm, mode: 'insensitive' } }
+				]
+			})
+
+		if (minPrice || maxPrice) {
+			const priceFilter: Prisma.IntFilter = {}
+			if (minPrice) priceFilter.gte = Number(minPrice)
+			if (maxPrice) priceFilter.lte = Number(maxPrice)
+			filters.push({ price: priceFilter })
+		}
+
+		if (ratings)
+			filters.push({
+				reviews: {
 					some: {
-						slug: categorySlug
+						rating: { in: ratings.split('|').map(Number) }
 					}
 				}
-			},
-			select: returnProductObject
+			})
+
+		filters.push({
+			categories: {
+				some: {
+					slug: categorySlug
+				}
+			}
 		})
+
+		const productsWithReviews = []
+		const productsWithoutReviews = []
+
+		if (sort === EnumProductSort.MOST_REVIEWED) {
+			const mostReviewedProducts = await this.prisma.review.groupBy({
+				by: ['productId'],
+				_count: {
+					id: true
+				},
+				orderBy: {
+					_count: {
+						id: 'desc'
+					}
+				}
+			})
+
+			const productIds = mostReviewedProducts.map(item => item.productId)
+
+			if (productIds.length > 0) {
+				productsWithReviews.push(
+					...(await this.prisma.product.findMany({
+						where: {
+							AND: [
+								...filters,
+								{
+									id: {
+										in: productIds
+									}
+								}
+							]
+						},
+						select: {
+							...returnProductObject,
+							description: false,
+							composition: false
+						},
+						orderBy: [{ inStock: 'desc' }, { createdAt: 'asc' }]
+					}))
+				)
+			}
+
+			productsWithoutReviews.push(
+				...(await this.prisma.product.findMany({
+					where: {
+						AND: [
+							...filters,
+							{
+								id: {
+									notIn: productIds
+								}
+							}
+						]
+					},
+					select: {
+						...returnProductObject,
+						description: false,
+						composition: false
+					},
+					orderBy: [{ inStock: 'desc' }, { createdAt: 'asc' }]
+				}))
+			)
+
+			return [...productsWithReviews, ...productsWithoutReviews]
+		} else {
+			const orderBy = this.getSortOption(sort)
+
+			return await this.prisma.product.findMany({
+				where: filters.length ? { AND: filters } : {},
+				select: {
+					...returnProductObject,
+					description: false,
+					composition: false
+				},
+				orderBy
+			})
+		}
+	}
+
+	async getMostPopular() {
+		const mostPopularProducts = await this.prisma.orderItem.groupBy({
+			where: {},
+			by: ['productId'],
+			_count: { id: true },
+			orderBy: {
+				_count: {
+					id: 'desc'
+				}
+			}
+		})
+
+		const productIds = mostPopularProducts.map(item => item.productId)
+
+		const products = await this.prisma.product.findMany({
+			where: { id: { in: productIds } },
+			include: { categories: true }
+		})
+
+		return products
 	}
 
 	async getSimilar(id: string) {
 		const currentProduct = await this.byId(id)
-
 		if (!currentProduct)
 			throw new NotFoundException('Текущий продукт не найден')
 
@@ -247,13 +382,17 @@ export class ProductService {
 						}
 					}
 				},
-				NOT: {
-					id: currentProduct.id
-				}
+				NOT: [
+					{
+						id: currentProduct.id
+					},
+					{
+						inStock: false
+					}
+				]
 			},
-			orderBy: {
-				createdAt: 'desc'
-			},
+			take: 6,
+			orderBy: { createdAt: 'desc' },
 			select: returnProductObject
 		})
 
@@ -274,9 +413,7 @@ export class ProductService {
 				ordersCount: 0,
 				inStock: true,
 				newPrice: 0,
-				categories: {
-					connect: []
-				},
+				categories: { connect: [] },
 				userId
 			}
 		})
@@ -284,16 +421,17 @@ export class ProductService {
 
 	async updateProductRating(productId: string, newRating: number) {
 		await this.prisma.product.update({
-			where: {
-				id: productId
-			},
-			data: {
-				rating: newRating
-			}
+			where: { id: productId },
+			data: { rating: newRating }
 		})
 	}
 
 	async update(id: string, dto: UpdateProductDto) {
+		const currentProduct = await this.prisma.product.findUnique({
+			where: { id }
+		})
+		if (!currentProduct) throw new NotFoundException('Товар не найден')
+
 		let labelProductConnect = {}
 		if (dto.labelProductId) {
 			const labelProduct = await this.labelProductService.getById(
@@ -304,10 +442,11 @@ export class ProductService {
 			labelProductConnect = { connect: { id: dto.labelProductId } }
 		}
 
-		return this.prisma.product.update({
-			where: {
-				id
-			},
+		const isStockUpdated =
+			currentProduct.inStock === false && dto.inStock === true
+
+		const product = await this.prisma.product.update({
+			where: { id },
 			data: {
 				name: dto.name,
 				slug: generateSlug(dto.name),
@@ -330,11 +469,15 @@ export class ProductService {
 				labelProduct: labelProductConnect
 			}
 		})
+
+		if (isStockUpdated)
+			await this.notificationsService.notifyUsersAboutProductInStock(id)
+
+		return product
 	}
 
 	async delete(id: string) {
 		const product = await this.byId(id)
-
 		if (!product) throw new NotFoundException('Товар не найден')
 
 		await Promise.all(
@@ -343,8 +486,6 @@ export class ProductService {
 			)
 		)
 
-		return this.prisma.product.delete({
-			where: { id }
-		})
+		return this.prisma.product.delete({ where: { id } })
 	}
 }

@@ -31,7 +31,7 @@ export class SectionService {
 	}
 
 	private async search(searchTerm: string) {
-		return this.prisma.section.findMany({
+		return await this.prisma.section.findMany({
 			where: {
 				OR: [
 					{
@@ -51,7 +51,8 @@ export class SectionService {
 						}
 					}
 				]
-			}
+			},
+			select: returnSectionObject
 		})
 	}
 

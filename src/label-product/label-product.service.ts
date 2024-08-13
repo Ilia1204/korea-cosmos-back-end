@@ -22,9 +22,34 @@ export class LabelProductService {
 		})
 	}
 
-	async getAll() {
-		return this.prisma.labelProduct.findMany({
+	async getAll(searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm)
+
+		return await this.prisma.labelProduct.findMany({
 			select: returnLabelProductObject
+		})
+	}
+
+	private async search(searchTerm?: string) {
+		return await this.prisma.labelProduct.findMany({
+			where: {
+				OR: [
+					{
+						name: {
+							contains: searchTerm,
+							mode: 'insensitive'
+						},
+						products: {
+							some: {
+								name: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								}
+							}
+						}
+					}
+				]
+			}
 		})
 	}
 

@@ -8,6 +8,7 @@ import {
 	Patch,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -15,21 +16,20 @@ import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { UpdatePostDto } from './post.dto'
 import { PostService } from './post.service'
-import { returnFullestPostObject } from './return-post.object'
 
 @Controller('posts')
 export class PostController {
 	constructor(private readonly postService: PostService) {}
 
-	@Get()
-	async getAll() {
-		return this.postService.getPosts()
+	@Get('published')
+	async getPublishedPosts() {
+		return this.postService.getPublishedPosts()
 	}
 
-	@Get('unpublished')
+	@Get()
 	@Auth('admin')
-	async getUnpublished() {
-		return this.postService.getPosts(false, returnFullestPostObject)
+	async getAllPosts(@Query('searchTerm') searchTerm?: string) {
+		return this.postService.getAllPosts(searchTerm)
 	}
 
 	@Get('by-slug/:slug')
