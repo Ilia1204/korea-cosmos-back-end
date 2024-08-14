@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
 import { PromoCodeDto } from './promocode.dto'
-import { returnPromoCodeObject } from './return-promoCode.object'
+// import { returnPromoCodeObject } from './return-promoCode.object'
 
 @Injectable()
 export class PromoCodeService {
@@ -9,8 +9,8 @@ export class PromoCodeService {
 
 	getById(id: string) {
 		return this.prisma.promoCode.findUnique({
-			where: { id },
-			select: returnPromoCodeObject
+			where: { id }
+			// select: returnPromoCodeObject
 		})
 	}
 
@@ -18,7 +18,7 @@ export class PromoCodeService {
 		if (searchTerm) return this.search(searchTerm)
 
 		return this.prisma.promoCode.findMany({
-			select: returnPromoCodeObject
+			// select: returnPromoCodeObject
 		})
 	}
 
