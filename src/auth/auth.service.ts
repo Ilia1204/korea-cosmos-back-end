@@ -1,4 +1,3 @@
-import { MailerService } from '@nestjs-modules/mailer'
 import {
 	BadRequestException,
 	Injectable,
@@ -8,7 +7,8 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import { hash, verify } from 'argon2'
 import { Response } from 'express'
-import * as nodemailer from 'nodemailer'
+import { EmailService } from 'src/email/email.service'
+import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
 
@@ -20,7 +20,8 @@ export class AuthService {
 	constructor(
 		private jwt: JwtService,
 		private userService: UserService,
-		private readonly mailService: MailerService
+		private prisma: PrismaService,
+		private emailService: EmailService
 	) {}
 
 	async login(dto: AuthDto) {
@@ -117,51 +118,33 @@ export class AuthService {
 		})
 	}
 
-	async sendPasswordResetEmail(email: string) {
-		const user = await this.userService.getByEmail(email)
-		if (!user) throw new NotFoundException('Пользователь не найден')
-
-		const token = this.jwt.sign({ email }, { expiresIn: '1h' })
-
-		const transporter = nodemailer.createTransport({
-			service: 'gmail',
-			auth: {
-				user: 'lower013634@gmail.com',
-				pass: 'Loaf7890'
-			}
+	async resetPassword(email: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { email }
 		})
 
-		const mailOptions = {
-			from: 'lower013634@gmail.com',
-			to: user.email,
-			subject: 'Password Reset',
-			text: `To reset your password, please click the following link: $ergerg/reset-password?token=${token}`
-		}
+		if (!user)
+			throw new NotFoundException('Пользователь с таким email не найден')
 
-		await transporter.sendMail(mailOptions)
-	}
-
-	async sendMail() {
-		const message = `Forgot your password? If you didn't forget your password, please ignore this email!`
-
-		this.mailService.sendMail({
-			from: 'demomailtrap.com',
-			to: 'non62526@gmail.com',
-			subject: `How to Send Emails with Nodemailer`,
-			text: message
-		})
-	}
-
-	async resetPassword(token: string, newPassword: string) {
-		const decoded = this.jwt.verify(token)
-		const user = await this.userService.getByEmail(decoded.email)
-
-		if (!user) {
-			throw new UnauthorizedException('Invalid or expired token')
-		}
-
+		const newPassword = this.generateRandomPassword()
 		const hashedPassword = await hash(newPassword)
 
-		await this.userService.updatePassword(user.id, hashedPassword)
+		await this.prisma.user.update({
+			where: { email },
+			data: { password: hashedPassword }
+		})
+
+		await this.emailService.sendPasswordResetEmail(user.email, newPassword)
+	}
+
+	generateRandomPassword(length = 8) {
+		const chars =
+			'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+		let password = ''
+		for (let i = 0; i < length; i++) {
+			const randomIndex = Math.floor(Math.random() * chars.length)
+			password += chars[randomIndex]
+		}
+		return password
 	}
 }

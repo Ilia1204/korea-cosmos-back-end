@@ -18,11 +18,27 @@ model User {
 
   pushToken String? @default("") @map("push_token")
 
-  name               String? @default("")
-  surname            String? @default("")
-  avatarPath         String? @default("/uploads/default/default-avatar.png") @map("avatar_path")
-  phone              String? @default("")
-  resetPasswordCount Int     @default(0) @map("reset_password_count")
+  name               String?   @default("")
+  surname            String?   @default("")
+  dateOfBirth        DateTime? @map("date_of_birth")
+  avatarPath         String?   @default("/uploads/default/default-avatar.png") @map("avatar_path")
+  phone              String?   @default("")
+  resetPasswordCount Int       @default(0) @map("reset_password_count")
+
+  addresses            Address[]
+  orders               Order[]
+  favorites            Product[]
+  reviews              Review[]
+  notifications        Notification[]
+  productSubscriptions ProductSubscriptions[]
+
+  @@map("user")
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   region    String @default("")
   city      String @default("")
@@ -31,12 +47,30 @@ model User {
   house     String @default("")
   apartment String @default("")
 
-  orders        Order[]
-  favorites     Product[]
-  reviews       Review[]
-  notifications Notification[]
+  comment   String?  @default("")
+  isDefault Boolean? @default(true) @map("is_default")
 
-  @@map("user")
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String? @map("user_id")
+
+  orders Order[]
+
+  @@map("address")
+}
+
+model ProductSubscriptions {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  productId  String  @map("product_id")
+  isNotified Boolean @map("is_notified")
+
+  @@unique([userId, productId])
+  @@map("product_subscriptions")
 }
 
 model LabelProduct {
@@ -83,6 +117,7 @@ model Product {
   composition String?  @default("")
   rating      Float    @default(0.0)
   weight      Int?     @default(0)
+  url         String?  @default("")
 
   price    Int? @default(0)
   newPrice Int  @default(0) @map("new_price")
@@ -97,15 +132,28 @@ model Product {
   labelProductId String?       @map("label_product_id")
   labelProduct   LabelProduct? @relation(fields: [labelProductId], references: [id])
 
-  categories Category[]
-
-  reviews    Review[]
-  orderItems OrderItem[]
+  productDetails ProductDetails[]
+  categories     Category[]
+  reviews        Review[]
+  orderItems     OrderItem[]
 
   user   User?   @relation(fields: [userId], references: [id])
-  userId String? @map("user_id")
+  userId String?
 
   @@map("product")
+}
+
+model ProductDetails {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  name   String   @unique
+  values String[] @default([])
+
+  product Product[]
+
+  @@map("product_details")
 }
 
 model Category {
@@ -152,6 +200,9 @@ model Order {
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @map("user_id")
+
+  address   Address @relation(fields: [addressId], references: [id])
+  addressId String  @map("address_id")
 
   items OrderItem[]
 
@@ -231,9 +282,10 @@ model Notification {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  title String
-  body  String
-  data  Json?
+  title  String
+  body   String
+  data   Json?
+  isRead Boolean? @default(false) @map("is_read")
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @map("user_id")
@@ -247,6 +299,7 @@ enum EnumOrderStatus {
   shipped
   delivered
   cancelled
+  ready_to_receive
 }
 
 enum EnumBannerType {
@@ -259,5 +312,7 @@ enum EnumBannerType {
 
 enum EnumDeliveryMethod {
   courier
-  mail
+  russian_post
+  pickup
+  sdec
 }

@@ -23,6 +23,13 @@ export class OrderDto {
 	deliveryMethod: EnumDeliveryMethod
 
 	@IsOptional()
+	@IsNumber()
+	deliveryPrice: number
+
+	@IsString()
+	addressId: string
+
+	@IsOptional()
 	@IsEnum(EnumOrderStatus, { message: 'Статус заказа обязателен' })
 	status: EnumOrderStatus
 

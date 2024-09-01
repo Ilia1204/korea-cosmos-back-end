@@ -76,11 +76,7 @@ export class UserService {
 				...returnUserObject,
 				avatarPath: false,
 				resetPasswordCount: false,
-				region: false,
-				street: false,
-				house: false,
-				apartment: false,
-				postCode: false
+				addresses: false
 			},
 			orderBy: {
 				createdAt: 'desc'
@@ -111,43 +107,37 @@ export class UserService {
 						}
 					},
 					{
-						region: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						city: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						street: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						house: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						apartment: {
-							contains: searchTerm,
-							mode: 'insensitive'
+						addresses: {
+							some: {
+								region: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								},
+								city: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								},
+								street: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								},
+								house: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								},
+								apartment: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								},
+								postCode: {
+									contains: searchTerm,
+									mode: 'insensitive'
+								}
+							}
 						}
 					},
 					{
 						phone: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						postCode: {
 							contains: searchTerm,
 							mode: 'insensitive'
 						}
@@ -177,29 +167,24 @@ export class UserService {
 
 	async update(id: string, dto: UserDto) {
 		const isSameUser = await this.prisma.user.findUnique({
-			where: {
-				email: dto.email
-			}
+			where: { email: dto.email }
 		})
 
 		if (isSameUser && id !== isSameUser.id)
 			throw new BadRequestException('Данный email уже занят')
 
 		let data = dto
+		if (dto.password) data = { ...dto, password: await hash(dto.password) }
 
-		if (dto.password) {
-			data = { ...dto, password: await hash(dto.password) }
-		}
-
-		return this.prisma.user.update({
-			where: {
-				id
+		const updatedUser = await this.prisma.user.update({
+			where: { id },
+			data: {
+				...data
 			},
-			data,
-			select: {
-				...returnUserObject
-			}
+			select: { ...returnUserObject }
 		})
+
+		return updatedUser
 	}
 
 	async delete(id: string) {

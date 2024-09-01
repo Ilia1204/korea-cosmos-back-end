@@ -7,40 +7,14 @@ import {
 	MinLength
 } from 'class-validator'
 
-export class ShippingInfoDto {
+export class UserDto {
+	@IsEmail()
 	@IsOptional()
-	@IsString()
-	region: string
-
-	@IsOptional()
-	@IsString()
-	city: string
-
-	@IsOptional()
-	@IsString()
-	postCode: string
-
-	@IsOptional()
-	@IsString()
-	street: string
-
-	@IsOptional()
-	@IsString()
-	house: string
-
-	@IsOptional()
-	@IsString()
-	apartment: string
+	email: string
 
 	@IsOptional()
 	@IsString()
 	phone: string
-}
-
-export class UserDto extends ShippingInfoDto {
-	@IsEmail()
-	@IsOptional()
-	email: string
 
 	@IsOptional()
 	@IsString()

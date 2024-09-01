@@ -8,10 +8,7 @@ import { returnNotificationObject } from './return-notification.object'
 @Injectable()
 export class NotificationsService {
 	private expo = new Expo()
-
 	constructor(private prisma: PrismaService, private user: UserService) {}
-
-	private static lastRunDate: Date = new Date(0)
 
 	async saveNotification(
 		userId: string,
@@ -116,15 +113,12 @@ export class NotificationsService {
 
 	async getNotificationsForUser(userId: string) {
 		const user = await this.user.getById(userId)
-
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
 		return this.prisma.notification.findMany({
 			where: { userId: user.id },
 			orderBy: { createdAt: 'desc' },
-			select: {
-				...returnNotificationObject
-			}
+			select: { ...returnNotificationObject }
 		})
 	}
 
@@ -133,7 +127,6 @@ export class NotificationsService {
 			where: { id },
 			select: returnNotificationObject
 		})
-
 		if (!notification) throw new NotFoundException('Уведомление не найдено')
 
 		return notification
@@ -144,7 +137,8 @@ export class NotificationsService {
 			where: { id: productId }
 		})
 
-		if (!product || !product.inStock) return
+		if (!product || !product.inStock)
+			throw new NotFoundException('Товар не найден')
 
 		const users = await this.prisma.user.findMany({
 			where: {
@@ -162,67 +156,137 @@ export class NotificationsService {
 					user.id,
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
-					{ productSlug: product.slug }
-				)
-			}, 2000)
-
-			this.saveNotification(
-				user.id,
-				'📦 Товар в наличии!',
-				'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
-				{ productSlug: product.slug }
-			)
-		})
-	}
-
-	@Cron('0 15 * * *')
-	async handleProfileReminder() {
-		const now = new Date()
-
-		if (this.isFiveDaysPassed(NotificationsService.lastRunDate, now)) {
-			const users = await this.prisma.user.findMany({
-				where: {
-					OR: [
-						{ name: '' },
-						{ surname: '' },
-						{ phone: '' },
-						{ region: '' },
-						{ city: '' },
-						{ postCode: '' },
-						{ street: '' },
-						{ house: '' },
-						{ apartment: '' }
-					]
-				}
-			})
-
-			users.forEach(user => {
-				this.sendPushNotificationToUser(
-					user.id,
-					'🙎🏻‍♂️ Заполните свой профиль',
-					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
-					{ editProfileNavigate: 'EditProfile' }
+					{ productSlug: product.slug, isRead: true }
 				)
 
 				this.saveNotification(
 					user.id,
+					'📦 Товар в наличии!',
+					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
+					{ productSlug: product.slug }
+				)
+			}, 2000)
+		})
+	}
+
+	async notifySubscribedUsersAboutStock(productId: string) {
+		const product = await this.prisma.product.findUnique({
+			where: { id: productId }
+		})
+
+		if (!product || !product.inStock)
+			throw new NotFoundException('Товар не найден или не в наличии')
+
+		const subscriptions = await this.prisma.productSubscriptions.findMany({
+			where: {
+				productId,
+				isNotified: false
+			},
+			include: { user: true }
+		})
+
+		subscriptions.forEach(async subscription => {
+			const user = subscription.user
+
+			setTimeout(async () => {
+				await this.sendPushNotificationToUser(
+					user.id,
+					'🎉 Отличная новость — товар снова в наличии!',
+					`То, о чём вы просили уведомить, снова в наличии! Быстрее загляните и не упустите свой шанс!`,
+					{ productSlug: product.slug, isRead: true }
+				)
+
+				await this.saveNotification(
+					user.id,
+					'🎉 Отличная новость — товар снова в наличии!',
+					`То, о чём вы просили уведомить, снова в наличии! Быстрее загляните и не упустите свой шанс!`,
+					{ productSlug: product.slug }
+				)
+			}, 2000)
+
+			await this.prisma.productSubscriptions.update({
+				where: { userId_productId: { userId: user.id, productId } },
+				data: { isNotified: true }
+			})
+		})
+	}
+
+	async markAsRead(notificationId: string) {
+		await this.getById(notificationId)
+
+		await this.prisma.notification.update({
+			where: { id: notificationId },
+			data: { isRead: true }
+		})
+	}
+
+	async subscribeToProductStockNotification(userId: string, productId: string) {
+		const subscriptionExists =
+			await this.prisma.productSubscriptions.findUnique({
+				where: {
+					userId_productId: {
+						userId,
+						productId
+					}
+				}
+			})
+
+		if (!subscriptionExists)
+			await this.prisma.productSubscriptions.create({
+				data: {
+					userId,
+					productId,
+					isNotified: false
+				}
+			})
+	}
+
+	@Cron('0 15 15 * *')
+	async handleProfileReminder() {
+		const users = await this.prisma.user.findMany({
+			where: {
+				OR: [
+					{
+						name: ''
+					},
+					{
+						surname: ''
+					},
+					{
+						addresses: {
+							some: {
+								region: '',
+								city: '',
+								postCode: '',
+								street: '',
+								house: '',
+								apartment: ''
+							}
+						}
+					}
+				]
+			}
+		})
+
+		users.forEach(user => {
+			setTimeout(async () => {
+				const notification = await this.saveNotification(
+					user.id,
 					'🙎🏻‍♂️ Заполните свой профиль',
 					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
 					{ editProfileNavigate: 'EditProfile' }
 				)
-			})
-
-			NotificationsService.lastRunDate = now
-		}
-	}
-
-	private isFiveDaysPassed(lastRunDate: Date, currentDate: Date): boolean {
-		if (!lastRunDate) return true
-
-		const diffTime = Math.abs(currentDate.getTime() - lastRunDate.getTime())
-		const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-		return diffDays >= 5
+				this.sendPushNotificationToUser(
+					user.id,
+					'🙎🏻‍♂️ Заполните свой профиль',
+					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
+					{
+						editProfileNavigate: 'EditProfile',
+						notificationId: notification.id
+					}
+				)
+			}, 2000)
+		})
 	}
 
 	async clearNotifications(userId: string) {
@@ -233,9 +297,7 @@ export class NotificationsService {
 			where: { userId }
 		})
 
-		return {
-			message: 'Все уведомления удалены'
-		}
+		return { message: 'Все уведомления удалены' }
 	}
 
 	async delete(id: string, userId: string) {

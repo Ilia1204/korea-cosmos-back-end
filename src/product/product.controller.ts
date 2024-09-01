@@ -63,6 +63,14 @@ export class ProductController {
 
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
+	@Auth('admin')
+	@Post('apply-discount')
+	async applyDiscount(@Body() dto: { categoryId: string; discount: number }) {
+		return this.productService.applyDiscountToCategory(dto)
+	}
+
+	@UsePipes(new ValidationPipe())
+	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
 	async updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {

@@ -26,7 +26,7 @@ export class LabelProductService {
 		if (searchTerm) return this.search(searchTerm)
 
 		return await this.prisma.labelProduct.findMany({
-			select: returnLabelProductObject
+			select: { ...returnLabelProductObject }
 		})
 	}
 
@@ -35,10 +35,6 @@ export class LabelProductService {
 			where: {
 				OR: [
 					{
-						name: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						},
 						products: {
 							some: {
 								name: {
@@ -64,7 +60,6 @@ export class LabelProductService {
 
 	async update(id: string, dto: LabelProductDto) {
 		const labelProduct = await this.getById(id)
-
 		if (!labelProduct) throw new NotFoundException('Метка не найдена')
 
 		return this.prisma.labelProduct.update({
@@ -78,7 +73,6 @@ export class LabelProductService {
 
 	async delete(id: string) {
 		const labelProduct = await this.getById(id)
-
 		if (!labelProduct) throw new NotFoundException('Метка не найдена')
 
 		return this.prisma.labelProduct.delete({

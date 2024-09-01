@@ -7,6 +7,7 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -19,8 +20,8 @@ export class LabelProductController {
 	constructor(private readonly labelProductService: LabelProductService) {}
 
 	@Get()
-	async getAll() {
-		return this.labelProductService.getAll()
+	async getAll(@Query('searchTerm') searchTerm?: string) {
+		return this.labelProductService.getAll(searchTerm)
 	}
 
 	@Get('by-slug/:slug')

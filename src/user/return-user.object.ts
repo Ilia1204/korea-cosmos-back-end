@@ -11,11 +11,6 @@ export const returnUserObject: Prisma.UserSelect = {
 	avatarPath: true,
 	phone: true,
 	resetPasswordCount: true,
-	region: true,
-	city: true,
 	pushToken: true,
-	postCode: true,
-	street: true,
-	house: true,
-	apartment: true
+	addresses: true
 }

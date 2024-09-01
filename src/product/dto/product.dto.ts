@@ -1,6 +1,7 @@
 import {
 	IsArray,
 	IsBoolean,
+	IsDateString,
 	IsNumber,
 	IsOptional,
 	IsString
@@ -46,6 +47,10 @@ export class ProductDto {
 	@IsOptional()
 	@IsBoolean()
 	inStock: boolean
+
+	@IsOptional()
+	@IsDateString()
+	createdAt: string
 
 	@IsArray()
 	@IsString({ each: true })

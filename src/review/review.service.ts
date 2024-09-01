@@ -121,7 +121,7 @@ export class ReviewService {
 			await this.notificationService.sendPushNotificationToAdmins(
 				'📝 Пользователь оставил отзыв!',
 				`Новый отзыв ожидает публикации`,
-				{ reviewId: review.id }
+				{ reviewId: review.id, isRead: true }
 			)
 		}, 2000)
 
@@ -169,7 +169,7 @@ export class ReviewService {
 					updatedReview.userId,
 					'✅ Отзыв опубликован',
 					'Поздравляем! Ваш отзыв был принят и опубликован!',
-					{ reviewUserId: updatedReview.id }
+					{ reviewUserId: updatedReview.id, isRead: true }
 				)
 			}, 2000)
 
@@ -185,7 +185,7 @@ export class ReviewService {
 					updatedReview.userId,
 					'⛔ Отзыв отклонён',
 					'⛔ Ваш отзыв был отклонён к публикации',
-					{ reviewUserId: updatedReview.id }
+					{ reviewUserId: updatedReview.id, isRead: true }
 				)
 			}, 2000)
 

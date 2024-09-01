@@ -19,6 +19,7 @@ import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
+import { AddressModule } from './address/address.module';
 
 @Module({
 	imports: [
@@ -52,7 +53,8 @@ import { UserModule } from './user/user.module'
 		EmailModule,
 		CarouselModule,
 		PromoCodeModule,
-		NotificationsModule
+		NotificationsModule,
+		AddressModule
 	]
 })
 export class AppModule {}

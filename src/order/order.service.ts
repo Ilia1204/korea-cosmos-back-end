@@ -32,6 +32,7 @@ export class OrderService {
 			where: { id },
 			include: {
 				user: { select: { ...returnUserObject } },
+				address: true,
 				items: {
 					include: {
 						product: {
@@ -76,19 +77,25 @@ export class OrderService {
 			return acc + item.price * item.quantity
 		}, 0)
 
+		const totalPriceWithDelivery = totalPrice + (dto.deliveryPrice || 0)
+
 		const order = await this.prisma.order.create({
-			include: {
-				user: true
-			},
+			include: { user: true },
 			data: {
 				status: dto.status,
 				deliveryMethod: dto.deliveryMethod,
+				deliveryPrice: dto.deliveryPrice,
 				coupon: dto.coupon,
 				comment: dto.comment,
 				items: {
 					create: orderItems
 				},
-				totalPrice,
+				address: {
+					connect: {
+						id: dto.addressId
+					}
+				},
+				totalPrice: totalPriceWithDelivery,
 				user: {
 					connect: {
 						id: userId
@@ -101,13 +108,13 @@ export class OrderService {
 			await this.notificationService.sendPushNotificationToAdmins(
 				'🛍️ Новый заказ',
 				`Пришёл новый заказ с id: #${order.id.slice(0, 6).toUpperCase()}`,
-				{ orderId: order.id }
+				{ orderId: order.id, isRead: true }
 			)
 		}, 2000)
 
 		const payment = await checkout.createPayment({
 			amount: {
-				value: totalPrice.toFixed(2),
+				value: totalPriceWithDelivery.toFixed(2),
 				currency: 'RUB'
 			},
 			payment_method_data: {
@@ -134,6 +141,7 @@ export class OrderService {
 						...returnUserObject
 					}
 				},
+				address: true,
 				items: {
 					include: {
 						product: {
@@ -209,7 +217,7 @@ export class OrderService {
 					order.userId,
 					'💳 Заказ оформлен и оплачен',
 					`Заказ #${orderId.slice(0, 6).toUpperCase()} был успешно оплачен.`,
-					{ orderUserId: orderId, status: order.status }
+					{ orderUserId: orderId, status: order.status, isRead: true }
 				)
 			}, 2000)
 		}
@@ -227,6 +235,7 @@ export class OrderService {
 						...returnUserObject
 					}
 				},
+				address: true,
 				items: {
 					include: {
 						product: {
@@ -292,23 +301,27 @@ export class OrderService {
 				}
 			})
 
-			await this.notificationService.saveNotification(
-				orderUpdated.userId,
-				getOrderStatusIcons(orderUpdated.status),
-				`Заказ #${orderUpdated.id
-					.slice(0, 6)
-					.toUpperCase()} ${getOrderStatusTranslation(orderUpdated.status)}`,
-				{ orderUserId: orderId, status: orderUpdated.status }
-			)
-
 			setTimeout(async () => {
-				await this.notificationService.sendPushNotificationToUser(
+				const notification = await this.notificationService.saveNotification(
 					orderUpdated.userId,
 					getOrderStatusIcons(orderUpdated.status),
 					`Заказ #${orderUpdated.id
 						.slice(0, 6)
 						.toUpperCase()} ${getOrderStatusTranslation(orderUpdated.status)}`,
 					{ orderUserId: orderId, status: orderUpdated.status }
+				)
+
+				await this.notificationService.sendPushNotificationToUser(
+					orderUpdated.userId,
+					getOrderStatusIcons(orderUpdated.status),
+					`Заказ #${orderUpdated.id
+						.slice(0, 6)
+						.toUpperCase()} ${getOrderStatusTranslation(orderUpdated.status)}`,
+					{
+						orderUserId: orderId,
+						status: orderUpdated.status,
+						notification: notification.id
+					}
 				)
 			}, 2000)
 
@@ -323,31 +336,31 @@ export class OrderService {
 
 		const orderUpdated = await this.prisma.order.update({
 			where: { id },
-			include: {
-				user: true
-			},
-			data: {
-				status: dto.status
-			}
+			include: { user: true },
+			data: { status: dto.status }
 		})
 
-		await this.notificationService.saveNotification(
-			orderUpdated.user.id,
-			getOrderStatusIcons(dto.status),
-			`Заказ #${orderUpdated.id
-				.slice(0, 6)
-				.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
-			{ orderUserId: orderUpdated.id, status: orderUpdated.status }
-		)
-
 		setTimeout(async () => {
+			const notification = await this.notificationService.saveNotification(
+				orderUpdated.user.id,
+				getOrderStatusIcons(dto.status),
+				`Заказ #${orderUpdated.id
+					.slice(0, 6)
+					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
+				{ orderUserId: orderUpdated.id, status: orderUpdated.status }
+			)
+
 			await this.notificationService.sendPushNotificationToUser(
 				orderUpdated.userId,
 				`${getOrderStatusIcons(dto.status)}`,
 				`Заказ #${orderUpdated.id
 					.slice(0, 6)
 					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
-				{ orderUserId: orderUpdated.id, status: orderUpdated.status }
+				{
+					orderUserId: orderUpdated.id,
+					status: orderUpdated.status,
+					notification: notification.id
+				}
 			)
 		}, 2000)
 	}

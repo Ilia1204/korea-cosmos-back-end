@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma.service'
 import { returnReviewObject } from 'src/review/return-review.object'
 import { convertToNumber } from 'src/utils/convert-to-number'
 import { generateSlug } from 'src/utils/generate-slug'
+import { ApplyDiscountDto } from './dto/apply-discount.dto'
 import {
 	EnumProductSort,
 	GetAllProductDto,
@@ -382,14 +383,7 @@ export class ProductService {
 						}
 					}
 				},
-				NOT: [
-					{
-						id: currentProduct.id
-					},
-					{
-						inStock: false
-					}
-				]
+				NOT: [{ id: currentProduct.id }, { inStock: false }]
 			},
 			take: 6,
 			orderBy: { createdAt: 'desc' },
@@ -419,6 +413,105 @@ export class ProductService {
 		})
 	}
 
+	async applyDiscountToCategory(dto: ApplyDiscountDto) {
+		const {
+			categoryId,
+			discount,
+			isSentNotification = false,
+			startDate,
+			endDate,
+			title,
+			message
+		} = dto
+
+		const category = await this.prisma.category.findUnique({
+			where: { id: categoryId },
+			include: { section: true }
+		})
+
+		const users = await this.prisma.user.findMany()
+		const products = await this.prisma.product.findMany({
+			where: {
+				categories: {
+					some: { id: categoryId }
+				}
+			}
+		})
+
+		const startDiscount = async () => {
+			const updateProducts = products.map(product => {
+				const discountedPrice = product.price * (1 - discount / 100)
+				const newPrice = Math.ceil(discountedPrice)
+
+				return this.prisma.product.update({
+					where: { id: product.id },
+					data: {
+						discount: discount,
+						newPrice: newPrice
+					}
+				})
+			})
+
+			await Promise.all(updateProducts)
+
+			if (isSentNotification) {
+				users.forEach(user => {
+					setTimeout(() => {
+						this.notificationsService.sendPushNotificationToUser(
+							user.id,
+							title,
+							message,
+							{ categorySlug: category.slug, isRead: true }
+						)
+					}, 2000)
+
+					this.notificationsService.saveNotification(user.id, title, message, {
+						categorySlug: category.slug
+					})
+				})
+			}
+
+			if (endDate) {
+				const timeToEnd = new Date(endDate).getTime() - Date.now()
+				if (timeToEnd > 0) {
+					setTimeout(async () => {
+						await this.resetDiscountForCategory(categoryId)
+					}, timeToEnd)
+				}
+			}
+		}
+
+		if (startDate) {
+			const timeToStart = new Date(startDate).getTime() - Date.now()
+			if (timeToStart > 0) setTimeout(startDiscount, timeToStart)
+			else await startDiscount()
+		} else await startDiscount()
+
+		return products.length
+	}
+
+	async resetDiscountForCategory(categoryId: string) {
+		const products = await this.prisma.product.findMany({
+			where: {
+				categories: {
+					some: { id: categoryId }
+				}
+			}
+		})
+
+		const resetProducts = products.map(product => {
+			return this.prisma.product.update({
+				where: { id: product.id },
+				data: {
+					discount: 0,
+					newPrice: 0
+				}
+			})
+		})
+
+		await Promise.all(resetProducts)
+	}
+
 	async updateProductRating(productId: string, newRating: number) {
 		await this.prisma.product.update({
 			where: { id: productId },
@@ -442,9 +535,6 @@ export class ProductService {
 			labelProductConnect = { connect: { id: dto.labelProductId } }
 		}
 
-		const isStockUpdated =
-			currentProduct.inStock === false && dto.inStock === true
-
 		const product = await this.prisma.product.update({
 			where: { id },
 			data: {
@@ -460,6 +550,7 @@ export class ProductService {
 				discount: dto.discount,
 				isPublic: dto.isPublic,
 				inStock: dto.inStock,
+				createdAt: dto.createdAt,
 				categories: {
 					set: dto.categories.map(categoryId => ({ id: categoryId })),
 					disconnect: dto.categories
@@ -470,8 +561,10 @@ export class ProductService {
 			}
 		})
 
-		if (isStockUpdated)
+		if (!currentProduct.inStock && dto.inStock) {
 			await this.notificationsService.notifyUsersAboutProductInStock(id)
+			await this.notificationsService.notifySubscribedUsersAboutStock(id)
+		}
 
 		return product
 	}

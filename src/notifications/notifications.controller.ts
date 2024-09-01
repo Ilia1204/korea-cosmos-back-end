@@ -5,6 +5,7 @@ import {
 	Get,
 	HttpCode,
 	Param,
+	Patch,
 	Post,
 	UsePipes,
 	ValidationPipe
@@ -17,6 +18,13 @@ import { NotificationsService } from './notifications.service'
 export class NotificationsController {
 	constructor(private readonly notificationsService: NotificationsService) {}
 
+	@HttpCode(200)
+	@Auth()
+	@Patch('mark-as-read/:notificationId')
+	async markAsRead(@Param('notificationId') notificationId: string) {
+		return this.notificationsService.markAsRead(notificationId)
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('save-token')
@@ -26,6 +34,20 @@ export class NotificationsController {
 		@Body() body: { token: string }
 	) {
 		return this.notificationsService.savePushToken(id, body.token)
+	}
+
+	@UsePipes(new ValidationPipe())
+	@HttpCode(200)
+	@Post('subscribe-to-product')
+	@Auth()
+	async subscribeToProductStockNotification(
+		@CurrentUser('id') id: string,
+		@Body() body: { productId: string }
+	) {
+		return this.notificationsService.subscribeToProductStockNotification(
+			id,
+			body.productId
+		)
 	}
 
 	@HttpCode(200)

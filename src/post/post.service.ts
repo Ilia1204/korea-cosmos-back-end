@@ -26,9 +26,7 @@ export class PostService {
 		return this.prisma.post.findMany({
 			where: { isPublic: true },
 			select: returnPostObject,
-			orderBy: {
-				createdAt: 'desc'
-			}
+			orderBy: { createdAt: 'desc' }
 		})
 	}
 
@@ -37,9 +35,7 @@ export class PostService {
 
 		return this.prisma.post.findMany({
 			select: returnFullestPostObject,
-			orderBy: {
-				createdAt: 'desc'
-			}
+			orderBy: { createdAt: 'desc' }
 		})
 	}
 
@@ -83,7 +79,6 @@ export class PostService {
 
 	async update(id: string, dto: UpdatePostDto) {
 		const post = await this.getById(id)
-
 		if (!post) throw new NotFoundException('Пост не найден')
 
 		return this.prisma.post.update({
@@ -101,19 +96,15 @@ export class PostService {
 
 	async delete(id: string) {
 		const post = await this.getById(id)
-
 		if (!post) throw new NotFoundException('Пост не найден')
 
 		return this.prisma.post.delete({
-			where: {
-				id
-			}
+			where: { id }
 		})
 	}
 
 	async toggleLikePost(postId: string, userId: string) {
 		const post = await this.getById(postId)
-
 		if (!post) throw new NotFoundException('Пост не найден')
 
 		const userLiked = post.likesIdsUsers.includes(userId)
@@ -137,9 +128,7 @@ export class PostService {
 		const isLiked = post.likesIdsUsers.includes(userId)
 
 		await this.prisma.post.update({
-			where: {
-				id: post.id
-			},
+			where: { id: post.id },
 			data: {
 				countLikes: {
 					[isLiked ? 'decrement' : 'increment']: 1
@@ -150,8 +139,6 @@ export class PostService {
 			}
 		})
 
-		return {
-			message: isLiked ? 'Пост убран из лайков' : 'Пост лайкнут'
-		}
+		return { message: isLiked ? 'Пост убран из лайков' : 'Пост лайкнут' }
 	}
 }
