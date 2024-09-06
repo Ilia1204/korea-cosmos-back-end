@@ -20,7 +20,7 @@ export class EmailService {
 
 	async sendPasswordResetEmail(email: string, newPassword: string) {
 		const mailOptions = {
-			from: process.env.EMAIL_USERNAME,
+			from: `KoreaCosmos <${process.env.EMAIL_USERNAME}>`,
 			to: email,
 			subject: 'Сброс пароля в KoreaCosmos',
 			html: `

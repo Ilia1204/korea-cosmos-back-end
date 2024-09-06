@@ -73,7 +73,6 @@ export class AuthController {
 	@HttpCode(200)
 	@Post('reset-password')
 	async resetPassword(@Body('email') email: string) {
-		await this.authService.resetPassword(email)
-		return { message: 'Письмо с новым паролем было отправлено на ваш email!' }
+		return this.authService.resetPassword(email)
 	}
 }

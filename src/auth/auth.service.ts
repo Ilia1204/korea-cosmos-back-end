@@ -83,11 +83,9 @@ export class AuthService {
 
 	private async validateUser(dto: AuthDto) {
 		const user = await this.userService.getByEmail(dto.email)
-
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
 		const isValid = await verify(user.password, dto.password)
-
 		if (!isValid) throw new UnauthorizedException('Неправильный пароль')
 
 		return user
@@ -135,6 +133,8 @@ export class AuthService {
 		})
 
 		await this.emailService.sendPasswordResetEmail(user.email, newPassword)
+
+		return { message: 'Письмо с новым паролем было отправлено на ваш email!' }
 	}
 
 	generateRandomPassword(length = 8) {

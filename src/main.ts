@@ -9,7 +9,7 @@ async function bootstrap() {
 	app.use(cookieParser())
 	app.enableCors({
 		origin: ['https://korea-cosmos.serveo.net'],
-		// origin: ['https://ba11-176-116-138-110.ngrok-free.app'],
+		// origin: ['https://247a-176-116-138-110.ngrok-free.app'],
 		// origin: ['http://localhost:3000'],
 		credentials: true,
 		exposedHeaders: 'set-cookie'

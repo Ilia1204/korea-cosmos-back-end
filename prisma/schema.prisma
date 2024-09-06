@@ -31,8 +31,23 @@ model User {
   reviews              Review[]
   notifications        Notification[]
   productSubscriptions ProductSubscriptions[]
+  userLoyalty          UserLoyalty?
 
   @@map("user")
+}
+
+model UserLoyalty {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  totalAmountSpent Int? @default(0) @map("total_amount_spent")
+  currentDiscount  Int? @default(0) @map("current_discount")
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @map("user_id")
+
+  @@map("user_loyalty")
 }
 
 model Address {
@@ -190,19 +205,26 @@ model Order {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  comment    String? @default("")
-  coupon     String? @default("")
-  totalPrice Int     @map("total_price")
+  comment         String? @default("")
+  coupon          String? @default("")
+  totalPrice      Int     @map("total_price")
+  discountApplied Int?    @default(0) @map("discount_applied")
 
   status         EnumOrderStatus    @default(pending)
   deliveryMethod EnumDeliveryMethod @default(courier) @map("delivery_method")
   deliveryPrice  Int                @default(0) @map("delivery_price")
 
+  recipientDetails EnumRecipientDetails? @default(profile_data) @map("recipient_details")
+  recipientName    String?               @default("") @map("recipient_name")
+  recipientSurname String?               @default("") @map("recipient_surname")
+  recipientEmail   String?               @default("") @map("recipient_email")
+  recipientPhone   String?               @default("") @map("recipient_phone")
+
   user   User   @relation(fields: [userId], references: [id])
   userId String @map("user_id")
 
-  address   Address @relation(fields: [addressId], references: [id])
-  addressId String  @map("address_id")
+  address   Address? @relation(fields: [addressId], references: [id])
+  addressId String?  @map("address_id")
 
   items OrderItem[]
 
@@ -300,6 +322,11 @@ enum EnumOrderStatus {
   delivered
   cancelled
   ready_to_receive
+}
+
+enum EnumRecipientDetails {
+  profile_data
+  other_recipient
 }
 
 enum EnumBannerType {

@@ -1,4 +1,8 @@
-import { EnumDeliveryMethod, EnumOrderStatus } from '@prisma/client'
+import {
+	EnumDeliveryMethod,
+	EnumOrderStatus,
+	EnumRecipientDetails
+} from '@prisma/client'
 import { Type } from 'class-transformer'
 import {
 	IsArray,
@@ -26,12 +30,33 @@ export class OrderDto {
 	@IsNumber()
 	deliveryPrice: number
 
+	@IsOptional()
 	@IsString()
 	addressId: string
 
 	@IsOptional()
 	@IsEnum(EnumOrderStatus, { message: 'Статус заказа обязателен' })
 	status: EnumOrderStatus
+
+	@IsOptional()
+	@IsEnum(EnumRecipientDetails)
+	recipientDetails: EnumRecipientDetails
+
+	@IsString()
+	@IsOptional()
+	recipientName: string
+
+	@IsString()
+	@IsOptional()
+	recipientSurname: string
+
+	@IsString()
+	@IsOptional()
+	recipientPhone: string
+
+	@IsString()
+	@IsOptional()
+	recipientEmail: string
 
 	@IsArray({ message: 'В заказе нет ни одного товара' })
 	@ValidateNested({ each: true })

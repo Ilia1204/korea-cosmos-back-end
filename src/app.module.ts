@@ -4,12 +4,14 @@ import { ConfigModule } from '@nestjs/config'
 import { ScheduleModule } from '@nestjs/schedule'
 import { ServeStaticModule } from '@nestjs/serve-static'
 import { path } from 'app-root-path'
+import { AddressModule } from './address/address.module'
 import { AuthModule } from './auth/auth.module'
 import { CarouselModule } from './carousel/carousel.module'
 import { CategoryModule } from './category/category.module'
 import { EmailModule } from './email/email.module'
 import { FileModule } from './file/file.module'
 import { LabelProductModule } from './label-product/label-product.module'
+import { LoyaltyModule } from './loyalty/loyalty.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { OrderModule } from './order/order.module'
 import { PostModule } from './post/post.module'
@@ -19,7 +21,6 @@ import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
-import { AddressModule } from './address/address.module';
 
 @Module({
 	imports: [
@@ -54,7 +55,8 @@ import { AddressModule } from './address/address.module';
 		CarouselModule,
 		PromoCodeModule,
 		NotificationsModule,
-		AddressModule
+		AddressModule,
+		LoyaltyModule
 	]
 })
 export class AppModule {}

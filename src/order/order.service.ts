@@ -63,21 +63,34 @@ export class OrderService {
 	}
 
 	async createPayment(dto: OrderDto, userId: string) {
-		const orderItems = dto.items.map(item => ({
-			quantity: item.quantity,
-			price: item.price,
-			product: {
-				connect: {
-					id: item.productId
+		const orderItems = await Promise.all(
+			dto.items.map(async item => {
+				const product = await this.prisma.product.findUnique({
+					where: { id: item.productId },
+					include: { categories: true }
+				})
+
+				return {
+					quantity: item.quantity,
+					price: item.price,
+					product
 				}
-			}
-		}))
+			})
+		)
 
-		const totalPrice = dto.items.reduce((acc, item) => {
-			return acc + item.price * item.quantity
-		}, 0)
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({
+			where: { userId }
+		})
 
-		const totalPriceWithDelivery = totalPrice + (dto.deliveryPrice || 0)
+		const discount = userLoyalty ? userLoyalty.currentDiscount : 0
+
+		const totalPriceWithDiscount = this.calculateTotalPriceWithDiscount(
+			orderItems,
+			discount
+		)
+
+		const totalPriceWithDelivery =
+			totalPriceWithDiscount + (dto.deliveryPrice || 0)
 
 		const order = await this.prisma.order.create({
 			include: { user: true },
@@ -87,14 +100,28 @@ export class OrderService {
 				deliveryPrice: dto.deliveryPrice,
 				coupon: dto.coupon,
 				comment: dto.comment,
+				recipientDetails: dto.recipientDetails,
+				recipientName: dto.recipientName,
+				recipientSurname: dto.recipientSurname,
+				recipientPhone: dto.recipientPhone,
+				recipientEmail: dto.recipientEmail,
+				discountApplied: discount,
 				items: {
-					create: orderItems
+					create: dto.items.map(item => ({
+						quantity: item.quantity,
+						price: item.price,
+						product: {
+							connect: { id: item.productId }
+						}
+					}))
 				},
-				address: {
-					connect: {
-						id: dto.addressId
+				...(dto.addressId && {
+					address: {
+						connect: {
+							id: dto.addressId
+						}
 					}
-				},
+				}),
 				totalPrice: totalPriceWithDelivery,
 				user: {
 					connect: {
@@ -178,7 +205,13 @@ export class OrderService {
 	async payOrder(orderId: string) {
 		const order = await this.prisma.order.findUnique({
 			where: { id: orderId },
-			select: { totalPrice: true, userId: true, status: true, items: true }
+			select: {
+				totalPrice: true,
+				userId: true,
+				status: true,
+				items: true,
+				deliveryPrice: true
+			}
 		})
 
 		if (!order) throw new NotFoundException('Заказ не найден')
@@ -212,6 +245,26 @@ export class OrderService {
 				await this.productService.updateOrdersCount(item.productId)
 			}
 
+			if (order) {
+				if (order.userId) {
+					await this.prisma.userLoyalty.upsert({
+						where: { userId: order.userId },
+						update: {
+							totalAmountSpent: {
+								increment: order.totalPrice - order.deliveryPrice
+							}
+						},
+						create: {
+							userId: order.userId,
+							totalAmountSpent: order.totalPrice - order.deliveryPrice,
+							currentDiscount: 0
+						}
+					})
+
+					await this.updateUserLoyaltyDiscount(order.userId)
+				}
+			}
+
 			setTimeout(async () => {
 				await this.notificationService.sendPushNotificationToUser(
 					order.userId,
@@ -223,6 +276,38 @@ export class OrderService {
 		}
 
 		return payment
+	}
+
+	private calculateTotalPriceWithDiscount(orderItems, userDiscount) {
+		let totalPriceWithDiscount = 0
+
+		for (const item of orderItems) {
+			const { price, quantity, product } = item
+
+			const isCertificate = product.categories.some(
+				category => category.name === 'Сертификаты'
+			)
+
+			if (isCertificate) {
+				totalPriceWithDiscount += price * quantity
+				continue
+			}
+
+			let applicableDiscount = userDiscount
+
+			const isInDiscountSection = product.categories.some(
+				category => category.section?.slug === 'aktsii-i-skidki'
+			)
+
+			if (isInDiscountSection && product.discount) {
+				applicableDiscount = Math.max(userDiscount, product.discount)
+			}
+
+			const discountedPrice = price * (1 - applicableDiscount / 100)
+			totalPriceWithDiscount += discountedPrice * quantity
+		}
+
+		return Math.ceil(totalPriceWithDiscount)
 	}
 
 	async getByUserId(userId: string) {
@@ -269,6 +354,38 @@ export class OrderService {
 		})
 	}
 
+	async updateUserLoyaltyDiscount(userId: string) {
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({
+			where: { userId }
+		})
+
+		if (!userLoyalty) return
+
+		const { totalAmountSpent } = userLoyalty
+		let newDiscount = 0
+
+		if (totalAmountSpent >= 35000) {
+			newDiscount = 15
+		} else if (totalAmountSpent >= 25000) {
+			newDiscount = 13
+		} else if (totalAmountSpent >= 15000) {
+			newDiscount = 10
+		} else if (totalAmountSpent >= 10000) {
+			newDiscount = 7
+		} else if (totalAmountSpent >= 5000) {
+			newDiscount = 5
+		} else if (totalAmountSpent >= 3000) {
+			newDiscount = 3
+		} else if (totalAmountSpent >= 1) {
+			newDiscount = 1
+		}
+
+		await this.prisma.userLoyalty.update({
+			where: { userId },
+			data: { currentDiscount: newDiscount }
+		})
+	}
+
 	async updateStatus(dto: PaymentStatusDto) {
 		if (dto.event === 'payment.waiting_for_capture') {
 			const capturePayment: ICapturePayment = {
@@ -300,6 +417,27 @@ export class OrderService {
 					status: EnumOrderStatus.payed
 				}
 			})
+
+			if (orderUpdated) {
+				if (orderUpdated.userId) {
+					await this.prisma.userLoyalty.upsert({
+						where: { userId: orderUpdated.userId },
+						update: {
+							totalAmountSpent: {
+								increment: orderUpdated.totalPrice - orderUpdated.deliveryPrice
+							}
+						},
+						create: {
+							userId: orderUpdated.userId,
+							totalAmountSpent:
+								orderUpdated.totalPrice - orderUpdated.deliveryPrice,
+							currentDiscount: 0
+						}
+					})
+
+					await this.updateUserLoyaltyDiscount(orderUpdated.userId)
+				}
+			}
 
 			setTimeout(async () => {
 				const notification = await this.notificationService.saveNotification(
