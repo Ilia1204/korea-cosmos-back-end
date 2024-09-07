@@ -11,7 +11,6 @@ import { CategoryModule } from './category/category.module'
 import { EmailModule } from './email/email.module'
 import { FileModule } from './file/file.module'
 import { LabelProductModule } from './label-product/label-product.module'
-import { LoyaltyModule } from './loyalty/loyalty.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { OrderModule } from './order/order.module'
 import { PostModule } from './post/post.module'
@@ -21,6 +20,7 @@ import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
+import { LoyaltyLevelModule } from './loyalty-level/loyalty-level.module';
 
 @Module({
 	imports: [
@@ -56,7 +56,7 @@ import { UserModule } from './user/user.module'
 		PromoCodeModule,
 		NotificationsModule,
 		AddressModule,
-		LoyaltyModule
+		LoyaltyLevelModule
 	]
 })
 export class AppModule {}

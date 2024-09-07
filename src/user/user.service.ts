@@ -15,13 +15,21 @@ import { UserDto } from './user.dto'
 export class UserService {
 	constructor(private prisma: PrismaService) {}
 
-	getById(id: string, selectObject: Prisma.UserSelect = {}) {
-		return this.prisma.user.findUnique({
+	async getById(id: string, selectObject: Prisma.UserSelect = {}) {
+		const user = await this.prisma.user.findUnique({
 			where: {
 				id
 			},
 			select: {
 				...returnUserObject,
+				userLoyalty: {
+					select: {
+						level: true,
+						currentDiscount: true,
+						createdAt: true,
+						totalAmountSpent: true
+					}
+				},
 				notifications: {
 					select: { ...returnNotificationObject, user: false }
 				},
@@ -58,6 +66,21 @@ export class UserService {
 				...selectObject
 			}
 		})
+
+		const totalAmountSpent = user?.userLoyalty?.totalAmountSpent || 0
+
+		const loyaltyLevels = await this.prisma.loyaltyLevel.findMany({
+			orderBy: { minAmount: 'asc' }
+		})
+
+		const nextLevel = loyaltyLevels.find(
+			level => totalAmountSpent < level.minAmount
+		)
+
+		return {
+			...user,
+			nextLevel: nextLevel || null
+		}
 	}
 
 	getByEmail(email: string) {

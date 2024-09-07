@@ -104,13 +104,8 @@ export class AddressService {
 
 		return this.prisma.$transaction(async prisma => {
 			await prisma.address.updateMany({
-				where: {
-					userId: userId,
-					isDefault: true
-				},
-				data: {
-					isDefault: false
-				}
+				where: { userId: userId, isDefault: true },
+				data: { isDefault: false }
 			})
 
 			return prisma.address.create({
@@ -165,13 +160,8 @@ export class AddressService {
 
 		return this.prisma.$transaction(async prisma => {
 			await prisma.address.updateMany({
-				where: {
-					userId: address.userId,
-					isDefault: true
-				},
-				data: {
-					isDefault: false
-				}
+				where: { userId: address.userId, isDefault: true },
+				data: { isDefault: false }
 			})
 
 			return prisma.address.update({
@@ -209,9 +199,7 @@ export class AddressService {
 	}
 
 	async deleteAllByUser(userId: string) {
-		const addresses = await this.prisma.address.findMany({
-			where: { userId }
-		})
+		const addresses = await this.prisma.address.findMany({ where: { userId } })
 
 		if (!addresses.length)
 			throw new NotFoundException('У вас нет адресов для удаления')

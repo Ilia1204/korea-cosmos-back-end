@@ -12,7 +12,6 @@ export class CarouselService {
 			where: { id },
 			select: returnCarouselObject
 		})
-
 		if (!carousel) throw new NotFoundException('Баннер не найден')
 
 		return carousel

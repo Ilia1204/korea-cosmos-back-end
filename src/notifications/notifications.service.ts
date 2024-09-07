@@ -246,12 +246,8 @@ export class NotificationsService {
 		const users = await this.prisma.user.findMany({
 			where: {
 				OR: [
-					{
-						name: ''
-					},
-					{
-						surname: ''
-					},
+					{ name: '' },
+					{ surname: '' },
 					{
 						addresses: {
 							some: {

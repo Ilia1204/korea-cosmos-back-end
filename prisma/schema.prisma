@@ -44,10 +44,26 @@ model UserLoyalty {
   totalAmountSpent Int? @default(0) @map("total_amount_spent")
   currentDiscount  Int? @default(0) @map("current_discount")
 
+  level   LoyaltyLevel? @relation(fields: [levelId], references: [id])
+  levelId String?       @map("level_id")
+
   user   User   @relation(fields: [userId], references: [id])
   userId String @unique @map("user_id")
 
   @@map("user_loyalty")
+}
+
+model LoyaltyLevel {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name        String
+  discount    Int
+  minAmount   Int           @map("min_amount")
+  userLoyalty UserLoyalty[]
+
+  @@map("loyalty_level")
 }
 
 model Address {

@@ -261,7 +261,7 @@ export class OrderService {
 						}
 					})
 
-					await this.updateUserLoyaltyDiscount(order.userId)
+					await this.updateUserLoyaltyLevel(order.userId)
 				}
 			}
 
@@ -354,36 +354,47 @@ export class OrderService {
 		})
 	}
 
-	async updateUserLoyaltyDiscount(userId: string) {
+	async updateUserLoyaltyLevel(userId: string) {
 		const userLoyalty = await this.prisma.userLoyalty.findUnique({
-			where: { userId }
+			where: { userId },
+			include: { level: true }
 		})
 
 		if (!userLoyalty) return
-
 		const { totalAmountSpent } = userLoyalty
-		let newDiscount = 0
 
-		if (totalAmountSpent >= 35000) {
-			newDiscount = 15
-		} else if (totalAmountSpent >= 25000) {
-			newDiscount = 13
-		} else if (totalAmountSpent >= 15000) {
-			newDiscount = 10
-		} else if (totalAmountSpent >= 10000) {
-			newDiscount = 7
-		} else if (totalAmountSpent >= 5000) {
-			newDiscount = 5
-		} else if (totalAmountSpent >= 3000) {
-			newDiscount = 3
-		} else if (totalAmountSpent >= 1) {
-			newDiscount = 1
-		}
-
-		await this.prisma.userLoyalty.update({
-			where: { userId },
-			data: { currentDiscount: newDiscount }
+		const newLevel = await this.prisma.loyaltyLevel.findFirst({
+			where: {
+				minAmount: { lte: totalAmountSpent }
+			},
+			orderBy: { minAmount: 'desc' }
 		})
+
+		if (newLevel && userLoyalty.levelId !== newLevel.id) {
+			await this.prisma.userLoyalty.update({
+				where: { userId },
+				data: {
+					currentDiscount: newLevel.discount,
+					levelId: newLevel.id
+				}
+			})
+
+			setTimeout(async () => {
+				await this.notificationService.saveNotification(
+					userId,
+					`🌟 Присвоение статуса «${newLevel.name}»`,
+					`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount} %.`,
+					{ discount: newLevel }
+				)
+
+				await this.notificationService.sendPushNotificationToUser(
+					userId,
+					`🌟 Присвоение статуса «${newLevel.name}»`,
+					`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount} %.`,
+					{ discount: newLevel }
+				)
+			}, 10000)
+		}
 	}
 
 	async updateStatus(dto: PaymentStatusDto) {
@@ -435,7 +446,7 @@ export class OrderService {
 						}
 					})
 
-					await this.updateUserLoyaltyDiscount(orderUpdated.userId)
+					await this.updateUserLoyaltyLevel(orderUpdated.userId)
 				}
 			}
 
@@ -507,8 +518,6 @@ export class OrderService {
 		const order = await this.getById(id)
 		if (!order) throw new NotFoundException('Заказ не найден')
 
-		return this.prisma.order.delete({
-			where: { id }
-		})
+		return this.prisma.order.delete({ where: { id } })
 	}
 }

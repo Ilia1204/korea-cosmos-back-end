@@ -167,10 +167,6 @@ export class CategoryService {
 		const category = await this.getById(id)
 		if (!category) throw new NotFoundException('Категория не найдена')
 
-		return this.prisma.category.delete({
-			where: {
-				id
-			}
-		})
+		return this.prisma.category.delete({ where: { id } })
 	}
 }

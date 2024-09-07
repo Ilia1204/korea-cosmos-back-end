@@ -12,6 +12,5 @@ export const returnUserObject: Prisma.UserSelect = {
 	phone: true,
 	resetPasswordCount: true,
 	pushToken: true,
-	addresses: true,
-	userLoyalty: true
+	addresses: true
 }
