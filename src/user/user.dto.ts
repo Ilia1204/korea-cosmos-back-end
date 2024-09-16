@@ -1,5 +1,6 @@
 import {
 	IsBoolean,
+	IsDateString,
 	IsEmail,
 	IsNumber,
 	IsOptional,
@@ -38,6 +39,10 @@ export class UserDto {
 	@IsOptional()
 	@IsString()
 	avatarPath: string
+
+	@IsOptional()
+	@IsDateString()
+	dateOfBirth?: string
 
 	@IsOptional()
 	@IsNumber()

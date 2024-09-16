@@ -131,7 +131,7 @@ export class ReviewService {
 	async getAverageValueByProductId(productId: string) {
 		return this.prisma.review
 			.aggregate({
-				where: { productId },
+				where: { productId, isPublic: true },
 				_avg: { rating: true }
 			})
 			.then(data => data._avg)

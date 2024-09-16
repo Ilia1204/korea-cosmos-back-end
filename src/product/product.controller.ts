@@ -65,7 +65,7 @@ export class ProductController {
 	@HttpCode(200)
 	@Auth('admin')
 	@Post('apply-discount')
-	async applyDiscount(@Body() dto: { categoryId: string; discount: number }) {
+	async applyDiscount(@Body() dto: { categories: string[]; discount: number }) {
 		return this.productService.applyDiscountToCategory(dto)
 	}
 

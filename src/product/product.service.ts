@@ -415,7 +415,7 @@ export class ProductService {
 
 	async applyDiscountToCategory(dto: ApplyDiscountDto) {
 		const {
-			categoryId,
+			categories,
 			discount,
 			isSentNotification = false,
 			startDate,
@@ -424,16 +424,27 @@ export class ProductService {
 			message
 		} = dto
 
-		const category = await this.prisma.category.findUnique({
-			where: { id: categoryId },
-			include: { section: true }
-		})
+		const categoryDetails = await Promise.all(
+			categories.map(async categoryId => {
+				return this.prisma.category.findUnique({
+					where: { id: categoryId },
+					select: { id: true, slug: true }
+				})
+			})
+		)
+
+		const firstCategorySlug =
+			categoryDetails.length > 0 ? categoryDetails[0].slug : ''
 
 		const users = await this.prisma.user.findMany()
 		const products = await this.prisma.product.findMany({
 			where: {
 				categories: {
-					some: { id: categoryId }
+					some: {
+						id: {
+							in: categories
+						}
+					}
 				}
 			}
 		})
@@ -461,23 +472,24 @@ export class ProductService {
 							user.id,
 							title,
 							message,
-							{ categorySlug: category.slug, isRead: true }
+							{ categorySlug: firstCategorySlug, isRead: true }
 						)
 					}, 2000)
 
 					this.notificationsService.saveNotification(user.id, title, message, {
-						categorySlug: category.slug
+						categorySlug: firstCategorySlug
 					})
 				})
 			}
 
 			if (endDate) {
 				const timeToEnd = new Date(endDate).getTime() - Date.now()
-				if (timeToEnd > 0) {
+
+				if (timeToEnd > 0)
 					setTimeout(async () => {
-						await this.resetDiscountForCategory(categoryId)
+						await this.resetDiscountForCategories(categories)
 					}, timeToEnd)
-				}
+				else await this.resetDiscountForCategories(categories)
 			}
 		}
 
@@ -490,11 +502,13 @@ export class ProductService {
 		return products.length
 	}
 
-	async resetDiscountForCategory(categoryId: string) {
+	async resetDiscountForCategories(categories: string[]) {
 		const products = await this.prisma.product.findMany({
 			where: {
 				categories: {
-					some: { id: categoryId }
+					some: {
+						id: { in: categories }
+					}
 				}
 			}
 		})

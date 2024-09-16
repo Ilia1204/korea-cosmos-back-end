@@ -5,7 +5,7 @@ export const returnPromoCodeObject: Prisma.PromoCodeSelect = {
 	code: true,
 	description: true,
 	createdAt: true,
-	category: true,
+	categories: true,
 	discount: true,
 	minOrderSum: true,
 	expiryDate: true,

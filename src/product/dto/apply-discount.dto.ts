@@ -1,4 +1,5 @@
 import {
+	IsArray,
 	IsBoolean,
 	IsDateString,
 	IsNumber,
@@ -7,8 +8,10 @@ import {
 } from 'class-validator'
 
 export class ApplyDiscountDto {
+	@IsArray()
+	@IsString({ each: true })
 	@IsString()
-	categoryId: string
+	categories: string[]
 
 	@IsNumber()
 	discount: number

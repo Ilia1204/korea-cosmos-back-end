@@ -285,7 +285,7 @@ export class OrderService {
 			const { price, quantity, product } = item
 
 			const isCertificate = product.categories.some(
-				category => category.name === 'Сертификаты'
+				category => category.name === 'Подарочные сертификаты'
 			)
 
 			if (isCertificate) {
