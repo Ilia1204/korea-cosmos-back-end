@@ -84,9 +84,20 @@ export class OrderService {
 
 		const discount = userLoyalty ? userLoyalty.currentDiscount : 0
 
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { dateOfBirth: true }
+		})
+
+		const birthdayDiscount = this.calculateBirthdayDiscount(user.dateOfBirth)
+		const applicableDiscount = this.getApplicableDiscount(
+			discount,
+			birthdayDiscount
+		)
+
 		const totalPriceWithDiscount = this.calculateTotalPriceWithDiscount(
 			orderItems,
-			discount
+			applicableDiscount
 		)
 
 		const totalPriceWithDelivery =
@@ -105,7 +116,7 @@ export class OrderService {
 				recipientSurname: dto.recipientSurname,
 				recipientPhone: dto.recipientPhone,
 				recipientEmail: dto.recipientEmail,
-				discountApplied: discount,
+				discountApplied: applicableDiscount,
 				items: {
 					create: dto.items.map(item => ({
 						quantity: item.quantity,
@@ -155,6 +166,26 @@ export class OrderService {
 		})
 
 		return payment
+	}
+
+	calculateBirthdayDiscount(dateOfBirth: Date) {
+		const today = new Date()
+		const birthDate = new Date(dateOfBirth)
+		const daysToBirthday = this.calculateDaysBetween(today, birthDate)
+
+		if (daysToBirthday <= 7 && daysToBirthday >= -7) return 20
+
+		return 0
+	}
+
+	calculateDaysBetween(date1: Date, date2: Date): number {
+		const timeDiff = date2.getTime() - date1.getTime()
+		return Math.ceil(timeDiff / (1000 * 3600 * 24))
+	}
+
+	getApplicableDiscount(loyaltyDiscount: number, birthdayDiscount: number) {
+		if (birthdayDiscount > 0) return birthdayDiscount
+		return loyaltyDiscount
 	}
 
 	async getAll() {
@@ -278,36 +309,23 @@ export class OrderService {
 		return payment
 	}
 
-	private calculateTotalPriceWithDiscount(orderItems, userDiscount) {
-		let totalPriceWithDiscount = 0
-
-		for (const item of orderItems) {
-			const { price, quantity, product } = item
-
-			const isCertificate = product.categories.some(
-				category => category.name === 'Подарочные сертификаты'
+	calculateTotalPriceWithDiscount(orderItems, applicableDiscount) {
+		const total = orderItems.reduce((acc, item) => {
+			const isDiscountedCategory = item.product.categories.some(
+				category =>
+					category.name === 'Скидки' && category.section === 'Акции и скидки'
 			)
 
-			if (isCertificate) {
-				totalPriceWithDiscount += price * quantity
-				continue
+			if (!isDiscountedCategory) {
+				const discountedPrice =
+					item.price - item.price * (applicableDiscount / 100)
+				return acc + discountedPrice * item.quantity
 			}
 
-			let applicableDiscount = userDiscount
+			return acc
+		}, 0)
 
-			const isInDiscountSection = product.categories.some(
-				category => category.section?.slug === 'aktsii-i-skidki'
-			)
-
-			if (isInDiscountSection && product.discount) {
-				applicableDiscount = Math.max(userDiscount, product.discount)
-			}
-
-			const discountedPrice = price * (1 - applicableDiscount / 100)
-			totalPriceWithDiscount += discountedPrice * quantity
-		}
-
-		return Math.ceil(totalPriceWithDiscount)
+		return total
 	}
 
 	async getByUserId(userId: string) {
