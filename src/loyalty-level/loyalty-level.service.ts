@@ -15,6 +15,8 @@ export class LoyaltyLevelService {
 
 		if (!loyaltyLevel)
 			throw new NotFoundException('Уровень лояльности не найден')
+
+		return loyaltyLevel
 	}
 
 	async getAll(searchTerm?: string) {
