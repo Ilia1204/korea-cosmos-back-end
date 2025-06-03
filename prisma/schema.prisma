@@ -20,6 +20,7 @@ model User {
 
   name               String?   @default("")
   surname            String?   @default("")
+  displayName        String?   @default("") @map("display_name")
   dateOfBirth        DateTime? @map("date_of_birth")
   avatarPath         String?   @default("/uploads/default/default-avatar.png") @map("avatar_path")
   phone              String?   @default("")
@@ -27,13 +28,32 @@ model User {
 
   addresses            Address[]
   orders               Order[]
-  favorites            Product[]
+  favoriteIds          String[]               @default([]) @map("favorite_ids")
   reviews              Review[]
+  wooReviews           WooReview[]
   notifications        Notification[]
   productSubscriptions ProductSubscriptions[]
   userLoyalty          UserLoyalty?
+  products             Product[]
+  cartItems            CartItem[]
 
   @@map("user")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  productId String @map("product_id")
+  quantity  Int    @default(1)
+  price     Float
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+
+  @@unique([userId, productId])
+  @@map("cart_item")
 }
 
 model UserLoyalty {
@@ -137,6 +157,24 @@ model Review {
   @@map("review")
 }
 
+model WooReview {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  message      String
+  images       String[]
+  rating       Int      @default(0)
+  isPublic     Boolean  @default(false) @map("is_public")
+  wooProductId Int      @map("woo_product_id")
+  wooReviewId  Int?     @map("woo_review_id")
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
+
+  @@map("woo_review")
+}
+
 model Product {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -167,7 +205,6 @@ model Product {
   productDetails ProductDetails[]
   categories     Category[]
   reviews        Review[]
-  orderItems     OrderItem[]
   promocodes     PromoCode[]
 
   user   User?   @relation(fields: [userId], references: [id])
@@ -246,6 +283,9 @@ model Order {
   address   Address? @relation(fields: [addressId], references: [id])
   addressId String?  @map("address_id")
 
+  invoiceId Int? @unique @map("invoice_id")
+  wcOrderId Int? @map("wc_order_id")
+
   items OrderItem[]
 
   @@map("order")
@@ -256,11 +296,11 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  quantity Int
-  price    Int
-
-  product   Product? @relation(fields: [productId], references: [id])
-  productId String   @map("product_id")
+  quantity     Int
+  price        Int
+  productId    String? @map("product_id")
+  productName  String? @map("product_name")
+  productImage String? @map("product_image")
 
   order   Order?  @relation(fields: [orderId], references: [id])
   orderId String? @map("order_id")

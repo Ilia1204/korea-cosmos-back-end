@@ -20,7 +20,14 @@ import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
-import { LoyaltyLevelModule } from './loyalty-level/loyalty-level.module';
+import { LoyaltyLevelModule } from './loyalty-level/loyalty-level.module'
+import { WooReviewModule } from './woo-review/woo-review.module'
+import { CartModule } from './cart/cart.module'
+import { WebhookModule } from './webhook/webhook.module'
+import { DeliveryModule } from './delivery/delivery.module'
+import { RobokassaModule } from './robokassa/robokassa.module'
+import { RetailCRMSyncModule } from './retailcrm-sync/retailcrm-sync.module'
+import { WooSyncModule } from './woo-sync/woo-sync.module'
 
 @Module({
 	imports: [
@@ -31,11 +38,11 @@ import { LoyaltyLevelModule } from './loyalty-level/loyalty-level.module';
 		}),
 		MailerModule.forRoot({
 			transport: {
-				host: 'sandbox.smtp.mailtrap.io',
-				port: 2525,
+				host: process.env.EMAIL_HOST || 'sandbox.smtp.mailtrap.io',
+				port: parseInt(process.env.EMAIL_PORT || '2525'),
 				auth: {
-					user: '05e6fa309d1f90',
-					pass: 'cf0dc8881bf090'
+					user: process.env.EMAIL_USERNAME,
+					pass: process.env.EMAIL_PASSWORD
 				}
 			}
 		}),
@@ -56,7 +63,14 @@ import { LoyaltyLevelModule } from './loyalty-level/loyalty-level.module';
 		PromoCodeModule,
 		NotificationsModule,
 		AddressModule,
-		LoyaltyLevelModule
+		LoyaltyLevelModule,
+		WooReviewModule,
+		CartModule,
+		WebhookModule,
+		DeliveryModule,
+		RobokassaModule,
+		RetailCRMSyncModule,
+		WooSyncModule
 	]
 })
 export class AppModule {}
