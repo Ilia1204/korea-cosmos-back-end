@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { hash, verify } from 'argon2'
+import axios from 'axios'
 import { Response } from 'express'
+import { AddressService } from 'src/address/address.service'
 import { EmailService } from 'src/email/email.service'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
@@ -21,7 +23,8 @@ export class AuthService {
 		private jwt: JwtService,
 		private userService: UserService,
 		private prisma: PrismaService,
-		private emailService: EmailService
+		private emailService: EmailService,
+		private addressService: AddressService
 	) {}
 
 	async login(dto: AuthDto) {
@@ -41,14 +44,38 @@ export class AuthService {
 		if (oldUser)
 			throw new BadRequestException('Пользователь с такие email уже существует')
 
+		// Проверяем не существует ли уже на WordPress
+		const wpExists = await this.tryWordPressAuth(dto.email, dto.password)
+		if (wpExists) throw new BadRequestException('Этот email уже зарегистрирован. Войдите через кнопку «Войти».')
+
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...user } = await this.userService.create(dto)
+
+		// Создаём аккаунт на WordPress в фоне
+		this.createWordPressAccount(dto.email, dto.password).catch(() => null)
 
 		const tokens = this.issueTokens(user.id)
 
 		return {
 			user,
 			...tokens
+		}
+	}
+
+	private async createWordPressAccount(email: string, password: string) {
+		try {
+			await axios.post(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers`,
+				{ email, password, username: email },
+				{
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+		} catch {
+			// Тихий фейл — аккаунт в мобилке всё равно создан
 		}
 	}
 
@@ -83,12 +110,56 @@ export class AuthService {
 
 	private async validateUser(dto: AuthDto) {
 		const user = await this.userService.getByEmail(dto.email)
+
+		if (user) {
+			const isValid = await verify(user.password, dto.password)
+			if (isValid) {
+				// Синхронизируем профиль и лояльность из WP/RetailCRM при каждом входе
+				this.userService.syncProfileFromWordPress(user.id, dto.email).catch(() => null)
+				if (user.phone)
+					this.userService
+						.syncLoyaltyFromRetailCRM(user.id, user.phone)
+						.catch(() => null)
+				return user
+			}
+		}
+
+		// Пробуем авторизоваться через WordPress
+		const wpData = await this.tryWordPressAuth(dto.email, dto.password)
+
+		if (wpData) {
+			if (user) {
+				await this.userService.updatePassword(user.id, await hash(dto.password))
+				return user
+			}
+			const newUser = await this.userService.createFromWordPress(
+				dto.email,
+				dto.password,
+				wpData.user_display_name
+			)
+			this.addressService
+				.importFromWooCommerce(newUser.id, dto.email)
+				.catch(() => null)
+			return newUser
+		}
+
 		if (!user) throw new NotFoundException('Пользователь не найден')
+		throw new UnauthorizedException('Неправильный пароль')
+	}
 
-		const isValid = await verify(user.password, dto.password)
-		if (!isValid) throw new UnauthorizedException('Неправильный пароль')
-
-		return user
+	private async tryWordPressAuth(
+		email: string,
+		password: string
+	): Promise<{ user_display_name: string; user_email: string } | null> {
+		try {
+			const { data } = await axios.post(
+				`${process.env.WP_URL}/wp-json/jwt-auth/v1/token`,
+				{ username: email, password }
+			)
+			return data
+		} catch {
+			return null
+		}
 	}
 
 	addRefreshTokenToResponse(res: Response, refreshToken: string) {

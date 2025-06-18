@@ -40,7 +40,10 @@ export class UserController {
 	@Get('profile')
 	@Auth()
 	async getProfile(@CurrentUser('id') id: string) {
-		return this.userService.getById(id)
+		const user = await this.userService.getById(id)
+		// Синхронизируем данные с WooCommerce в фоне (WP → App)
+		this.userService.syncProfileFromWordPress(id, user.email).catch(() => null)
+		return user
 	}
 
 	@UsePipes(new ValidationPipe())
@@ -48,7 +51,11 @@ export class UserController {
 	@Put('profile')
 	@Auth()
 	async updateProfile(@CurrentUser('id') id: string, @Body() dto: UserDto) {
-		return this.userService.update(id, dto)
+		const user = await this.userService.getById(id)
+		const updated = await this.userService.update(id, dto)
+		// Синхронизируем изменения в WooCommerce в фоне (App → WP)
+		this.userService.syncProfileToWordPress(user.email, dto).catch(() => null)
+		return updated
 	}
 
 	@Get()

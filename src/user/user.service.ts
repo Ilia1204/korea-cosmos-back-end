@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { hash } from 'argon2'
+import axios from 'axios'
 import { AuthDto } from 'src/auth/dto/auth.dto'
 import { PrismaService } from 'src/prisma.service'
 import { returnNotificationObject } from './../notifications/return-notification.object'
@@ -17,11 +18,10 @@ export class UserService {
 
 	async getById(id: string, selectObject: Prisma.UserSelect = {}) {
 		const user = await this.prisma.user.findUnique({
-			where: {
-				id
-			},
+			where: { id },
 			select: {
 				...returnUserObject,
+				favoriteIds: true,
 				userLoyalty: {
 					select: {
 						level: true,
@@ -33,36 +33,6 @@ export class UserService {
 				notifications: {
 					select: { ...returnNotificationObject, user: false }
 				},
-				favorites: {
-					select: {
-						id: true,
-						name: true,
-						price: true,
-						newPrice: true,
-						images: true,
-						slug: true,
-						discount: true,
-						inStock: true,
-						reviews: {
-							where: {
-								isPublic: true
-							},
-							select: {
-								user: {
-									select: {
-										name: true
-									}
-								}
-							}
-						},
-						labelProduct: {
-							select: {
-								name: true
-							}
-						},
-						rating: true
-					}
-				},
 				...selectObject
 			}
 		})
@@ -73,9 +43,15 @@ export class UserService {
 			orderBy: { minAmount: 'asc' }
 		})
 
-		const nextLevel = loyaltyLevels.find(
-			level => totalAmountSpent < level.minAmount
-		)
+		const currentLevelId = user?.userLoyalty?.levelId
+		const currentLevel = currentLevelId
+			? loyaltyLevels.find(l => l.id === currentLevelId)
+			: null
+
+		const nextLevel = loyaltyLevels.find(level => {
+			if (currentLevel && level.minAmount <= currentLevel.minAmount) return false
+			return level.minAmount > totalAmountSpent
+		})
 
 		return {
 			...user,
@@ -188,6 +164,169 @@ export class UserService {
 		})
 	}
 
+	async createFromWordPress(
+		email: string,
+		password: string,
+		displayName: string
+	) {
+		const wcCustomer = await this.getWooCommerceCustomer(email)
+		const user = await this.prisma.user.create({
+			data: {
+				email,
+				password: await hash(password),
+				displayName: displayName || '',
+				name: wcCustomer?.first_name || '',
+				surname: wcCustomer?.last_name || '',
+				phone: wcCustomer?.billing?.phone || ''
+			}
+		})
+
+		const phone = wcCustomer?.billing?.phone
+		this.syncLoyaltyFromRetailCRM(user.id, phone).catch(() => null)
+
+		return user
+	}
+
+	async syncLoyaltyFromRetailCRM(userId: string, phone?: string) {
+		try {
+			const retailUrl =
+				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
+			const apiKey = process.env.RETAILCRM_API_KEY
+			if (!apiKey || !phone) return
+
+			const params = new URLSearchParams({ limit: '20' })
+			params.append('filter[phoneNumber]', phone.replace(/\D/g, ''))
+
+			const res = await fetch(
+				`${retailUrl}/api/v5/loyalty/accounts?${params}`,
+				{
+					headers: { 'X-API-KEY': apiKey }
+				}
+			)
+			const data = await res.json()
+			const account = data?.loyaltyAccounts?.[0]
+			if (!account) return
+
+			const retailOrdersSum = Math.round(account.ordersSum || 0)
+			const retailLevelName: string | undefined = account.level?.name
+			const retailDiscount: number = account.level?.privilegeSize ?? 0
+			const retailLevelType: string | undefined = account.level?.type
+
+			// Берём максимум между RetailCRM и локальными данными (мобильные заказы)
+			const existing = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+			const localOrdersSum = existing?.totalAmountSpent || 0
+			const ordersSum = Math.max(retailOrdersSum, localOrdersSum)
+
+			// Авто-синхронизируем уровень из RetailCRM в локальную БД
+			let localLevel = retailLevelName
+				? await this.prisma.loyaltyLevel.findFirst({
+						where: { name: retailLevelName }
+					})
+				: null
+
+			if (!localLevel && retailLevelName) {
+				// Уровень не найден — создаём автоматически из данных RetailCRM
+				const minAmount = retailLevelType === 'base' ? 0 : retailOrdersSum
+				localLevel = await this.prisma.loyaltyLevel.create({
+					data: {
+						name: retailLevelName,
+						discount: retailDiscount,
+						minAmount
+					}
+				})
+			} else if (localLevel && localLevel.discount !== retailDiscount) {
+				// Уровень есть, но скидка изменилась в RetailCRM — обновляем
+				localLevel = await this.prisma.loyaltyLevel.update({
+					where: { id: localLevel.id },
+					data: { discount: retailDiscount }
+				})
+			}
+
+			await this.prisma.userLoyalty.upsert({
+				where: { userId },
+				update: {
+					totalAmountSpent: ordersSum,
+					currentDiscount: localLevel?.discount ?? retailDiscount,
+					levelId: localLevel?.id ?? null
+				},
+				create: {
+					userId,
+					totalAmountSpent: ordersSum,
+					currentDiscount: localLevel?.discount ?? retailDiscount,
+					levelId: localLevel?.id ?? null
+				}
+			})
+		} catch {
+			// silent fail
+		}
+	}
+
+	async syncProfileFromWordPress(userId: string, email: string) {
+		const wcCustomer = await this.getWooCommerceCustomer(email)
+		if (!wcCustomer) return
+
+		const firstName = wcCustomer.first_name || ''
+		const lastName = wcCustomer.last_name || ''
+		const displayName =
+			wcCustomer.display_name ||
+			[firstName, lastName].filter(Boolean).join(' ') ||
+			''
+
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: {
+				displayName,
+				name: firstName,
+				surname: lastName,
+				phone: wcCustomer.billing?.phone || ''
+			}
+		})
+	}
+
+	async syncProfileToWordPress(email: string, dto: UserDto) {
+		const wcCustomer = await this.getWooCommerceCustomer(email)
+		if (!wcCustomer) return
+
+		await axios
+			.put(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers/${wcCustomer.id}`,
+				{
+					first_name: dto.name,
+					last_name: dto.surname,
+					display_name: dto.displayName,
+					billing: { phone: dto.phone }
+				},
+				{
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+			.catch(() => null)
+	}
+
+	private async getWooCommerceCustomer(email: string) {
+		const auth = {
+			username: process.env.WC_CONSUMER_KEY,
+			password: process.env.WC_CONSUMER_SECRET
+		}
+		const baseUrl = `${process.env.WP_URL}/wp-json/wc/v3/customers`
+
+		try {
+			const { data } = await axios.get(baseUrl, { params: { email }, auth })
+			if (data[0]) return data[0]
+
+			const { data: allRoles } = await axios.get(baseUrl, {
+				params: { email, role: 'all' },
+				auth
+			})
+			return allRoles[0] || null
+		} catch {
+			return null
+		}
+	}
+
 	async update(id: string, dto: UserDto) {
 		const isSameUser = await this.prisma.user.findUnique({
 			where: { email: dto.email }
@@ -222,18 +361,14 @@ export class UserService {
 		const user = await this.getById(userId)
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
-		const isExists = user.favorites.some(product => product.id === productId)
+		const isExists = user.favoriteIds.includes(productId)
 
 		await this.prisma.user.update({
-			where: {
-				id: user.id
-			},
+			where: { id: user.id },
 			data: {
-				favorites: {
-					[isExists ? 'disconnect' : 'connect']: {
-						id: productId
-					}
-				}
+				favoriteIds: isExists
+					? { set: user.favoriteIds.filter(id => id !== productId) }
+					: { push: productId }
 			}
 		})
 
@@ -252,9 +387,7 @@ export class UserService {
 		await this.prisma.user.update({
 			where: { id: userId },
 			data: {
-				favorites: {
-					disconnect: user.favorites.map(product => ({ id: product.id }))
-				}
+				favoriteIds: { set: [] }
 			}
 		})
 

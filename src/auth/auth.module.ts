@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
+import { AddressService } from 'src/address/address.service'
 import { getJwtConfig } from 'src/config/jwt.config'
 import { PrismaService } from 'src/prisma.service'
 import { UserModule } from 'src/user/user.module'
@@ -26,7 +27,8 @@ import { EmailService } from 'src/email/email.service'
 		JwtStrategy,
 		UserService,
 		PrismaService,
-		EmailService
+		EmailService,
+		AddressService
 	]
 })
 export class AuthModule {}
