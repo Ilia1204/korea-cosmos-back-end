@@ -348,25 +348,7 @@ export class ProductService {
 	}
 
 	async getMostPopular() {
-		const mostPopularProducts = await this.prisma.orderItem.groupBy({
-			where: {},
-			by: ['productId'],
-			_count: { id: true },
-			orderBy: {
-				_count: {
-					id: 'desc'
-				}
-			}
-		})
-
-		const productIds = mostPopularProducts.map(item => item.productId)
-
-		const products = await this.prisma.product.findMany({
-			where: { id: { in: productIds } },
-			include: { categories: true }
-		})
-
-		return products
+		return []
 	}
 
 	async getSimilar(id: string) {
