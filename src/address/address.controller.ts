@@ -46,22 +46,35 @@ export class AddressController {
 	@Auth()
 	@Post()
 	async createAddress(@CurrentUser('id') id: string, @Body() dto: AddressDto) {
-		return this.addressService.create(id, dto)
+		const result = await this.addressService.create(id, dto)
+		this.addressService.syncDefaultToWooCommerce(id).catch(() => null)
+		return result
 	}
 
 	@HttpCode(200)
 	@Auth()
 	@Patch(':id/default')
-	async setDefaultAddress(@Param('id') id: string) {
-		return this.addressService.setDefault(id)
+	async setDefaultAddress(
+		@Param('id') id: string,
+		@CurrentUser('id') userId: string
+	) {
+		const result = await this.addressService.setDefault(id)
+		this.addressService.syncDefaultToWooCommerce(userId).catch(() => null)
+		return result
 	}
 
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth()
-	async updateCategory(@Param('id') id: string, @Body() dto: AddressDto) {
-		return this.addressService.update(id, dto)
+	async updateCategory(
+		@Param('id') id: string,
+		@Body() dto: AddressDto,
+		@CurrentUser('id') userId: string
+	) {
+		const result = await this.addressService.update(id, dto)
+		if (dto.isDefault) this.addressService.syncDefaultToWooCommerce(userId).catch(() => null)
+		return result
 	}
 
 	@HttpCode(200)

@@ -3,6 +3,7 @@ import {
 	Injectable,
 	NotFoundException
 } from '@nestjs/common'
+import axios from 'axios'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
 import { AddressDto } from './address.dto'
@@ -229,5 +230,80 @@ export class AddressService {
 					data: { isDefault: true }
 				})
 		}
+	}
+
+	async importFromWooCommerce(userId: string, email: string) {
+		const existing = await this.prisma.address.findFirst({ where: { userId } })
+		if (existing) return
+
+		try {
+			const { data: customers } = await axios.get(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers`,
+				{
+					params: { email },
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+			const billing = customers?.[0]?.billing
+			if (!billing?.city && !billing?.address_1) return
+
+			await this.prisma.address.create({
+				data: {
+					userId,
+					city: billing.city || '',
+					region: billing.state || '',
+					postCode: billing.postcode || '',
+					street: billing.address_1 || '',
+					apartment: billing.address_2 || '',
+					house: '',
+					isDefault: true
+				}
+			})
+		} catch {}
+	}
+
+	async syncDefaultToWooCommerce(userId: string) {
+		const address = await this.getDefault(userId)
+		if (!address) return
+
+		const user = await this.userService.getById(userId)
+		if (!user?.email) return
+
+		try {
+			const { data: customers } = await axios.get(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers`,
+				{
+					params: { email: user.email },
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+			const customerId = customers?.[0]?.id
+			if (!customerId) return
+
+			await axios.put(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers/${customerId}`,
+				{
+					billing: {
+						address_1: `${address.street} ${address.house}`.trim(),
+						address_2: address.apartment || '',
+						city: address.city,
+						state: address.region,
+						postcode: address.postCode
+					}
+				},
+				{
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+		} catch {}
 	}
 }
