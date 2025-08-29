@@ -77,6 +77,57 @@ export class PostService {
 		})
 	}
 
+	async getWpEngagement(slug: string) {
+		const post = await this.prisma.post.findUnique({ where: { slug } })
+		return {
+			countViews: post?.countViews ?? 0,
+			countLikes: post?.countLikes ?? 0,
+			likesIdsUsers: post?.likesIdsUsers ?? [],
+			id: post?.id ?? null
+		}
+	}
+
+	async incrementWpViews(slug: string) {
+		return this.prisma.post.upsert({
+			where: { slug },
+			update: { countViews: { increment: 1 } },
+			create: {
+				slug,
+				title: slug,
+				image: '',
+				description: '',
+				isPublic: true,
+				countViews: 1
+			}
+		})
+	}
+
+	async toggleWpLike(slug: string, userId: string) {
+		const post = await this.prisma.post.upsert({
+			where: { slug },
+			update: {},
+			create: {
+				slug,
+				title: slug,
+				image: '',
+				description: '',
+				isPublic: true
+			}
+		})
+
+		const liked = post.likesIdsUsers.includes(userId)
+		const updatedLikes = liked
+			? post.likesIdsUsers.filter(id => id !== userId)
+			: [...post.likesIdsUsers, userId]
+
+		await this.prisma.post.update({
+			where: { id: post.id },
+			data: { likesIdsUsers: updatedLikes, countLikes: updatedLikes.length }
+		})
+
+		return { liked: !liked, countLikes: updatedLikes.length }
+	}
+
 	async update(id: string, dto: UpdatePostDto) {
 		const post = await this.getById(id)
 		if (!post) throw new NotFoundException('Пост не найден')

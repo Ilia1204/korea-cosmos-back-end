@@ -26,6 +26,27 @@ export class PostController {
 		return this.postService.getPublishedPosts()
 	}
 
+	@Get('wp/:slug/engagement')
+	async getWpEngagement(@Param('slug') slug: string) {
+		return this.postService.getWpEngagement(slug)
+	}
+
+	@HttpCode(200)
+	@Put('wp/:slug/views')
+	async incrementWpViews(@Param('slug') slug: string) {
+		return this.postService.incrementWpViews(slug)
+	}
+
+	@HttpCode(200)
+	@Auth()
+	@Patch('wp/:slug/like')
+	async toggleWpLike(
+		@Param('slug') slug: string,
+		@CurrentUser('id') userId: string
+	) {
+		return this.postService.toggleWpLike(slug, userId)
+	}
+
 	@Get()
 	@Auth('admin')
 	async getAllPosts(@Query('searchTerm') searchTerm?: string) {
