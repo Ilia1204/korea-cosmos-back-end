@@ -36,6 +36,13 @@ export class NotificationsController {
 		return this.notificationsService.savePushToken(id, body.token)
 	}
 
+	@HttpCode(200)
+	@Delete('token')
+	@Auth()
+	async clearToken(@CurrentUser('id') id: string) {
+		return this.notificationsService.clearPushToken(id)
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('subscribe-to-product')

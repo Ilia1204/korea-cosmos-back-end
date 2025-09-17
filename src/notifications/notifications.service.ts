@@ -142,10 +142,8 @@ export class NotificationsService {
 
 		const users = await this.prisma.user.findMany({
 			where: {
-				favorites: {
-					some: {
-						id: productId
-					}
+				favoriteIds: {
+					has: productId
 				}
 			}
 		})
@@ -312,6 +310,13 @@ export class NotificationsService {
 		return this.prisma.user.update({
 			where: { id: user.id },
 			data: { pushToken: token }
+		})
+	}
+
+	async clearPushToken(id: string) {
+		return this.prisma.user.update({
+			where: { id },
+			data: { pushToken: null }
 		})
 	}
 }
