@@ -13,7 +13,6 @@ import {
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { OrderDto, UpdateOrderDto } from './dto/order.dto'
-import { PaymentStatusDto } from './dto/payment-status.dto'
 import { OrderService } from './order.service'
 
 @Controller('orders')
@@ -48,10 +47,16 @@ export class OrderController {
 		return this.orderService.getByUserId(userId)
 	}
 
-	@HttpCode(200)
-	@Post('status')
-	async updateStatus(@Body() dto: PaymentStatusDto) {
-		return this.orderService.updateStatus(dto)
+	@Get('woocommerce')
+	@Auth()
+	getWooCommerceOrders(@CurrentUser('email') email: string) {
+		return this.orderService.getWooCommerceOrders(email)
+	}
+
+	@Get('woocommerce/:wcId')
+	@Auth()
+	getWooCommerceOrder(@Param('wcId') wcId: string) {
+		return this.orderService.getWooCommerceOrderById(wcId)
 	}
 
 	@Get(':id')

@@ -75,4 +75,12 @@ export class OrderItemDto {
 
 	@IsString()
 	productId: string
+
+	@IsString()
+	@IsOptional()
+	productName?: string
+
+	@IsString()
+	@IsOptional()
+	productImage?: string
 }
