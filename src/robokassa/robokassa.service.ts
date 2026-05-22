@@ -18,7 +18,7 @@ export class RobokassaService {
 			: process.env['ROBOKASSA_PASSWORD2']
 	}
 
-	generatePaymentUrl(invoiceId: number, amount: number, description: string): string {
+	generatePaymentUrl(invoiceId: number, amount: number, description: string, incCurrLabel?: string): string {
 		const outSum = amount.toFixed(2)
 		const sig = this.md5(`${this.login}:${outSum}:${invoiceId}:${this.pass1}`)
 
@@ -30,7 +30,8 @@ export class RobokassaService {
 			SignatureValue: sig,
 			Encoding: 'utf-8',
 			Culture: 'ru',
-			...(this.isTest && { IsTest: '1' })
+			...(this.isTest && { IsTest: '1' }),
+			...(incCurrLabel && { IncCurrLabel: incCurrLabel })
 		})
 
 		return `https://auth.robokassa.ru/Merchant/Index.aspx?${params.toString()}`

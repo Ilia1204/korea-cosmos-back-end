@@ -7,6 +7,7 @@ import {
 	Param,
 	Post,
 	Put,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -41,9 +42,16 @@ export class OrderController {
 		return this.orderService.getAll()
 	}
 
+	@Get('coupon/validate')
+	@Auth()
+	validateCoupon(@Query('code') code: string) {
+		return this.orderService.validateWooCoupon(code)
+	}
+
 	@Get('by-user')
 	@Auth()
-	getByUserId(@CurrentUser('id') userId: string) {
+	async getByUserId(@CurrentUser('id') userId: string) {
+		this.orderService.updateUserLoyaltyLevel(userId).catch(() => null)
 		return this.orderService.getByUserId(userId)
 	}
 

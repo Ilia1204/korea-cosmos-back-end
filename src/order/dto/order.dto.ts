@@ -6,6 +6,7 @@ import {
 import { Type } from 'class-transformer'
 import {
 	IsArray,
+	IsBoolean,
 	IsEnum,
 	IsNumber,
 	IsOptional,
@@ -58,6 +59,10 @@ export class OrderDto {
 	@IsOptional()
 	recipientEmail: string
 
+	@IsBoolean()
+	@IsOptional()
+	podeli?: boolean
+
 	@IsArray({ message: 'В заказе нет ни одного товара' })
 	@ValidateNested({ each: true })
 	@Type(() => OrderItemDto)
@@ -72,6 +77,10 @@ export class OrderItemDto {
 
 	@IsNumber()
 	price: number
+
+	@IsNumber()
+	@IsOptional()
+	originalPrice?: number
 
 	@IsString()
 	productId: string

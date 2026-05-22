@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Res } from '@nestjs/common'
 import { Response } from 'express'
+import { OrderService } from 'src/order/order.service'
 import { PrismaService } from 'src/prisma.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { getOrderStatusIcons, getOrderStatusTranslation } from 'src/utils/translate-status'
@@ -10,7 +11,8 @@ export class RobokassaController {
 	constructor(
 		private readonly robokassa: RobokassaService,
 		private readonly prisma: PrismaService,
-		private readonly notificationService: NotificationsService
+		private readonly notificationService: NotificationsService,
+		private readonly orderService: OrderService
 	) {}
 
 	@Post('result')
@@ -34,47 +36,8 @@ export class RobokassaController {
 			data: { status: 'payed' }
 		})
 
-		if (updated.userId) {
-			const userLoyalty = await this.prisma.userLoyalty.upsert({
-				where: { userId: updated.userId },
-				update: {
-					totalAmountSpent: { increment: updated.totalPrice - updated.deliveryPrice }
-				},
-				create: {
-					userId: updated.userId,
-					totalAmountSpent: updated.totalPrice - updated.deliveryPrice,
-					currentDiscount: 0
-				}
-			})
-
-			// Проверяем достиг ли пользователь нового уровня лояльности
-			const newLevel = await this.prisma.loyaltyLevel.findFirst({
-				where: { minAmount: { lte: userLoyalty.totalAmountSpent } },
-				orderBy: { minAmount: 'desc' }
-			})
-
-			if (newLevel && userLoyalty.levelId !== newLevel.id) {
-				await this.prisma.userLoyalty.update({
-					where: { userId: updated.userId },
-					data: { currentDiscount: newLevel.discount, levelId: newLevel.id }
-				})
-
-				setTimeout(async () => {
-					await this.notificationService.saveNotification(
-						updated.userId,
-						`🌟 Присвоение статуса «${newLevel.name}»`,
-						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
-						{ discount: newLevel }
-					)
-					await this.notificationService.sendPushNotificationToUser(
-						updated.userId,
-						`🌟 Присвоение статуса «${newLevel.name}»`,
-						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
-						{ discount: newLevel }
-					)
-				}, 5000)
-			}
-		}
+		this.orderService.updateWooCommerceStatus(updated.id, 'payed').catch(() => null)
+		this.orderService.updateRetailCRMStatus(updated.id, 'payed').catch(() => null)
 
 		setTimeout(async () => {
 			const notification = await this.notificationService.saveNotification(

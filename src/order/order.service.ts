@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { EnumOrderStatus } from '@prisma/client'
 import { PrismaService } from 'src/prisma.service'
 import { returnUserObject } from './../user/return-user.object'
 import { OrderDto, UpdateOrderDto } from './dto/order.dto'
@@ -49,14 +48,41 @@ export class OrderService {
 		})
 
 		const birthdayDiscount = this.calculateBirthdayDiscount(user.dateOfBirth)
-		const applicableDiscount = this.getApplicableDiscount(discount, birthdayDiscount)
+		const applicableDiscount = this.getApplicableDiscount(
+			discount,
+			birthdayDiscount
+		)
+
+		const couponData = dto.coupon
+			? await this.validateWooCoupon(dto.coupon)
+			: null
 
 		const totalPriceWithDiscount = dto.items.reduce((acc, item) => {
-			const discountedPrice = item.price - item.price * (applicableDiscount / 100)
-			return acc + discountedPrice * item.quantity
+			const originalPrice = item.originalPrice || item.price
+			const saleDiscount =
+				originalPrice > item.price
+					? ((originalPrice - item.price) / originalPrice) * 100
+					: 0
+			const effectiveDiscount = Math.max(applicableDiscount, saleDiscount)
+			const finalPrice = originalPrice * (1 - effectiveDiscount / 100)
+			return acc + finalPrice * item.quantity
 		}, 0)
 
-		const totalPriceWithDelivery = totalPriceWithDiscount + (dto.deliveryPrice || 0)
+		let totalAfterCoupon = totalPriceWithDiscount
+		if (couponData?.valid) {
+			if (couponData.discountType === 'percent') {
+				totalAfterCoupon =
+					totalPriceWithDiscount * (1 - couponData.amount / 100)
+			} else {
+				totalAfterCoupon = Math.max(
+					0,
+					totalPriceWithDiscount - couponData.amount
+				)
+			}
+		}
+
+		const totalPriceWithDelivery =
+			totalAfterCoupon + (dto.deliveryPrice || 0)
 
 		const invoiceId = this.robokassa.generateInvoiceId()
 
@@ -93,7 +119,6 @@ export class OrderService {
 		})
 
 		await this.sendToRetailCRM(order, user, dto.items)
-		this.sendToWooCommerce(order, user, dto.items).catch(() => null)
 
 		setTimeout(async () => {
 			await this.notificationService.sendPushNotificationToAdmins(
@@ -106,10 +131,44 @@ export class OrderService {
 		const paymentUrl = this.robokassa.generatePaymentUrl(
 			invoiceId,
 			totalPriceWithDelivery,
-			`Заказ #${order.id.slice(0, 6).toUpperCase()}`
+			`Заказ #${order.id.slice(0, 6).toUpperCase()}`,
+			dto.podeli ? 'Podeli' : undefined
 		)
 
-		return { confirmation: { confirmation_url: paymentUrl } }
+		return { confirmation: { confirmation_url: paymentUrl }, orderId: order.id }
+	}
+
+	async validateWooCoupon(code: string) {
+		try {
+			const wcAuth = Buffer.from(
+				`${process.env.WC_CONSUMER_KEY}:${process.env.WC_CONSUMER_SECRET}`
+			).toString('base64')
+			const res = await fetch(
+				`${process.env.WP_URL}/wp-json/wc/v3/coupons?code=${encodeURIComponent(code)}`,
+				{ headers: { Authorization: `Basic ${wcAuth}` } }
+			)
+			const data = await res.json()
+			const coupon = data?.[0]
+			if (!coupon) return { valid: false, message: 'Промокод не найден' }
+			if (!coupon.status || coupon.status !== 'publish')
+				return { valid: false, message: 'Промокод неактивен' }
+			if (coupon.date_expires && new Date(coupon.date_expires) < new Date())
+				return { valid: false, message: 'Срок действия промокода истёк' }
+			if (
+				coupon.usage_limit &&
+				coupon.usage_count >= coupon.usage_limit
+			)
+				return { valid: false, message: 'Промокод уже использован' }
+
+			return {
+				valid: true,
+				amount: parseFloat(coupon.amount),
+				discountType: coupon.discount_type === 'percent' ? 'percent' : 'fixed',
+				description: coupon.description || ''
+			}
+		} catch {
+			return { valid: false, message: 'Ошибка проверки промокода' }
+		}
 	}
 
 	private get retailCRMUrl() {
@@ -131,11 +190,16 @@ export class OrderService {
 				body: new URLSearchParams({
 					order: JSON.stringify({
 						externalId: order.id,
-						customer: { email: user.email },
-						firstName: user.name || '',
-						lastName: user.surname || '',
-						phone: user.phone || '',
-						email: user.email || '',
+						channel: 'mobile-app',
+						tags: [{ name: 'Мобильное приложение' }],
+						customer: {
+							externalId: order.userId,
+							email: user.email
+						},
+						firstName: order.recipientDetails === 'other_recipient' ? (order.recipientName || user.name || '') : (user.name || ''),
+						lastName: order.recipientDetails === 'other_recipient' ? (order.recipientSurname || user.surname || '') : (user.surname || ''),
+						phone: order.recipientDetails === 'other_recipient' ? (order.recipientPhone || user.phone || '') : (user.phone || ''),
+						email: order.recipientDetails === 'other_recipient' ? (order.recipientEmail || user.email || '') : (user.email || ''),
 						delivery: {
 							address: {
 								text: [order.address?.city, order.address?.street]
@@ -156,60 +220,9 @@ export class OrderService {
 		}
 	}
 
-	private async sendToWooCommerce(order: any, user: any, items: any[]) {
-		const wcCustomer = await this.getWooCommerceCustomerId(user.email)
-
-		const lineItems = await Promise.all(
-			items.map(async item => {
-				const product = await this.prisma.product.findUnique({
-					where: { id: item.productId },
-					select: { name: true }
-				})
-				return {
-					name: product?.name || 'Товар',
-					quantity: item.quantity,
-					subtotal: String(item.price * item.quantity),
-					total: String(item.price * item.quantity)
-				}
-			})
-		)
-
-		const wcOrder: any = {
-			status: 'pending',
-			currency: 'RUB',
-			meta_data: [{ key: 'mobile_order_id', value: order.id }],
-			line_items: lineItems,
-			billing: {
-				first_name: user.name || '',
-				last_name: user.surname || '',
-				email: user.email || '',
-				phone: user.phone || ''
-			}
-		}
-		if (wcCustomer) wcOrder.customer_id = wcCustomer
-
-		const res = await fetch(`${process.env.WP_URL}/wp-json/wc/v3/orders`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization:
-					'Basic ' +
-					Buffer.from(
-						`${process.env.WC_CONSUMER_KEY}:${process.env.WC_CONSUMER_SECRET}`
-					).toString('base64')
-			},
-			body: JSON.stringify(wcOrder)
-		})
-		const wcCreated = await res.json().catch(() => null)
-		if (wcCreated?.id) {
-			await this.prisma.order.update({
-				where: { id: order.id },
-				data: { wcOrderId: wcCreated.id }
-			})
-		}
-	}
-
-	private async getWooCommerceCustomerId(email: string): Promise<number | null> {
+	private async getWooCommerceCustomerId(
+		email: string
+	): Promise<number | null> {
 		try {
 			const params = new URLSearchParams({ email, role: 'all' })
 			const res = await fetch(
@@ -262,6 +275,8 @@ export class OrderService {
 				number: o.number,
 				status: this.mapWCStatus(o.status),
 				totalPrice: Math.round(parseFloat(o.total)),
+				deliveryPrice: Math.round(parseFloat(o.shipping_total || '0')),
+				deliveryMethod: o.shipping_lines?.[0]?.method_id || null,
 				createdAt: o.date_created,
 				source: 'woocommerce',
 				items: (o.line_items || []).map((li: any) => ({
@@ -269,7 +284,9 @@ export class OrderService {
 					productId: null,
 					quantity: li.quantity,
 					price: Math.round(parseFloat(li.price)),
-					product: { name: li.name, images: [] }
+					productName: li.name,
+					productImage: li.image?.src || '',
+					product: { name: li.name, images: li.image?.src ? [li.image.src] : [] }
 				}))
 			}))
 		} catch {
@@ -292,6 +309,7 @@ export class OrderService {
 
 			const shipping = o.shipping_lines?.[0]
 			const deliveryPrice = Math.round(parseFloat(o.shipping_total || '0'))
+			const trackingNumber = this.extractWcTrackingNumber(o.meta_data)
 
 			return {
 				id: String(o.id),
@@ -303,6 +321,7 @@ export class OrderService {
 				discountApplied: 0,
 				createdAt: o.date_created,
 				source: 'woocommerce',
+				trackingNumber: trackingNumber || '',
 				comment: o.customer_note || '',
 				user: {
 					name: o.billing?.first_name || '',
@@ -315,16 +334,17 @@ export class OrderService {
 							city: o.billing.city || '',
 							street: o.billing.address_1 || '',
 							postCode: o.billing.postcode || '',
-							region: o.billing.city
-								? o.billing.city
-								: o.billing.state || ''
-						}
+							region: o.billing.city ? o.billing.city : o.billing.state || ''
+					  }
 					: null,
 				items: (o.line_items || []).map((li: any) => ({
 					id: String(li.id),
 					quantity: li.quantity,
 					price: Math.round(parseFloat(li.price)),
-					product: { name: li.name, images: li.image?.src ? [li.image.src] : [] }
+					product: {
+						name: li.name,
+						images: li.image?.src ? [li.image.src] : []
+					}
 				}))
 			}
 		} catch {
@@ -332,11 +352,29 @@ export class OrderService {
 		}
 	}
 
+	private extractWcTrackingNumber(metaData: any[]): string | null {
+		if (!Array.isArray(metaData)) return null
+
+		// Advanced Shipment Tracking / WooCommerce Shipment Tracking plugin
+		const trackingItems = metaData.find(
+			m => m.key === '_wc_shipment_tracking_items'
+		)
+		if (trackingItems?.value?.[0]?.tracking_number) {
+			return trackingItems.value[0].tracking_number
+		}
+
+		// Simple meta key fallback
+		const simple = metaData.find(m => m.key === '_tracking_number')
+		if (simple?.value) return String(simple.value)
+
+		return null
+	}
+
 	private mapWCStatus(wcStatus: string): string {
 		const map: Record<string, string> = {
 			pending: 'pending',
 			processing: 'payed',
-			'on-hold': 'payed',
+			'on-hold': 'pending',
 			completed: 'delivered',
 			cancelled: 'cancelled',
 			refunded: 'cancelled',
@@ -350,20 +388,17 @@ export class OrderService {
 		if (!retailStatus) return
 
 		try {
-			await fetch(
-				`${this.retailCRMUrl}/api/v5/orders/${orderId}/edit`,
-				{
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'X-API-KEY': this.retailCRMApiKey
-					},
-					body: new URLSearchParams({
-						by: 'externalId',
-						order: JSON.stringify({ status: retailStatus })
-					}).toString()
-				}
-			)
+			await fetch(`${this.retailCRMUrl}/api/v5/orders/${orderId}/edit`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'X-API-KEY': this.retailCRMApiKey
+				},
+				body: new URLSearchParams({
+					by: 'externalId',
+					order: JSON.stringify({ status: retailStatus })
+				}).toString()
+			})
 		} catch (e) {
 			console.error('RetailCRM status update error:', e)
 		}
@@ -486,14 +521,18 @@ export class OrderService {
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}
 
-	calculateTotalPriceWithDiscount(orderItems: any[], applicableDiscount: number) {
+	calculateTotalPriceWithDiscount(
+		orderItems: any[],
+		applicableDiscount: number
+	) {
 		return orderItems.reduce((acc, item) => {
 			const isDiscountedCategory = item.product.categories.some(
 				(category: any) =>
 					category.name === 'Скидки' && category.section === 'Акции и скидки'
 			)
 			if (!isDiscountedCategory) {
-				const discountedPrice = item.price - item.price * (applicableDiscount / 100)
+				const discountedPrice =
+					item.price - item.price * (applicableDiscount / 100)
 				return acc + discountedPrice * item.quantity
 			}
 			return acc
@@ -562,18 +601,57 @@ export class OrderService {
 
 		this.updateWooCommerceStatus(id, dto.status).catch(() => null)
 
+		if (dto.status === 'delivered' && orderUpdated.userId) {
+			const amountToAdd = order.totalPrice - (order.deliveryPrice || 0)
+			const userLoyalty = await this.prisma.userLoyalty.upsert({
+				where: { userId: orderUpdated.userId },
+				update: { totalAmountSpent: { increment: amountToAdd } },
+				create: { userId: orderUpdated.userId, totalAmountSpent: amountToAdd, currentDiscount: 0 }
+			})
+
+			const newLevel = await this.prisma.loyaltyLevel.findFirst({
+				where: { minAmount: { lte: userLoyalty.totalAmountSpent } },
+				orderBy: { minAmount: 'desc' }
+			})
+
+			if (newLevel && userLoyalty.levelId !== newLevel.id) {
+				await this.prisma.userLoyalty.update({
+					where: { userId: orderUpdated.userId },
+					data: { currentDiscount: newLevel.discount, levelId: newLevel.id }
+				})
+				setTimeout(async () => {
+					await this.notificationService.saveNotification(
+						orderUpdated.userId,
+						`🌟 Присвоение статуса «${newLevel.name}»`,
+						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
+						{ discount: newLevel }
+					)
+					await this.notificationService.sendPushNotificationToUser(
+						orderUpdated.userId,
+						`🌟 Присвоение статуса «${newLevel.name}»`,
+						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
+						{ discount: newLevel }
+					)
+				}, 5000)
+			}
+		}
+
 		setTimeout(async () => {
 			const notification = await this.notificationService.saveNotification(
 				orderUpdated.user.id,
 				getOrderStatusIcons(dto.status),
-				`Заказ #${orderUpdated.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
+				`Заказ #${orderUpdated.id
+					.slice(0, 6)
+					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
 				{ orderUserId: orderUpdated.id, status: orderUpdated.status }
 			)
 
 			await this.notificationService.sendPushNotificationToUser(
 				orderUpdated.userId,
 				`${getOrderStatusIcons(dto.status)}`,
-				`Заказ #${orderUpdated.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
+				`Заказ #${orderUpdated.id
+					.slice(0, 6)
+					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
 				{
 					orderUserId: orderUpdated.id,
 					status: orderUpdated.status,

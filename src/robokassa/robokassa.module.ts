@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { OrderService } from 'src/order/order.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
@@ -7,7 +8,7 @@ import { RobokassaService } from './robokassa.service'
 
 @Module({
 	controllers: [RobokassaController],
-	providers: [RobokassaService, PrismaService, NotificationsService, UserService],
+	providers: [RobokassaService, PrismaService, NotificationsService, UserService, OrderService],
 	exports: [RobokassaService]
 })
 export class RobokassaModule {}
