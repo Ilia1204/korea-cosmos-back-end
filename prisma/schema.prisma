@@ -283,8 +283,9 @@ model Order {
   address   Address? @relation(fields: [addressId], references: [id])
   addressId String?  @map("address_id")
 
-  invoiceId Int? @unique @map("invoice_id")
-  wcOrderId Int? @map("wc_order_id")
+  invoiceId      Int?    @unique @map("invoice_id")
+  wcOrderId      Int?    @map("wc_order_id")
+  trackingNumber String? @default("") @map("tracking_number")
 
   items OrderItem[]
 

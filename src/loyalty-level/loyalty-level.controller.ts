@@ -20,7 +20,7 @@ export class LoyaltyLevelController {
 	constructor(private readonly loyaltyLevelService: LoyaltyLevelService) {}
 
 	@Get()
-	@Auth('admin')
+	@Auth()
 	async getAllLoyaltyLevels(@Query('searchTerm') searchTerm?: string) {
 		return this.loyaltyLevelService.getAll(searchTerm)
 	}

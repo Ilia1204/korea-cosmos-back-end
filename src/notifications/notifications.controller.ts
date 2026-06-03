@@ -25,6 +25,13 @@ export class NotificationsController {
 		return this.notificationsService.markAsRead(notificationId)
 	}
 
+	@HttpCode(200)
+	@Auth()
+	@Patch('mark-all-as-read')
+	async markAllAsRead(@CurrentUser('id') id: string) {
+		return this.notificationsService.markAllAsRead(id)
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('save-token')

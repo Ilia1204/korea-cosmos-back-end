@@ -35,41 +35,14 @@ export class NotificationsService {
 			where: { isAdmin: true }
 		})
 
-		const messages: ExpoPushMessage[] = admins
-			.filter(admin => admin.pushToken)
-			.map(admin => ({
-				to: admin.pushToken,
-				sound: 'default',
-				title,
-				body: message,
-				data
-			}))
-
-		const chunks = this.expo.chunkPushNotifications(messages)
-		const tickets = []
-
-		for (const chunk of chunks) {
-			try {
-				const ticketChunk = await this.expo.sendPushNotificationsAsync(chunk)
-				tickets.push(...ticketChunk)
-			} catch (error) {
-				console.error(error)
-				if (error.details?.error === 'DeviceNotRegistered') {
-					await this.prisma.user.updateMany({
-						where: { pushToken: error.details.expoPushToken },
-						data: { pushToken: null }
-					})
-				}
-			}
-		}
-
 		await Promise.all(
 			admins.map(admin => {
 				this.saveNotification(admin.id, title, message, data)
+				if (admin.pushToken) {
+					return this.sendPushNotificationToUser(admin.id, title, message, data)
+				}
 			})
 		)
-
-		return tickets
 	}
 
 	async sendPushNotificationToUser(
@@ -214,6 +187,13 @@ export class NotificationsService {
 
 		await this.prisma.notification.update({
 			where: { id: notificationId },
+			data: { isRead: true }
+		})
+	}
+
+	async markAllAsRead(userId: string) {
+		await this.prisma.notification.updateMany({
+			where: { userId, isRead: false },
 			data: { isRead: true }
 		})
 	}

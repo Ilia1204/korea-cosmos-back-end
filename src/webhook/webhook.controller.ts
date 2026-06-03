@@ -17,6 +17,18 @@ export class WebhookController {
 		return this.webhookService.handleCustomerUpdated(payload)
 	}
 
+	@Post('woocommerce-order-updated')
+	@HttpCode(200)
+	async woocommerceOrderUpdated(
+		@Body() payload: any,
+		@Headers('x-wc-webhook-secret') secret: string
+	) {
+		const expectedSecret = process.env.WC_WEBHOOK_SECRET
+		if (expectedSecret && secret !== expectedSecret) return { ok: false }
+
+		return this.webhookService.handleWooCommerceOrderUpdated(payload)
+	}
+
 	@Post('retailcrm-order-status')
 	@HttpCode(200)
 	async retailCRMOrderStatus(
