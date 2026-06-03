@@ -12,12 +12,13 @@ import {
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { AuthDto } from './dto/auth.dto'
+import { PhoneSendOtpDto, PhoneVerifyDto } from './dto/phone-auth.dto'
 
 @Controller('auth')
+@UsePipes(new ValidationPipe())
 export class AuthController {
 	constructor(private readonly authService: AuthService) {}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('login')
 	async login(@Body() dto: AuthDto, @Res({ passthrough: true }) res: Response) {
@@ -27,7 +28,6 @@ export class AuthController {
 		return response
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('register')
 	async register(
@@ -74,5 +74,20 @@ export class AuthController {
 	@Post('reset-password')
 	async resetPassword(@Body('email') email: string) {
 		return this.authService.resetPassword(email)
+	}
+
+	@HttpCode(200)
+	@Post('phone/send-otp')
+	async sendPhoneOtp(@Body() dto: PhoneSendOtpDto) {
+		return this.authService.sendPhoneOtp(dto)
+	}
+
+	@HttpCode(200)
+	@Post('phone/verify')
+	async verifyPhoneOtp(
+		@Body() dto: PhoneVerifyDto,
+		@Res({ passthrough: true }) res: Response
+	) {
+		return this.authService.verifyPhoneOtp(dto, res)
 	}
 }
