@@ -28,6 +28,7 @@ import { DeliveryModule } from './delivery/delivery.module'
 import { RobokassaModule } from './robokassa/robokassa.module'
 import { RetailCRMSyncModule } from './retailcrm-sync/retailcrm-sync.module'
 import { WooSyncModule } from './woo-sync/woo-sync.module'
+import { SearchModule } from './search/search.module'
 
 @Module({
 	imports: [
@@ -70,7 +71,8 @@ import { WooSyncModule } from './woo-sync/woo-sync.module'
 		DeliveryModule,
 		RobokassaModule,
 		RetailCRMSyncModule,
-		WooSyncModule
+		WooSyncModule,
+		SearchModule
 	]
 })
 export class AppModule {}
