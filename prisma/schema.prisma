@@ -286,6 +286,7 @@ model Order {
   invoiceId      Int?    @unique @map("invoice_id")
   wcOrderId      Int?    @map("wc_order_id")
   trackingNumber String? @default("") @map("tracking_number")
+  cancelReason   String? @map("cancel_reason")
 
   items OrderItem[]
 
@@ -379,6 +380,15 @@ model Notification {
   userId String @map("user_id")
 
   @@map("notification")
+}
+
+model SearchQuery {
+  id        String   @id @default(cuid())
+  query     String   @unique
+  count     Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("search_query")
 }
 
 enum EnumOrderStatus {

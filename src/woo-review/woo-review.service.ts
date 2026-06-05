@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { ForbiddenException, Injectable } from '@nestjs/common'
 import axios from 'axios'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
@@ -199,7 +199,22 @@ export class WooReviewService {
 		}
 	}
 
+	async hasPurchased(userId: string, wooProductId: number): Promise<boolean> {
+		const order = await this.prisma.order.findFirst({
+			where: {
+				userId,
+				status: 'delivered',
+				items: { some: { productId: String(wooProductId) } }
+			}
+		})
+		return !!order
+	}
+
 	async create(userId: string, dto: WooReviewDto) {
+		const purchased = await this.hasPurchased(userId, dto.wooProductId)
+		if (!purchased)
+			throw new ForbiddenException('Отзыв доступен только после покупки товара')
+
 		const user = await this.userService.getById(userId)
 
 		// Сохраняем в локальную БД
@@ -259,7 +274,7 @@ export class WooReviewService {
 			await this.notificationsService.sendPushNotificationToUser(
 				review.userId,
 				'✅ Отзыв опубликован',
-				'Ваш отзыв был принят и опубликован!',
+				'Ваш отзыв опубликован — спасибо за обратную связь!',
 				{ reviewId: review.id, isRead: true }
 			)
 		}, 2000)
@@ -281,7 +296,7 @@ export class WooReviewService {
 			await this.notificationsService.sendPushNotificationToUser(
 				review.userId,
 				'⛔ Отзыв отклонён',
-				'Ваш отзыв был отклонён к публикации',
+				'К сожалению, ваш отзыв не прошёл модерацию.',
 				{ reviewId: review.id, isRead: true }
 			)
 		}, 2000)

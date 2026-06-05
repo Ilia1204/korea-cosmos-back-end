@@ -56,12 +56,29 @@ export class NotificationsController {
 	@Auth()
 	async subscribeToProductStockNotification(
 		@CurrentUser('id') id: string,
-		@Body() body: { productId: string }
+		@Body() body: { productSlug: string }
 	) {
 		return this.notificationsService.subscribeToProductStockNotification(
 			id,
-			body.productId
+			body.productSlug
 		)
+	}
+
+	@HttpCode(200)
+	@Get('subscribed-products')
+	@Auth()
+	async getSubscribedProducts(@CurrentUser('id') id: string) {
+		return this.notificationsService.getSubscribedProducts(id)
+	}
+
+	@HttpCode(200)
+	@Delete('unsubscribe/:slug')
+	@Auth()
+	async unsubscribeFromProduct(
+		@Param('slug') slug: string,
+		@CurrentUser('id') userId: string
+	) {
+		return this.notificationsService.unsubscribeFromProduct(userId, slug)
 	}
 
 	@HttpCode(200)

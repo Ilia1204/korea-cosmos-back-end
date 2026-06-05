@@ -140,19 +140,9 @@ export class NotificationsService {
 		})
 	}
 
-	async notifySubscribedUsersAboutStock(productId: string) {
-		const product = await this.prisma.product.findUnique({
-			where: { id: productId }
-		})
-
-		if (!product || !product.inStock)
-			throw new NotFoundException('Товар не найден или не в наличии')
-
+	async notifySubscribedUsersAboutStock(productSlug: string) {
 		const subscriptions = await this.prisma.productSubscriptions.findMany({
-			where: {
-				productId,
-				isNotified: false
-			},
+			where: { productId: productSlug, isNotified: false },
 			include: { user: true }
 		})
 
@@ -162,22 +152,21 @@ export class NotificationsService {
 			setTimeout(async () => {
 				await this.sendPushNotificationToUser(
 					user.id,
-					'🎉 Отличная новость — товар снова в наличии!',
-					`То, о чём вы просили уведомить, снова в наличии! Быстрее загляните и не упустите свой шанс!`,
-					{ productSlug: product.slug, isRead: true }
+					'🎉 Товар снова в наличии!',
+					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
+					{ productSlug, isRead: true }
 				)
 
 				await this.saveNotification(
 					user.id,
-					'🎉 Отличная новость — товар снова в наличии!',
-					`То, о чём вы просили уведомить, снова в наличии! Быстрее загляните и не упустите свой шанс!`,
-					{ productSlug: product.slug }
+					'🎉 Товар снова в наличии!',
+					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
+					{ productSlug }
 				)
 			}, 2000)
 
-			await this.prisma.productSubscriptions.update({
-				where: { userId_productId: { userId: user.id, productId } },
-				data: { isNotified: true }
+			await this.prisma.productSubscriptions.delete({
+				where: { userId_productId: { userId: user.id, productId: productSlug } }
 			})
 		})
 	}
@@ -198,25 +187,61 @@ export class NotificationsService {
 		})
 	}
 
-	async subscribeToProductStockNotification(userId: string, productId: string) {
+	async getSubscribedProducts(userId: string) {
+		const subs = await this.prisma.productSubscriptions.findMany({
+			where: { userId },
+			select: { productId: true },
+			orderBy: { createdAt: 'desc' }
+		})
+		// Фильтруем старые числовые ID (legacy записи с WooCommerce numeric id)
+		return subs.map(s => s.productId).filter(id => isNaN(Number(id)))
+	}
+
+	async unsubscribeFromProduct(userId: string, productSlug: string) {
+		await this.prisma.productSubscriptions.deleteMany({
+			where: { userId, productId: productSlug }
+		})
+	}
+
+	async subscribeToProductStockNotification(userId: string, productSlug: string) {
 		const subscriptionExists =
 			await this.prisma.productSubscriptions.findUnique({
-				where: {
-					userId_productId: {
-						userId,
-						productId
-					}
-				}
+				where: { userId_productId: { userId, productId: productSlug } }
 			})
 
 		if (!subscriptionExists)
 			await this.prisma.productSubscriptions.create({
-				data: {
-					userId,
-					productId,
-					isNotified: false
-				}
+				data: { userId, productId: productSlug, isNotified: false }
 			})
+	}
+
+	@Cron('0 12 * * *')
+	async handleReviewReminders() {
+		const from = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+		const to = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+
+		const orders = await this.prisma.order.findMany({
+			where: { status: 'delivered', updatedAt: { gte: from, lt: to } },
+			include: { items: true }
+		})
+
+		for (const order of orders) {
+			if (!order.userId) continue
+
+			const notification = await this.saveNotification(
+				order.userId,
+				'⭐ Как вам покупка?',
+				'Расскажите о товаре — ваш отзыв поможет другим покупателям.',
+				{ reviewReminder: true, orderUserId: order.id }
+			)
+
+			this.sendPushNotificationToUser(
+				order.userId,
+				'⭐ Как вам покупка?',
+				'Расскажите о товаре — ваш отзыв поможет другим покупателям.',
+				{ reviewReminder: true, orderUserId: order.id, notificationId: notification.id }
+			)
+		}
 	}
 
 	@Cron('0 15 15 * *')

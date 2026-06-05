@@ -53,6 +53,16 @@ export class WooReviewController {
 		return this.wooReviewService.getBatchRatings(wooProductIds)
 	}
 
+	@Get('can-review/:wooProductId')
+	@Auth()
+	async canReview(
+		@CurrentUser('id') userId: string,
+		@Param('wooProductId', ParseIntPipe) wooProductId: number
+	) {
+		const canReview = await this.wooReviewService.hasPurchased(userId, wooProductId)
+		return { canReview }
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('leave')
