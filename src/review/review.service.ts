@@ -168,7 +168,7 @@ export class ReviewService {
 				await this.notificationService.sendPushNotificationToUser(
 					updatedReview.userId,
 					'✅ Отзыв опубликован',
-					'Поздравляем! Ваш отзыв был принят и опубликован!',
+					'Ваш отзыв опубликован — спасибо за обратную связь!',
 					{ reviewUserId: updatedReview.id, isRead: true }
 				)
 			}, 2000)
@@ -176,7 +176,7 @@ export class ReviewService {
 			await this.notificationService.saveNotification(
 				updatedReview.userId,
 				'✅ Отзыв опубликован',
-				'Поздравляем! Ваш отзыв был принят и опубликован!',
+				'Ваш отзыв опубликован — спасибо за обратную связь!',
 				{ reviewUserId: updatedReview.id }
 			)
 		} else if (!updatedReview.isPublic) {
@@ -184,7 +184,7 @@ export class ReviewService {
 				await this.notificationService.sendPushNotificationToUser(
 					updatedReview.userId,
 					'⛔ Отзыв отклонён',
-					'⛔ Ваш отзыв был отклонён к публикации',
+					'К сожалению, ваш отзыв не прошёл модерацию.',
 					{ reviewUserId: updatedReview.id, isRead: true }
 				)
 			}, 2000)
@@ -192,7 +192,7 @@ export class ReviewService {
 			await this.notificationService.saveNotification(
 				updatedReview.userId,
 				'⛔ Отзыв отклонён',
-				'Ваш отзыв был отклонён к публикации',
+				'К сожалению, ваш отзыв не прошёл модерацию.',
 				{ reviewUserId: updatedReview.id }
 			)
 		}

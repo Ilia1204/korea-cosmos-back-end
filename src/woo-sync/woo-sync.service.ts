@@ -32,20 +32,31 @@ export class WooSyncService {
 		private notificationService: NotificationsService
 	) {}
 
-	@Cron(CronExpression.EVERY_5_MINUTES)
+	@Cron('0 */15 * * * *')
 	async syncProductStock() {
 		try {
-			// Берём все локальные товары у которых есть wooProductId (хранится в поле slug или нужна связь)
-			// Получаем все локальные продукты
 			const localProducts = await this.prisma.product.findMany({
 				select: { id: true, slug: true, inStock: true }
 			})
-			if (!localProducts.length) return
 
-			// Запрашиваем WooCommerce — batch по slug
-			const slugs = localProducts.map(p => p.slug).join(',')
+			// Slug'и из подписок которые не покрыты локальной БД
+			const subSlugs = await this.prisma.productSubscriptions.findMany({
+				select: { productId: true },
+				distinct: ['productId']
+			})
+			const localSlugsSet = new Set(localProducts.map(p => p.slug))
+			const extraSlugs = subSlugs
+				.map(s => s.productId)
+				.filter(slug => !localSlugsSet.has(slug))
+
+			const allSlugs = [
+				...localProducts.map(p => p.slug),
+				...extraSlugs
+			]
+			if (!allSlugs.length) return
+
 			const res = await fetch(
-				`${process.env.WP_URL}/wp-json/wc/v3/products?slug=${slugs}&per_page=100`,
+				`${process.env.WP_URL}/wp-json/wc/v3/products?slug=${allSlugs.join(',')}&per_page=100`,
 				{ headers: { Authorization: this.auth } }
 			)
 			if (!res.ok) return
@@ -53,30 +64,41 @@ export class WooSyncService {
 			const wcProducts: any[] = await res.json()
 
 			for (const wcProduct of wcProducts) {
-				const localProduct = localProducts.find(p => p.slug === wcProduct.slug)
-				if (!localProduct) continue
-
+				const slug = wcProduct.slug
 				const wcInStock =
 					wcProduct.stock_status === 'instock' ||
 					wcProduct.stock_status === 'onbackorder'
 
-				if (wcInStock === localProduct.inStock) continue
+				const localProduct = localProducts.find(p => p.slug === slug)
 
-				// Статус изменился — обновляем локально
-				await this.prisma.product.update({
-					where: { id: localProduct.id },
-					data: { inStock: wcInStock }
-				})
+				if (localProduct) {
+					// Товар есть в локальной БД
+					if (wcInStock === localProduct.inStock) continue
 
-				// Если товар снова появился в наличии — шлём пуши
-				if (wcInStock && !localProduct.inStock) {
-					this.notificationService
-						.notifyUsersAboutProductInStock(localProduct.id)
-						.catch(() => null)
-					this.notificationService
-						.notifySubscribedUsersAboutStock(localProduct.id)
-						.catch(() => null)
-					this.logger.log(`Product ${localProduct.slug} is back in stock → notifying users`)
+					await this.prisma.product.update({
+						where: { id: localProduct.id },
+						data: { inStock: wcInStock }
+					})
+
+					if (wcInStock && !localProduct.inStock) {
+						this.notificationService
+							.notifyUsersAboutProductInStock(localProduct.id)
+							.catch(() => null)
+						this.notificationService
+							.notifySubscribedUsersAboutStock(slug)
+							.catch(() => null)
+						this.logger.log(`Product ${slug} is back in stock → notifying users`)
+					}
+				} else if (extraSlugs.includes(slug)) {
+					// Товар только в WooCommerce — шлём пуши подписчикам если появился
+					// Предыдущего статуса нет — сохраняем текущий и сравним в следующем цикле
+					// Но если wcInStock=true и подписки есть — шлём (первый раз когда видим в наличии)
+					if (wcInStock) {
+						this.notificationService
+							.notifySubscribedUsersAboutStock(slug)
+							.catch(() => null)
+						this.logger.log(`WooCommerce-only product ${slug} is in stock → notifying subscribers`)
+					}
 				}
 			}
 		} catch (err) {
@@ -84,7 +106,7 @@ export class WooSyncService {
 		}
 	}
 
-	@Cron(CronExpression.EVERY_5_MINUTES)
+	@Cron('0 */10 * * * *')
 	async syncOrderStatuses() {
 		try {
 			const orders = await this.prisma.order.findMany({
@@ -98,42 +120,42 @@ export class WooSyncService {
 
 			if (!orders.length) return
 
-			for (const order of orders) {
-				try {
-					const res = await fetch(
-						`${process.env.WP_URL}/wp-json/wc/v3/orders/${order.wcOrderId}`,
-						{ headers: { Authorization: this.auth } }
-					)
-					if (!res.ok) continue
+			const wcIds = orders.map(o => o.wcOrderId).join(',')
+			const res = await fetch(
+				`${process.env.WP_URL}/wp-json/wc/v3/orders?include=${wcIds}&per_page=100`,
+				{ headers: { Authorization: this.auth } }
+			)
+			if (!res.ok) return
 
-					const wcOrder = await res.json()
-					const wcStatus: string = wcOrder.status
-					const localStatus = WC_TO_LOCAL[wcStatus]
+			const wcOrders: any[] = await res.json()
+			if (!Array.isArray(wcOrders)) return
 
-					if (!localStatus || localStatus === order.status) continue
+			for (const wcOrder of wcOrders) {
+				const order = orders.find(o => String(o.wcOrderId) === String(wcOrder.id))
+				if (!order) continue
 
-					await this.prisma.order.update({
-						where: { id: order.id },
-						data: { status: localStatus as any }
-					})
+				const localStatus = WC_TO_LOCAL[wcOrder.status as string]
+				if (!localStatus || localStatus === order.status) continue
 
-					await this.notificationService.saveNotification(
-						order.userId,
-						getOrderStatusIcons(localStatus),
-						`Заказ #${order.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(localStatus)}`,
-						{ orderUserId: order.id, status: localStatus }
-					)
-					await this.notificationService.sendPushNotificationToUser(
-						order.userId,
-						getOrderStatusIcons(localStatus),
-						`Заказ #${order.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(localStatus)}`,
-						{ orderUserId: order.id, status: localStatus }
-					)
+				await this.prisma.order.update({
+					where: { id: order.id },
+					data: { status: localStatus as any }
+				})
 
-					this.logger.log(`Order ${order.id} status: ${order.status} → ${localStatus}`)
-				} catch (err) {
-					this.logger.warn(`Failed to sync WC order ${order.wcOrderId}: ${err}`)
-				}
+				await this.notificationService.saveNotification(
+					order.userId,
+					getOrderStatusIcons(localStatus),
+					`Заказ #${order.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(localStatus)}`,
+					{ orderUserId: order.id, status: localStatus }
+				)
+				await this.notificationService.sendPushNotificationToUser(
+					order.userId,
+					getOrderStatusIcons(localStatus),
+					`Заказ #${order.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(localStatus)}`,
+					{ orderUserId: order.id, status: localStatus }
+				)
+
+				this.logger.log(`Order ${order.id} status: ${order.status} → ${localStatus}`)
 			}
 		} catch (err) {
 			this.logger.error('WooSync cron failed', err)

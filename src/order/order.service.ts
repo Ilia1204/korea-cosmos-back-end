@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
 import { returnUserObject } from './../user/return-user.object'
 import { OrderDto, UpdateOrderDto } from './dto/order.dto'
@@ -12,6 +12,9 @@ import {
 
 @Injectable()
 export class OrderService {
+	private wooOrdersCache = new Map<string, { data: any[]; ts: number }>()
+	private readonly WOO_CACHE_TTL = 3 * 60 * 1000
+
 	constructor(
 		private prisma: PrismaService,
 		private notificationService: NotificationsService,
@@ -123,7 +126,7 @@ export class OrderService {
 		setTimeout(async () => {
 			await this.notificationService.sendPushNotificationToAdmins(
 				'🛍️ Новый заказ',
-				`Пришёл новый заказ с id: #${order.id.slice(0, 6).toUpperCase()}`,
+				`Новый заказ #${order.id.slice(0, 6).toUpperCase()} ожидает обработки`,
 				{ orderId: order.id, isRead: true }
 			)
 		}, 2000)
@@ -200,9 +203,17 @@ export class OrderService {
 						lastName: order.recipientDetails === 'other_recipient' ? (order.recipientSurname || user.surname || '') : (user.surname || ''),
 						phone: order.recipientDetails === 'other_recipient' ? (order.recipientPhone || user.phone || '') : (user.phone || ''),
 						email: order.recipientDetails === 'other_recipient' ? (order.recipientEmail || user.email || '') : (user.email || ''),
+						customerComment: [order.comment, order.address?.comment]
+							.filter(Boolean)
+							.join(' | ') || undefined,
 						delivery: {
 							address: {
-								text: [order.address?.city, order.address?.street]
+								text: [
+									order.address?.city,
+									order.address?.street,
+									order.address?.house,
+									order.address?.apartment ? `кв. ${order.address.apartment}` : null
+								]
 									.filter(Boolean)
 									.join(', ')
 							}
@@ -245,6 +256,9 @@ export class OrderService {
 	}
 
 	async getWooCommerceOrders(email: string) {
+		const cached = this.wooOrdersCache.get(email)
+		if (cached && Date.now() - cached.ts < this.WOO_CACHE_TTL) return cached.data
+
 		try {
 			const customerId = await this.getWooCommerceCustomerId(email)
 			if (!customerId) return []
@@ -270,7 +284,7 @@ export class OrderService {
 			const orders = await res.json()
 			if (!Array.isArray(orders)) return []
 
-			return orders.map(o => ({
+			const result = orders.map(o => ({
 				id: String(o.id),
 				number: o.number,
 				status: this.mapWCStatus(o.status),
@@ -289,6 +303,8 @@ export class OrderService {
 					product: { name: li.name, images: li.image?.src ? [li.image.src] : [] }
 				}))
 			}))
+			this.wooOrdersCache.set(email, { data: result, ts: Date.now() })
+			return result
 		} catch {
 			return []
 		}
@@ -574,14 +590,14 @@ export class OrderService {
 			setTimeout(async () => {
 				await this.notificationService.saveNotification(
 					userId,
-					`🌟 Присвоение статуса «${newLevel.name}»`,
+					`🌟 Новый статус — «${newLevel.name}»!`,
 					`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount} %.`,
 					{ discount: newLevel }
 				)
 
 				await this.notificationService.sendPushNotificationToUser(
 					userId,
-					`🌟 Присвоение статуса «${newLevel.name}»`,
+					`🌟 Новый статус — «${newLevel.name}»!`,
 					`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount} %.`,
 					{ discount: newLevel }
 				)
@@ -622,13 +638,13 @@ export class OrderService {
 				setTimeout(async () => {
 					await this.notificationService.saveNotification(
 						orderUpdated.userId,
-						`🌟 Присвоение статуса «${newLevel.name}»`,
+						`🌟 Новый статус — «${newLevel.name}»!`,
 						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
 						{ discount: newLevel }
 					)
 					await this.notificationService.sendPushNotificationToUser(
 						orderUpdated.userId,
-						`🌟 Присвоение статуса «${newLevel.name}»`,
+						`🌟 Новый статус — «${newLevel.name}»!`,
 						`Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`,
 						{ discount: newLevel }
 					)
@@ -659,6 +675,50 @@ export class OrderService {
 				}
 			)
 		}, 2000)
+	}
+
+	async cancelOrder(id: string, userId: string, reason?: string) {
+		const order = await this.getById(id)
+		if (!order) throw new NotFoundException('Заказ не найден')
+		if (order.userId !== userId) throw new ForbiddenException('Нет доступа к этому заказу')
+
+		const cancellableStatuses = ['pending', 'payed']
+		if (!cancellableStatuses.includes(order.status)) {
+			throw new BadRequestException('Заказ в текущем статусе нельзя отменить')
+		}
+
+		if (order.status === 'payed') {
+			const hoursSinceCreated = (Date.now() - new Date(order.createdAt).getTime()) / 3600000
+			if (hoursSinceCreated > 1) {
+				throw new BadRequestException('Время для отмены оплаченного заказа истекло (1 час)')
+			}
+		}
+
+		const cancelled = await this.prisma.order.update({
+			where: { id },
+			include: { user: true },
+			data: { status: 'cancelled', cancelReason: reason ?? null }
+		})
+
+		this.updateWooCommerceStatus(id, 'cancelled').catch(() => null)
+		this.updateRetailCRMStatus(id, 'cancelled').catch(() => null)
+
+		setTimeout(async () => {
+			const notification = await this.notificationService.saveNotification(
+				userId,
+				'❌ Заказ отменён',
+				`Заказ #${id.slice(0, 6).toUpperCase()} был отменён по вашему запросу.`,
+				{ orderUserId: id, status: 'cancelled' }
+			)
+			await this.notificationService.sendPushNotificationToUser(
+				userId,
+				'❌ Заказ отменён',
+				`Заказ #${id.slice(0, 6).toUpperCase()} был отменён по вашему запросу.`,
+				{ orderUserId: id, status: 'cancelled', notification: notification.id }
+			)
+		}, 1000)
+
+		return cancelled
 	}
 
 	async delete(id: string) {

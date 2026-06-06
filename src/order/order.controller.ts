@@ -5,6 +5,7 @@ import {
 	Get,
 	HttpCode,
 	Param,
+	Patch,
 	Post,
 	Put,
 	Query,
@@ -78,6 +79,17 @@ export class OrderController {
 	@Auth('admin')
 	async update(@Param('id') id: string, @Body() dto: UpdateOrderDto) {
 		return this.orderService.update(id, dto)
+	}
+
+	@HttpCode(200)
+	@Patch(':id/cancel')
+	@Auth()
+	async cancelOrder(
+		@Param('id') id: string,
+		@CurrentUser('id') userId: string,
+		@Body('reason') reason?: string
+	) {
+		return this.orderService.cancelOrder(id, userId, reason)
 	}
 
 	@HttpCode(200)
