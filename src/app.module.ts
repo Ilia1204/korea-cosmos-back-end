@@ -1,12 +1,12 @@
-import { MailerModule } from '@nestjs-modules/mailer'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
+import { APP_GUARD } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 import { ServeStaticModule } from '@nestjs/serve-static'
 import { path } from 'app-root-path'
 import { AddressModule } from './address/address.module'
 import { AuthModule } from './auth/auth.module'
-import { CarouselModule } from './carousel/carousel.module'
 import { CategoryModule } from './category/category.module'
 import { EmailModule } from './email/email.module'
 import { FileModule } from './file/file.module'
@@ -32,20 +32,11 @@ import { SearchModule } from './search/search.module'
 
 @Module({
 	imports: [
+		ThrottlerModule.forRoot([{ ttl: 60000, limit: 5 }]),
 		ScheduleModule.forRoot(),
 		ServeStaticModule.forRoot({
 			rootPath: `${path}/uploads`,
 			serveRoot: '/uploads'
-		}),
-		MailerModule.forRoot({
-			transport: {
-				host: process.env.EMAIL_HOST || 'sandbox.smtp.mailtrap.io',
-				port: parseInt(process.env.EMAIL_PORT || '2525'),
-				auth: {
-					user: process.env.EMAIL_USERNAME,
-					pass: process.env.EMAIL_PASSWORD
-				}
-			}
 		}),
 		ConfigModule.forRoot(),
 		AuthModule,
@@ -60,7 +51,6 @@ import { SearchModule } from './search/search.module'
 		LabelProductModule,
 		FileModule,
 		EmailModule,
-		CarouselModule,
 		PromoCodeModule,
 		NotificationsModule,
 		AddressModule,
@@ -73,6 +63,7 @@ import { SearchModule } from './search/search.module'
 		RetailCRMSyncModule,
 		WooSyncModule,
 		SearchModule
-	]
+	],
+	providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
 })
 export class AppModule {}
