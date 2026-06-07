@@ -16,6 +16,9 @@ lerna-debug.log*
 
 .env
 
+# Uploads
+/uploads
+
 # Tests
 /coverage
 /.nyc_output
