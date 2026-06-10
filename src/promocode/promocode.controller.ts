@@ -24,15 +24,6 @@ export class PromoCodeController {
 		return this.promoCodeService.getAll(searchTerm)
 	}
 
-	// @Get('validate')
-	// async validatePromoCode(
-	// 	@Query('code') code: string,
-	// 	@Query('orderSum') orderSum: number,
-	// 	@Query('category') category?: string
-	// ) {
-	// 	return this.promoCodeService.validatePromoCode(code, orderSum, category)
-	// }
-
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Auth('admin')

@@ -121,26 +121,4 @@ export class PromoCodeService {
 			where: { id }
 		})
 	}
-
-	// async validatePromoCode(code: string, orderSum: number, category?: string) {
-	// 	const promoCode = await this.prisma.promoCode.findUnique({
-	// 		where: { code }
-	// 	})
-
-	// 	if (
-	// 		!promoCode ||
-	// 		!promoCode.isActive ||
-	// 		new Date(promoCode.expiryDate) < new Date()
-	// 	)
-	// 		return { message: 'Промокод не действителен или срок действия истёк' }
-	// 	if (promoCode.minOrderSum && orderSum < promoCode.minOrderSum)
-	// 		return { message: 'Итоговая сумма заказа меньше чем указано в промокоде' }
-	// 	if (promoCode.category && promoCode.category !== category)
-	// 		return {
-	// 			message:
-	// 				'Категория товара не соответствует указанной категории в промокоде'
-	// 		}
-
-	// 	return { message: 'Промокод успешно применён' }
-	// }
 }

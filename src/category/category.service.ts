@@ -143,7 +143,7 @@ export class CategoryService {
 	async update(id: string, dto: CategoryDto) {
 		const { name, sectionId } = dto
 
-		const section = this.sectionService.getById(sectionId)
+		const section = await this.sectionService.getById(sectionId)
 		const category = await this.getById(id)
 
 		if (!section) throw new NotFoundException('Раздел не найден')

@@ -128,14 +128,13 @@ export class NotificationsService {
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
 					{ productSlug: product.slug, isRead: true }
-				)
-
+				).catch(() => {})
 				this.saveNotification(
 					user.id,
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
 					{ productSlug: product.slug }
-				)
+				).catch(() => {})
 			}, 2000)
 		})
 	}
@@ -146,29 +145,28 @@ export class NotificationsService {
 			include: { user: true }
 		})
 
-		subscriptions.forEach(async subscription => {
+		for (const subscription of subscriptions) {
 			const user = subscription.user
-
-			setTimeout(async () => {
-				await this.sendPushNotificationToUser(
-					user.id,
-					'🎉 Товар снова в наличии!',
-					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
-					{ productSlug, isRead: true }
-				)
-
-				await this.saveNotification(
-					user.id,
-					'🎉 Товар снова в наличии!',
-					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
-					{ productSlug }
-				)
-			}, 2000)
 
 			await this.prisma.productSubscriptions.delete({
 				where: { userId_productId: { userId: user.id, productId: productSlug } }
 			})
-		})
+
+			setTimeout(() => {
+				this.sendPushNotificationToUser(
+					user.id,
+					'🎉 Товар снова в наличии!',
+					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
+					{ productSlug, isRead: true }
+				).catch(() => {})
+				this.saveNotification(
+					user.id,
+					'🎉 Товар снова в наличии!',
+					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
+					{ productSlug }
+				).catch(() => {})
+			}, 2000)
+		}
 	}
 
 	async markAsRead(notificationId: string) {
@@ -193,7 +191,6 @@ export class NotificationsService {
 			select: { productId: true },
 			orderBy: { createdAt: 'desc' }
 		})
-		// Фильтруем старые числовые ID (legacy записи с WooCommerce numeric id)
 		return subs.map(s => s.productId).filter(id => isNaN(Number(id)))
 	}
 
@@ -203,7 +200,10 @@ export class NotificationsService {
 		})
 	}
 
-	async subscribeToProductStockNotification(userId: string, productSlug: string) {
+	async subscribeToProductStockNotification(
+		userId: string,
+		productSlug: string
+	) {
 		const subscriptionExists =
 			await this.prisma.productSubscriptions.findUnique({
 				where: { userId_productId: { userId, productId: productSlug } }
@@ -239,7 +239,11 @@ export class NotificationsService {
 				order.userId,
 				'⭐ Как вам покупка?',
 				'Расскажите о товаре — ваш отзыв поможет другим покупателям.',
-				{ reviewReminder: true, orderUserId: order.id, notificationId: notification.id }
+				{
+					reviewReminder: true,
+					orderUserId: order.id,
+					notificationId: notification.id
+				}
 			)
 		}
 	}
@@ -268,22 +272,25 @@ export class NotificationsService {
 		})
 
 		users.forEach(user => {
-			setTimeout(async () => {
-				const notification = await this.saveNotification(
+			setTimeout(() => {
+				this.saveNotification(
 					user.id,
 					'🙎🏻‍♂️ Заполните свой профиль',
 					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
 					{ editProfileNavigate: 'EditProfile' }
 				)
-				this.sendPushNotificationToUser(
-					user.id,
-					'🙎🏻‍♂️ Заполните свой профиль',
-					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
-					{
-						editProfileNavigate: 'EditProfile',
-						notificationId: notification.id
-					}
-				)
+					.then(notification =>
+						this.sendPushNotificationToUser(
+							user.id,
+							'🙎🏻‍♂️ Заполните свой профиль',
+							'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
+							{
+								editProfileNavigate: 'EditProfile',
+								notificationId: notification.id
+							}
+						)
+					)
+					.catch(() => {})
 			}, 2000)
 		})
 	}
@@ -300,8 +307,7 @@ export class NotificationsService {
 	}
 
 	async delete(id: string, userId: string) {
-		const notification = await this.getById(id)
-		if (!notification) throw new NotFoundException('Уведомление не найдено')
+		await this.getById(id)
 
 		return this.prisma.notification.delete({
 			where: { id, userId }

@@ -8,6 +8,7 @@ import {
 	UseInterceptors
 } from '@nestjs/common'
 import { FilesInterceptor } from '@nestjs/platform-express/multer/interceptors/files.interceptor'
+import { Auth } from 'src/auth/decorators/auth.decorator'
 import { IFileResponseData } from './file.interface'
 import { FileService } from './file.service'
 
@@ -17,11 +18,10 @@ export class FileController {
 
 	@Post()
 	@HttpCode(200)
+	@Auth()
 	@UseInterceptors(
 		FilesInterceptor('file', 5, {
-			limits: {
-				files: 5
-			}
+			limits: { files: 5 }
 		})
 	)
 	async saveFiles(
@@ -31,6 +31,6 @@ export class FileController {
 		if (!files.length)
 			throw new BadRequestException('Пожалуйста, загрузите файлы')
 
-		return await this.fileService.saveFiles(files, folder)
+		return this.fileService.saveFiles(files, folder)
 	}
 }

@@ -16,6 +16,5 @@ export const allowedFolders = [
 	'reviews',
 	'products',
 	'posts',
-	'default',
-	'carousel'
+	'default'
 ]

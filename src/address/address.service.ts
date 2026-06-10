@@ -3,7 +3,6 @@ import {
 	Injectable,
 	NotFoundException
 } from '@nestjs/common'
-import axios from 'axios'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
 import { AddressDto } from './address.dto'
@@ -11,6 +10,12 @@ import { returnAddressObject } from './address.object'
 
 @Injectable()
 export class AddressService {
+	private readonly wcAuth =
+		'Basic ' +
+		Buffer.from(
+			`${process.env.WC_CONSUMER_KEY}:${process.env.WC_CONSUMER_SECRET}`
+		).toString('base64')
+
 	constructor(
 		private prisma: PrismaService,
 		private userService: UserService
@@ -32,92 +37,39 @@ export class AddressService {
 
 	async getAll(searchTerm?: string) {
 		if (searchTerm) return this.search(searchTerm)
-
 		return this.prisma.address.findMany({
 			select: returnAddressObject,
 			orderBy: { createdAt: 'desc' }
 		})
 	}
 
-	async getAllByUser(id: string, searchTerm?: string) {
-		if (searchTerm) return this.search(searchTerm, id)
-
+	async getAllByUser(userId: string, searchTerm?: string) {
+		if (searchTerm) return this.search(searchTerm, userId)
 		return this.prisma.address.findMany({
-			where: { userId: id },
-			select: returnAddressObject,
-			orderBy: { createdAt: 'desc' }
-		})
-	}
-
-	private async search(searchTerm: string, userId?: string) {
-		return await this.prisma.address.findMany({
-			where: {
-				userId,
-				OR: [
-					{
-						region: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						city: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						postCode: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						street: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						house: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					},
-					{
-						apartment: {
-							contains: searchTerm,
-							mode: 'insensitive'
-						}
-					}
-				]
-			},
+			where: { userId },
 			select: returnAddressObject,
 			orderBy: { createdAt: 'desc' }
 		})
 	}
 
 	async create(userId: string, dto: AddressDto) {
-		const { region, city, postCode, street, house, apartment, comment } = dto
-
 		const user = await this.userService.getById(userId)
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
 		return this.prisma.$transaction(async prisma => {
 			await prisma.address.updateMany({
-				where: { userId: userId, isDefault: true },
+				where: { userId, isDefault: true },
 				data: { isDefault: false }
 			})
-
 			return prisma.address.create({
 				data: {
-					region,
-					city,
-					postCode,
-					street,
-					house,
-					apartment,
-					comment,
+					region: dto.region,
+					city: dto.city,
+					postCode: dto.postCode,
+					street: dto.street,
+					house: dto.house,
+					apartment: dto.apartment,
+					comment: dto.comment,
 					isDefault: true,
 					user: { connect: { id: userId } }
 				}
@@ -126,31 +78,19 @@ export class AddressService {
 	}
 
 	async update(id: string, dto: AddressDto) {
-		const {
-			region,
-			city,
-			postCode,
-			street,
-			house,
-			apartment,
-			isDefault,
-			comment
-		} = dto
-
 		const address = await this.getById(id)
 		if (!address) throw new NotFoundException('Адрес не найден')
-
 		return this.prisma.address.update({
 			where: { id },
 			data: {
-				region,
-				city,
-				postCode,
-				street,
-				house,
-				apartment,
-				comment,
-				isDefault
+				region: dto.region,
+				city: dto.city,
+				postCode: dto.postCode,
+				street: dto.street,
+				house: dto.house,
+				apartment: dto.apartment,
+				comment: dto.comment,
+				isDefault: dto.isDefault
 			}
 		})
 	}
@@ -164,7 +104,6 @@ export class AddressService {
 				where: { userId: address.userId, isDefault: true },
 				data: { isDefault: false }
 			})
-
 			return prisma.address.update({
 				where: { id: addressId },
 				data: { isDefault: true }
@@ -172,64 +111,29 @@ export class AddressService {
 		})
 	}
 
-	async deleteByUser(addressId: string, id: string) {
+	async deleteByUser(addressId: string, userId: string) {
 		const address = await this.getById(addressId)
 		if (!address) throw new NotFoundException('Адрес не найден')
-
-		if (address.userId !== id)
+		if (address.userId !== userId)
 			throw new ForbiddenException('Вы не можете удалять адрес другого юзера')
 
-		await this.prisma.address.delete({
-			where: { id: addressId }
-		})
-
-		if (address.isDefault) {
-			const lastAddedAddress = await this.prisma.address.findFirst({
-				where: { userId: id },
-				orderBy: { createdAt: 'desc' }
-			})
-
-			if (lastAddedAddress)
-				await this.prisma.address.update({
-					where: { id: lastAddedAddress.id },
-					data: { isDefault: true }
-				})
-		}
-
+		await this.prisma.address.delete({ where: { id: addressId } })
+		if (address.isDefault) await this.reassignDefault(userId)
 		return { message: 'Адрес успешно удален' }
-	}
-
-	async deleteAllByUser(userId: string) {
-		const addresses = await this.prisma.address.findMany({ where: { userId } })
-
-		if (!addresses.length)
-			throw new NotFoundException('У вас нет адресов для удаления')
-
-		return this.prisma.address.deleteMany({
-			where: { userId }
-		})
 	}
 
 	async deleteByAdmin(id: string) {
 		const address = await this.getById(id)
 		if (!address) throw new NotFoundException('Адрес не найден')
 
-		await this.prisma.address.delete({
-			where: { id }
-		})
+		await this.prisma.address.delete({ where: { id } })
+		if (address.isDefault) await this.reassignDefault(address.userId)
+	}
 
-		if (address.isDefault) {
-			const lastAddedAddress = await this.prisma.address.findFirst({
-				where: { userId: address.userId },
-				orderBy: { createdAt: 'desc' }
-			})
-
-			if (lastAddedAddress)
-				await this.prisma.address.update({
-					where: { id: lastAddedAddress.id },
-					data: { isDefault: true }
-				})
-		}
+	async deleteAllByUser(userId: string) {
+		const exists = await this.prisma.address.count({ where: { userId } })
+		if (!exists) throw new NotFoundException('У вас нет адресов для удаления')
+		return this.prisma.address.deleteMany({ where: { userId } })
 	}
 
 	async importFromWooCommerce(userId: string, email: string) {
@@ -237,16 +141,13 @@ export class AddressService {
 		if (existing) return
 
 		try {
-			const { data: customers } = await axios.get(
-				`${process.env.WP_URL}/wp-json/wc/v3/customers`,
-				{
-					params: { email },
-					auth: {
-						username: process.env.WC_CONSUMER_KEY,
-						password: process.env.WC_CONSUMER_SECRET
-					}
-				}
+			const res = await fetch(
+				`${
+					process.env.WP_URL
+				}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}`,
+				{ headers: { Authorization: this.wcAuth } }
 			)
+			const customers = await res.json()
 			const billing = customers?.[0]?.billing
 			if (!billing?.city && !billing?.address_1) return
 
@@ -266,44 +167,75 @@ export class AddressService {
 	}
 
 	async syncDefaultToWooCommerce(userId: string) {
-		const address = await this.getDefault(userId)
-		if (!address) return
-
-		const user = await this.userService.getById(userId)
-		if (!user?.email) return
+		const [address, user] = await Promise.all([
+			this.getDefault(userId),
+			this.userService.getById(userId)
+		])
+		if (!address || !user?.email) return
 
 		try {
-			const { data: customers } = await axios.get(
-				`${process.env.WP_URL}/wp-json/wc/v3/customers`,
-				{
-					params: { email: user.email },
-					auth: {
-						username: process.env.WC_CONSUMER_KEY,
-						password: process.env.WC_CONSUMER_SECRET
-					}
-				}
+			const res = await fetch(
+				`${
+					process.env.WP_URL
+				}/wp-json/wc/v3/customers?email=${encodeURIComponent(user.email)}`,
+				{ headers: { Authorization: this.wcAuth } }
 			)
+			const customers = await res.json()
 			const customerId = customers?.[0]?.id
 			if (!customerId) return
 
-			await axios.put(
+			await fetch(
 				`${process.env.WP_URL}/wp-json/wc/v3/customers/${customerId}`,
 				{
-					billing: {
-						address_1: `${address.street} ${address.house}`.trim(),
-						address_2: address.apartment || '',
-						city: address.city,
-						state: address.region,
-						postcode: address.postCode
-					}
-				},
-				{
-					auth: {
-						username: process.env.WC_CONSUMER_KEY,
-						password: process.env.WC_CONSUMER_SECRET
-					}
+					method: 'PUT',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: this.wcAuth
+					},
+					body: JSON.stringify({
+						billing: {
+							address_1: `${address.street} ${address.house}`.trim(),
+							address_2: address.apartment || '',
+							city: address.city,
+							state: address.region,
+							postcode: address.postCode
+						}
+					})
 				}
 			)
 		} catch {}
+	}
+
+	private async search(searchTerm: string, userId?: string) {
+		const fields = [
+			'region',
+			'city',
+			'postCode',
+			'street',
+			'house',
+			'apartment'
+		]
+		return this.prisma.address.findMany({
+			where: {
+				userId,
+				OR: fields.map(field => ({
+					[field]: { contains: searchTerm, mode: 'insensitive' }
+				}))
+			},
+			select: returnAddressObject,
+			orderBy: { createdAt: 'desc' }
+		})
+	}
+
+	private async reassignDefault(userId: string) {
+		const next = await this.prisma.address.findFirst({
+			where: { userId },
+			orderBy: { createdAt: 'desc' }
+		})
+		if (next)
+			await this.prisma.address.update({
+				where: { id: next.id },
+				data: { isDefault: true }
+			})
 	}
 }

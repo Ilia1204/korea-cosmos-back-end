@@ -18,7 +18,7 @@ export class FileService {
 		if (files.length > 5)
 			throw new BadRequestException('Вы можете загрузить только 5 файлов')
 
-		await Promise.all(files.map(file => this.checkFileType(file)))
+		files.forEach(file => this.checkFileType(file))
 
 		const response = {
 			status: 'успешно',
@@ -45,11 +45,9 @@ export class FileService {
 				const imagePath = path.join(uploadFolder, name)
 				fs.writeFileSync(imagePath, buffer)
 
-				const filePath = `/uploads/${folder}/${name}`
-
 				return {
 					_id: ++this.fileIdCounter,
-					path: filePath,
+					path: `/uploads/${folder}/${name}`,
 					name,
 					size: this.formatBytes(size)
 				}
@@ -60,7 +58,7 @@ export class FileService {
 		return response
 	}
 
-	formatBytes(bytes: number, decimal = 2): string {
+	private formatBytes(bytes: number, decimal = 2): string {
 		if (!bytes) return '0 Bytes'
 
 		const k = 1024
@@ -71,11 +69,9 @@ export class FileService {
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 	}
 
-	async checkFileType(file: Express.Multer.File): Promise<void> {
+	private checkFileType(file: Express.Multer.File): void {
 		const filetypes = /jpeg|jpg|png|svg+xml|svg|webp|pjpeg/
-		const extname = filetypes.test(
-			path.extname(file.originalname).toLowerCase()
-		)
+		const extname = filetypes.test(path.extname(file.originalname).toLowerCase())
 		const mimetype = filetypes.test(file.mimetype)
 
 		if (!extname && !mimetype)

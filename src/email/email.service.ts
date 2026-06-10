@@ -1,26 +1,27 @@
 import { Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import * as nodemailer from 'nodemailer'
 
 @Injectable()
 export class EmailService {
 	private transporter
 
-	constructor() {
+	constructor(private configService: ConfigService) {
 		this.transporter = nodemailer.createTransport({
 			service: 'Yandex',
-			host: process.env.EMAIL_HOST,
+			host: this.configService.get('EMAIL_HOST'),
 			port: 465,
 			secure: true,
 			auth: {
-				user: process.env.EMAIL_USERNAME,
-				pass: process.env.EMAIL_PASSWORD
+				user: this.configService.get('EMAIL_USERNAME'),
+				pass: this.configService.get('EMAIL_PASSWORD')
 			}
 		})
 	}
 
 	async sendPasswordResetEmail(email: string, newPassword: string) {
-		const mailOptions = {
-			from: `KoreaCosmos <${process.env.EMAIL_USERNAME}>`,
+		await this.transporter.sendMail({
+			from: `KoreaCosmos <${this.configService.get('EMAIL_USERNAME')}>`,
 			to: email,
 			subject: 'Сброс пароля в KoreaCosmos',
 			html: `
@@ -119,8 +120,6 @@ export class EmailService {
 </body>
 </html>
       `
-		}
-
-		await this.transporter.sendMail(mailOptions)
+		})
 	}
 }

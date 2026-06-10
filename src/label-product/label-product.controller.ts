@@ -16,6 +16,7 @@ import { LabelProductDto } from './label-product.dto'
 import { LabelProductService } from './label-product.service'
 
 @Controller('label-product')
+@UsePipes(new ValidationPipe())
 export class LabelProductController {
 	constructor(private readonly labelProductService: LabelProductService) {}
 
@@ -41,7 +42,6 @@ export class LabelProductController {
 		return this.labelProductService.create()
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')

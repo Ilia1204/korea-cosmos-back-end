@@ -18,12 +18,13 @@ import { UpdatePostDto } from './post.dto'
 import { PostService } from './post.service'
 
 @Controller('posts')
+@UsePipes(new ValidationPipe())
 export class PostController {
 	constructor(private readonly postService: PostService) {}
 
 	@Get('published')
-	async getPublishedPosts() {
-		return this.postService.getPublishedPosts()
+	async getPublished() {
+		return this.postService.getPublished()
 	}
 
 	@Get('wp/:slug/engagement')
@@ -49,8 +50,8 @@ export class PostController {
 
 	@Get()
 	@Auth('admin')
-	async getAllPosts(@Query('searchTerm') searchTerm?: string) {
-		return this.postService.getAllPosts(searchTerm)
+	async getAll(@Query('searchTerm') searchTerm?: string) {
+		return this.postService.getAll(searchTerm)
 	}
 
 	@Get('by-slug/:slug')
@@ -78,14 +79,12 @@ export class PostController {
 		return this.postService.toggleFavorite(id, userId)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@Put('update-count-views')
 	@HttpCode(200)
 	async updateCountViews(@Body('slug') slug: string) {
 		return this.postService.updateCountViews(slug)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')

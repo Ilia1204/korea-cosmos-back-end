@@ -52,7 +52,6 @@ export class OrderController {
 	@Get('by-user')
 	@Auth()
 	async getByUserId(@CurrentUser('id') userId: string) {
-		this.orderService.updateUserLoyaltyLevel(userId).catch(() => null)
 		return this.orderService.getByUserId(userId)
 	}
 

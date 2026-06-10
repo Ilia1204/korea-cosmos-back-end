@@ -5,6 +5,7 @@ import { WooSyncService } from './woo-sync.service'
 
 @Module({
 	imports: [NotificationsModule],
-	providers: [WooSyncService, PrismaService]
+	providers: [WooSyncService, PrismaService],
+	exports: [WooSyncService]
 })
 export class WooSyncModule {}

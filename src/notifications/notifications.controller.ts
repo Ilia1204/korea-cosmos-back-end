@@ -15,6 +15,7 @@ import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { NotificationsService } from './notifications.service'
 
 @Controller('notifications')
+@UsePipes(new ValidationPipe())
 export class NotificationsController {
 	constructor(private readonly notificationsService: NotificationsService) {}
 
@@ -32,7 +33,6 @@ export class NotificationsController {
 		return this.notificationsService.markAllAsRead(id)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('save-token')
 	@Auth()
@@ -50,7 +50,6 @@ export class NotificationsController {
 		return this.notificationsService.clearPushToken(id)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Post('subscribe-to-product')
 	@Auth()
@@ -84,21 +83,21 @@ export class NotificationsController {
 	@HttpCode(200)
 	@Get('by-user')
 	@Auth()
-	async getNotifications(@CurrentUser('id') id: string) {
+	async getByUser(@CurrentUser('id') id: string) {
 		return this.notificationsService.getNotificationsForUser(id)
 	}
 
 	@HttpCode(200)
 	@Auth()
 	@Delete('by-user')
-	async clearFavorites(@CurrentUser('id') id: string) {
+	async clearNotifications(@CurrentUser('id') id: string) {
 		return this.notificationsService.clearNotifications(id)
 	}
 
 	@HttpCode(200)
 	@Delete(':id')
 	@Auth()
-	async deleteNotification(
+	async delete(
 		@Param('id') id: string,
 		@CurrentUser('id') userId: string
 	) {

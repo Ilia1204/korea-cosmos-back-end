@@ -18,12 +18,13 @@ import { AddressDto } from './address.dto'
 import { AddressService } from './address.service'
 
 @Controller('addresses')
+@UsePipes(new ValidationPipe())
 export class AddressController {
 	constructor(private readonly addressService: AddressService) {}
 
 	@Get('get-all-by-user')
 	@Auth()
-	async getAllAddressesByUser(
+	getByUser(
 		@CurrentUser('id') id: string,
 		@Query('searchTerm') searchTerm?: string
 	) {
@@ -31,21 +32,26 @@ export class AddressController {
 	}
 
 	@Get()
-	async getAllAddresses(@Query('searchTerm') searchTerm?: string) {
+	getAll(@Query('searchTerm') searchTerm?: string) {
 		return this.addressService.getAll(searchTerm)
 	}
 
 	@Get('default')
 	@Auth()
-	async getDefaultAddress(@CurrentUser('id') id: string) {
+	getDefault(@CurrentUser('id') id: string) {
 		return this.addressService.getDefault(id)
 	}
 
-	@UsePipes(new ValidationPipe())
+	@Get(':id')
+	@Auth()
+	getById(@Param('id') id: string) {
+		return this.addressService.getById(id)
+	}
+
 	@HttpCode(200)
 	@Auth()
 	@Post()
-	async createAddress(@CurrentUser('id') id: string, @Body() dto: AddressDto) {
+	async create(@CurrentUser('id') id: string, @Body() dto: AddressDto) {
 		const result = await this.addressService.create(id, dto)
 		this.addressService.syncDefaultToWooCommerce(id).catch(() => null)
 		return result
@@ -54,59 +60,44 @@ export class AddressController {
 	@HttpCode(200)
 	@Auth()
 	@Patch(':id/default')
-	async setDefaultAddress(
-		@Param('id') id: string,
-		@CurrentUser('id') userId: string
-	) {
+	async setDefault(@Param('id') id: string, @CurrentUser('id') userId: string) {
 		const result = await this.addressService.setDefault(id)
 		this.addressService.syncDefaultToWooCommerce(userId).catch(() => null)
 		return result
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
-	@Put(':id')
 	@Auth()
-	async updateCategory(
+	@Put(':id')
+	async update(
 		@Param('id') id: string,
 		@Body() dto: AddressDto,
 		@CurrentUser('id') userId: string
 	) {
 		const result = await this.addressService.update(id, dto)
-		if (dto.isDefault) this.addressService.syncDefaultToWooCommerce(userId).catch(() => null)
+		if (dto.isDefault)
+			this.addressService.syncDefaultToWooCommerce(userId).catch(() => null)
 		return result
 	}
 
 	@HttpCode(200)
-	@Get(':id')
 	@Auth()
-	async getAddressById(@Param('id') id: string) {
-		return this.addressService.getById(id)
-	}
-
-	@UsePipes(new ValidationPipe())
-	@HttpCode(200)
 	@Delete('delete-by-user/:id')
-	@Auth()
-	async deleteAddressByUser(
-		@Param('id') addressId: string,
-		@CurrentUser('id') id: string
-	) {
+	deleteByUser(@Param('id') addressId: string, @CurrentUser('id') id: string) {
 		return this.addressService.deleteByUser(addressId, id)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
-	@Delete('delete-all-by-user')
 	@Auth()
-	async deleteAllAddressesByUser(@CurrentUser('id') id: string) {
+	@Delete('delete-all-by-user')
+	deleteAll(@CurrentUser('id') id: string) {
 		return this.addressService.deleteAllByUser(id)
 	}
 
 	@HttpCode(200)
-	@Delete(':id')
 	@Auth('admin')
-	async deleteAddressByAdmin(@Param('id') id: string) {
+	@Delete(':id')
+	deleteByAdmin(@Param('id') id: string) {
 		return this.addressService.deleteByAdmin(id)
 	}
 }

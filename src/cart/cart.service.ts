@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
-
-export interface ICartItemInput {
-	productId: string
-	quantity: number
-	price: number
-}
+import { CartItemDto } from './dto/cart-item.dto'
 
 @Injectable()
 export class CartService {
@@ -18,8 +13,7 @@ export class CartService {
 		})
 	}
 
-	async syncCart(userId: string, items: ICartItemInput[]) {
-		// Удаляем все текущие элементы и заменяем новыми
+	async syncCart(userId: string, items: CartItemDto[]) {
 		await this.prisma.cartItem.deleteMany({ where: { userId } })
 
 		if (items.length === 0) return []

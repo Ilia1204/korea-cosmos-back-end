@@ -1,9 +1,20 @@
-import { Body, Controller, Delete, Get, HttpCode, Post } from '@nestjs/common'
+import {
+	Body,
+	Controller,
+	Delete,
+	Get,
+	HttpCode,
+	Post,
+	UsePipes,
+	ValidationPipe
+} from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { ICartItemInput, CartService } from './cart.service'
+import { CartService } from './cart.service'
+import { CartItemDto } from './dto/cart-item.dto'
 
 @Controller('cart')
+@UsePipes(new ValidationPipe())
 export class CartController {
 	constructor(private readonly cartService: CartService) {}
 
@@ -18,7 +29,7 @@ export class CartController {
 	@HttpCode(200)
 	async syncCart(
 		@CurrentUser('id') userId: string,
-		@Body('items') items: ICartItemInput[]
+		@Body('items') items: CartItemDto[]
 	) {
 		return this.cartService.syncCart(userId, items)
 	}

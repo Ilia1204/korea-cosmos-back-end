@@ -3,7 +3,10 @@ import { Response } from 'express'
 import { OrderService } from 'src/order/order.service'
 import { PrismaService } from 'src/prisma.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
-import { getOrderStatusIcons, getOrderStatusTranslation } from 'src/utils/translate-status'
+import {
+	getOrderStatusIcons,
+	getOrderStatusTranslation
+} from 'src/utils/translate-status'
 import { RobokassaService } from './robokassa.service'
 
 @Controller('robokassa')
@@ -36,26 +39,32 @@ export class RobokassaController {
 			data: { status: 'payed' }
 		})
 
-		this.orderService.updateWooCommerceStatus(updated.id, 'payed').catch(() => null)
-		this.orderService.updateRetailCRMStatus(updated.id, 'payed').catch(() => null)
+		this.orderService.markAsPaid(updated.id)
 
 		setTimeout(async () => {
 			const notification = await this.notificationService.saveNotification(
 				updated.userId,
 				getOrderStatusIcons(updated.status),
-				`Заказ #${updated.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(updated.status)}`,
+				`Заказ #${updated.id
+					.slice(0, 6)
+					.toUpperCase()} ${getOrderStatusTranslation(updated.status)}`,
 				{ orderUserId: updated.id, status: updated.status }
 			)
 
 			await this.notificationService.sendPushNotificationToUser(
 				updated.userId,
 				getOrderStatusIcons(updated.status),
-				`Заказ #${updated.id.slice(0, 6).toUpperCase()} ${getOrderStatusTranslation(updated.status)}`,
-				{ orderUserId: updated.id, status: updated.status, notification: notification.id }
+				`Заказ #${updated.id
+					.slice(0, 6)
+					.toUpperCase()} ${getOrderStatusTranslation(updated.status)}`,
+				{
+					orderUserId: updated.id,
+					status: updated.status,
+					notification: notification.id
+				}
 			)
 		}, 2000)
 
-		// Robokassa требует ответ ровно OK{InvId}
 		return res.status(200).send(`OK${InvId}`)
 	}
 

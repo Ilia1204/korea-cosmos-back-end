@@ -16,45 +16,41 @@ import { LoyaltyLevelDto, UpdateLoyaltyLevelDto } from './loyalty-level.dto'
 import { LoyaltyLevelService } from './loyalty-level.service'
 
 @Controller('loyalty-levels')
+@UsePipes(new ValidationPipe())
 export class LoyaltyLevelController {
 	constructor(private readonly loyaltyLevelService: LoyaltyLevelService) {}
 
 	@Get()
 	@Auth()
-	async getAllLoyaltyLevels(@Query('searchTerm') searchTerm?: string) {
+	async getAll(@Query('searchTerm') searchTerm?: string) {
 		return this.loyaltyLevelService.getAll(searchTerm)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
-	@Auth('admin')
 	@Post()
-	async createLoyaltyLevel(@Body() dto: LoyaltyLevelDto) {
+	@Auth('admin')
+	async create(@Body() dto: LoyaltyLevelDto) {
 		return this.loyaltyLevelService.create(dto)
 	}
 
-	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
-	async updateLoyaltyLevel(
-		@Param('id') id: string,
-		@Body() dto: UpdateLoyaltyLevelDto
-	) {
+	async update(@Param('id') id: string, @Body() dto: UpdateLoyaltyLevelDto) {
 		return this.loyaltyLevelService.update(id, dto)
 	}
 
 	@HttpCode(200)
 	@Get(':id')
 	@Auth('admin')
-	async getLoyaltyLevelById(@Param('id') id: string) {
+	async getById(@Param('id') id: string) {
 		return this.loyaltyLevelService.getById(id)
 	}
 
 	@HttpCode(200)
 	@Delete(':id')
 	@Auth('admin')
-	async deleteLoyaltyLevel(@Param('id') id: string) {
+	async delete(@Param('id') id: string) {
 		return this.loyaltyLevelService.delete(id)
 	}
 }

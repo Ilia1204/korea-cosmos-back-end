@@ -22,7 +22,7 @@ export class PostService {
 		})
 	}
 
-	async getPublishedPosts() {
+	async getPublished() {
 		return this.prisma.post.findMany({
 			where: { isPublic: true },
 			select: returnPostObject,
@@ -30,7 +30,7 @@ export class PostService {
 		})
 	}
 
-	async getAllPosts(searchTerm?: string) {
+	async getAll(searchTerm?: string) {
 		if (searchTerm) return this.search(searchTerm)
 
 		return this.prisma.post.findMany({
@@ -40,7 +40,7 @@ export class PostService {
 	}
 
 	private async search(searchTerm: string) {
-		return await this.prisma.post.findMany({
+		return this.prisma.post.findMany({
 			where: {
 				OR: [
 					{
@@ -152,24 +152,6 @@ export class PostService {
 		return this.prisma.post.delete({
 			where: { id }
 		})
-	}
-
-	async toggleLikePost(postId: string, userId: string) {
-		const post = await this.getById(postId)
-		if (!post) throw new NotFoundException('Пост не найден')
-
-		const userLiked = post.likesIdsUsers.includes(userId)
-
-		const updatedLikes = userLiked
-			? post.likesIdsUsers.filter(likedUserId => likedUserId !== userId)
-			: [...post.likesIdsUsers, userId]
-
-		await this.prisma.post.update({
-			where: { id: postId },
-			data: { likesIdsUsers: updatedLikes, countLikes: updatedLikes.length }
-		})
-
-		return !userLiked
 	}
 
 	async toggleFavorite(postId: string, userId: string) {

@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 
-// Фиксированная стоимость СДЭК пока не получены реальные API-ключи от cdek.ru
 const SDEK_FALLBACK_PRICE = 700
 
 @Injectable()
@@ -10,6 +10,8 @@ export class DeliveryService {
 
 	private sdekToken: string | null = null
 	private sdekTokenExpiry = 0
+
+	constructor(private configService: ConfigService) {}
 
 	async calculateRussianPost(toPostCode: string): Promise<number> {
 		const url = `https://tariff.pochta.ru/v2/calculate/tariff?json&from=${this.SENDER_POST_CODE}&to=${toPostCode}&weight=${this.DEFAULT_WEIGHT}&object=23030&pack=10`
@@ -34,13 +36,13 @@ export class DeliveryService {
 	}
 
 	async calculateSdek(toPostCode: string): Promise<number> {
-		const clientId = process.env['CDEK_CLIENT_ID'] || ''
-		const clientSecret = process.env['CDEK_CLIENT_SECRET'] || ''
+		const clientId = this.configService.get('CDEK_CLIENT_ID') || ''
+		const clientSecret = this.configService.get('CDEK_CLIENT_SECRET') || ''
 
 		if (!clientId || !clientSecret) return SDEK_FALLBACK_PRICE
 
 		try {
-			const token = await this.getSdekToken()
+			const token = await this.getSdekToken(clientId, clientSecret)
 
 			const response = await fetch('https://api.cdek.ru/v2/calculator/tariff', {
 				method: 'POST',
@@ -76,7 +78,7 @@ export class DeliveryService {
 		}
 	}
 
-	private async getSdekToken(): Promise<string> {
+	private async getSdekToken(clientId: string, clientSecret: string): Promise<string> {
 		const now = Date.now()
 		if (this.sdekToken && now < this.sdekTokenExpiry) return this.sdekToken
 
@@ -85,8 +87,8 @@ export class DeliveryService {
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			body: new URLSearchParams({
 				grant_type: 'client_credentials',
-				client_id: process.env['CDEK_CLIENT_ID'] || '',
-				client_secret: process.env['CDEK_CLIENT_SECRET'] || ''
+				client_id: clientId,
+				client_secret: clientSecret
 			}).toString()
 		})
 

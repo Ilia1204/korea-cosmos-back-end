@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
+import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import { LoyaltyLevelDto, UpdateLoyaltyLevelDto } from './loyalty-level.dto'
 import { returnLoyaltyLevelObject } from './return-loyalty-level.object'
 
 @Injectable()
 export class LoyaltyLevelService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private notifications: NotificationsService
+	) {}
 
 	async getById(id: string) {
 		const loyaltyLevel = await this.prisma.loyaltyLevel.findUnique({
@@ -29,7 +33,7 @@ export class LoyaltyLevelService {
 	}
 
 	private async search(searchTerm: string) {
-		return await this.prisma.loyaltyLevel.findMany({
+		return this.prisma.loyaltyLevel.findMany({
 			where: {
 				OR: [
 					{
@@ -77,5 +81,52 @@ export class LoyaltyLevelService {
 		await this.prisma.loyaltyLevel.delete({
 			where: { id }
 		})
+	}
+
+	async checkAndUpdateLevel(userId: string) {
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({
+			where: { userId },
+			include: { level: true }
+		})
+		if (!userLoyalty) return
+
+		await this.applyLevelChange(userId, userLoyalty)
+	}
+
+	async addAmountAndUpdateLevel(userId: string, amount: number) {
+		const userLoyalty = await this.prisma.userLoyalty.upsert({
+			where: { userId },
+			update: { totalAmountSpent: { increment: amount } },
+			create: { userId, totalAmountSpent: amount, currentDiscount: 0 }
+		})
+
+		await this.applyLevelChange(userId, userLoyalty)
+	}
+
+	private async applyLevelChange(userId: string, userLoyalty: any) {
+		const newLevel = await this.prisma.loyaltyLevel.findFirst({
+			where: { minAmount: { lte: userLoyalty.totalAmountSpent } },
+			orderBy: { minAmount: 'desc' }
+		})
+		if (!newLevel || userLoyalty.levelId === newLevel.id) return
+
+		const discountChanged = userLoyalty.currentDiscount !== newLevel.discount
+		await this.prisma.userLoyalty.update({
+			where: { userId },
+			data: { currentDiscount: newLevel.discount, levelId: newLevel.id }
+		})
+
+		if (discountChanged) {
+			const title = `🌟 Новый статус — «${newLevel.name}»!`
+			const body = `Поздравляем! Теперь ваша персональная скидка составляет ${newLevel.discount}%.`
+			setTimeout(() => {
+				this.notifications
+					.saveNotification(userId, title, body, { discount: newLevel })
+					.catch(() => {})
+				this.notifications
+					.sendPushNotificationToUser(userId, title, body, { discount: newLevel })
+					.catch(() => {})
+			}, 5000)
+		}
 	}
 }
