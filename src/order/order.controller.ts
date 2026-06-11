@@ -5,6 +5,7 @@ import {
 	Get,
 	HttpCode,
 	Param,
+	ParseIntPipe,
 	Patch,
 	Post,
 	Put,
@@ -65,6 +66,16 @@ export class OrderController {
 	@Auth()
 	getWooCommerceOrder(@Param('wcId') wcId: string) {
 		return this.orderService.getWooCommerceOrderById(wcId)
+	}
+
+	@Patch('woocommerce/:wcId/status')
+	@HttpCode(200)
+	@Auth('admin')
+	updateWooCommerceOrderStatus(
+		@Param('wcId', ParseIntPipe) wcId: number,
+		@Body('status') status: string
+	) {
+		return this.orderService.updateWooCommerceOrderStatus(wcId, status)
 	}
 
 	@Get(':id')

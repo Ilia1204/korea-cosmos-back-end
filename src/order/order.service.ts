@@ -88,11 +88,26 @@ export class OrderService {
 			data: this.buildOrderData(dto, userId, discount, invoiceId, totalPrice)
 		})
 
-		this.retailCRM.createOrder(order, user, dto.items)
+		const address = dto.addressId
+			? await this.prisma.address.findUnique({ where: { id: dto.addressId } })
+			: null
+		this.wooSync
+			.createOrderInWooCommerce(user.email, order, address, dto.items, user)
+			.then(wcOrderId => {
+				if (wcOrderId) {
+					this.prisma.order
+						.update({ where: { id: order.id }, data: { wcOrderId } })
+						.catch(() => null)
+					// Create in RetailCRM with WC order ID as externalId to prevent auto-sync duplicates
+					this.retailCRM.createOrder(order, user, dto.items, wcOrderId).catch(() => null)
+				}
+			})
+			.catch(() => null)
+
 		setTimeout(() =>
 			this.notifications.sendPushNotificationToAdmins(
-				'🛍️ Новый заказ',
-				`Новый заказ #${order.id.slice(0, 6).toUpperCase()} ожидает обработки`,
+				'🛍️ Новый заказ (приложение)',
+				`Заказ #${order.id.slice(0, 6).toUpperCase()} — ожидает оплаты`,
 				{ orderId: order.id, isRead: true }
 			), 2000)
 
@@ -198,11 +213,23 @@ export class OrderService {
 		})
 
 		this.wooSync.updateOrderStatus(id, dto.status).catch(() => null)
+		this.retailCRM.updateOrderStatus(id, dto.status).catch(() => null)
 
 		if (dto.status === 'delivered' && updated.userId) {
 			const amountToAdd = order.totalPrice - (order.deliveryPrice || 0)
 			this.loyaltyLevel
 				.addAmountAndUpdateLevel(updated.userId, amountToAdd)
+				.then(async () => {
+					const loyalty = await this.prisma.userLoyalty.findUnique({
+						where: { userId: updated.userId },
+						select: { currentDiscount: true }
+					})
+					if (loyalty?.currentDiscount && updated.user?.email) {
+						this.wooSync
+							.updateCustomerDiscount(updated.user.email, loyalty.currentDiscount)
+							.catch(() => null)
+					}
+				})
 				.catch(() => null)
 		}
 
@@ -283,6 +310,11 @@ export class OrderService {
 	markAsPaid(orderId: string) {
 		this.wooSync.updateOrderStatus(orderId, 'payed').catch(() => null)
 		this.retailCRM.updateOrderStatus(orderId, 'payed').catch(() => null)
+		this.notifications.sendPushNotificationToAdmins(
+			'💳 Заказ оплачен (приложение)',
+			`Заказ #${orderId.slice(0, 6).toUpperCase()} оплачен через приложение`,
+			{ orderId, isRead: true }
+		).catch(() => null)
 	}
 
 	validateWooCoupon(code: string) {
@@ -295,5 +327,10 @@ export class OrderService {
 
 	getWooCommerceOrderById(wcId: string) {
 		return this.wooSync.getOrderById(wcId)
+	}
+
+	async updateWooCommerceOrderStatus(wcId: number, status: string) {
+		await this.wooSync.updateWooOrderById(wcId, status)
+		return { success: true }
 	}
 }
