@@ -55,13 +55,16 @@ export class RetailCRMSyncService {
 					status: { notIn: ['delivered', 'cancelled'] as any[] },
 					createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
 				},
-				select: { id: true, status: true, userId: true }
+				select: { id: true, status: true, userId: true, wcOrderId: true }
 			})
 
 			if (!activeOrders.length) return
 
 			const params = new URLSearchParams({ limit: '50' })
-			activeOrders.forEach(o => params.append('filter[externalIds][]', o.id))
+			activeOrders.forEach(o => {
+				// Use WC order ID as externalId if available, otherwise local UUID
+				params.append('filter[externalIds][]', o.wcOrderId ? String(o.wcOrderId) : o.id)
+			})
 
 			const res = await fetch(`${this.url}/api/v5/orders?${params}`, {
 				headers: { 'X-API-KEY': this.apiKey }
@@ -77,11 +80,14 @@ export class RetailCRMSyncService {
 				const localStatus = RETAILCRM_TO_LOCAL[retailOrder.status]
 				if (!localStatus) continue
 
-				const localOrder = activeOrders.find(o => o.id === externalId)
+				// Match by wcOrderId (string) or local UUID
+				const localOrder = activeOrders.find(o =>
+					(o.wcOrderId && String(o.wcOrderId) === externalId) || o.id === externalId
+				)
 				if (!localOrder || localOrder.status === localStatus) continue
 
 				const updated = await this.prisma.order.update({
-					where: { id: externalId },
+					where: { id: localOrder.id },
 					data: { status: localStatus as any }
 				})
 
@@ -116,64 +122,102 @@ export class RetailCRMSyncService {
 		}
 	}
 
-	async createOrder(order: any, user: any, items: any[]) {
+	async createOrder(order: any, user: any, items: any[], wcOrderId?: number) {
+		const externalId = wcOrderId ? String(wcOrderId) : order.id
+		const isOtherRecipient = order.recipientDetails === 'other_recipient'
+		const orderPayload = {
+			externalId,
+			channel: 'mobile-app',
+			tags: [{ name: 'Мобильное приложение' }],
+			customer: { email: user.email },
+			firstName: isOtherRecipient ? order.recipientName || user.name || '' : user.name || '',
+			lastName: isOtherRecipient ? order.recipientSurname || user.surname || '' : user.surname || '',
+			phone: isOtherRecipient ? order.recipientPhone || user.phone || '' : user.phone || '',
+			email: isOtherRecipient ? order.recipientEmail || user.email || '' : user.email || '',
+			customerComment: [order.comment, order.address?.comment].filter(Boolean).join(' | ') || undefined,
+			delivery: {
+				address: {
+					text: [
+						order.address?.city,
+						order.address?.street,
+						order.address?.house,
+						order.address?.apartment ? `кв. ${order.address.apartment}` : null
+					].filter(Boolean).join(', ')
+				}
+			},
+			items: items.map(item => ({
+				offer: { externalId: item.productId },
+				quantity: item.quantity,
+				initialPrice: item.price
+			}))
+		}
+
 		try {
-			await fetch(`${this.url}/api/v5/orders/create`, {
+			const res = await fetch(`${this.url}/api/v5/orders/create`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'X-API-KEY': this.apiKey
-				},
-				body: new URLSearchParams({
-					order: JSON.stringify({
-						externalId: order.id,
-						channel: 'mobile-app',
-						tags: [{ name: 'Мобильное приложение' }],
-						customer: { externalId: order.userId, email: user.email },
-						firstName:
-							order.recipientDetails === 'other_recipient'
-								? order.recipientName || user.name || ''
-								: user.name || '',
-						lastName:
-							order.recipientDetails === 'other_recipient'
-								? order.recipientSurname || user.surname || ''
-								: user.surname || '',
-						phone:
-							order.recipientDetails === 'other_recipient'
-								? order.recipientPhone || user.phone || ''
-								: user.phone || '',
-						email:
-							order.recipientDetails === 'other_recipient'
-								? order.recipientEmail || user.email || ''
-								: user.email || '',
-						customerComment:
-							[order.comment, order.address?.comment]
-								.filter(Boolean)
-								.join(' | ') || undefined,
-						delivery: {
-							address: {
-								text: [
-									order.address?.city,
-									order.address?.street,
-									order.address?.house,
-									order.address?.apartment
-										? `кв. ${order.address.apartment}`
-										: null
-								]
-									.filter(Boolean)
-									.join(', ')
-							}
-						},
-						items: items.map(item => ({
-							offer: { externalId: item.productId },
-							quantity: item.quantity,
-							initialPrice: item.price
-						}))
-					})
-				}).toString()
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-API-KEY': this.apiKey },
+				body: new URLSearchParams({ order: JSON.stringify(orderPayload) }).toString()
 			})
+			const data = await res.json()
+
+			if (data?.success) {
+				this.logger.log(`[RetailCRM] Order created OK: id=${data.id} externalId=${externalId}`)
+			} else if (data?.errorMsg?.includes('already exists')) {
+				// RetailCRM WC autosync already created the order — patch prices on existing items
+				this.logger.log(`[RetailCRM] Order already exists, patching prices for externalId=${externalId}`)
+				await this.patchOrderItems(externalId, items)
+			} else {
+				this.logger.error(`[RetailCRM] Order create FAILED: ${JSON.stringify(data)}`)
+			}
 		} catch (e) {
 			this.logger.error('RetailCRM createOrder error:', e)
+		}
+	}
+
+	private async patchOrderItems(externalId: string, items: any[]) {
+		try {
+			const fetchRes = await fetch(`${this.url}/api/v5/orders/${externalId}?by=externalId`, {
+				headers: { 'X-API-KEY': this.apiKey }
+			})
+			const fetchData = await fetchRes.json()
+			if (!fetchData.success || !fetchData.order) return
+
+			const existingItems: any[] = fetchData.order.items || []
+
+			let updatedItems: any[]
+			if (existingItems.length > 0) {
+				// Update existing item prices by index
+				updatedItems = existingItems.map((ri: any, i: number) => ({
+					id: ri.id,
+					initialPrice: items[i]?.price ?? ri.initialPrice,
+					quantity: items[i]?.quantity ?? ri.quantity
+				}))
+			} else {
+				// No items (WC used fee_lines) — add items with prices
+				updatedItems = items.map(item => ({
+					offer: { externalId: item.productId },
+					quantity: item.quantity,
+					initialPrice: item.price
+				}))
+			}
+
+			const editRes = await fetch(`${this.url}/api/v5/orders/${externalId}/edit`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-API-KEY': this.apiKey },
+				body: new URLSearchParams({
+					by: 'externalId',
+					order: JSON.stringify({ items: updatedItems })
+				}).toString()
+			})
+			const editData = await editRes.json()
+
+			if (editData.success) {
+				this.logger.log(`[RetailCRM] Order items patched OK (externalId=${externalId})`)
+			} else {
+				this.logger.error(`[RetailCRM] Order patch FAILED: ${JSON.stringify(editData)}`)
+			}
+		} catch (e) {
+			this.logger.error('RetailCRM patchOrderItems error:', e)
 		}
 	}
 
@@ -181,7 +225,12 @@ export class RetailCRMSyncService {
 		const retailStatus = LOCAL_TO_RETAILCRM[localStatus]
 		if (!retailStatus) return
 		try {
-			await fetch(`${this.url}/api/v5/orders/${orderId}/edit`, {
+			const order = await this.prisma.order.findUnique({
+				where: { id: orderId },
+				select: { wcOrderId: true }
+			})
+			const externalId = order?.wcOrderId ? String(order.wcOrderId) : orderId
+			await fetch(`${this.url}/api/v5/orders/${externalId}/edit`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',

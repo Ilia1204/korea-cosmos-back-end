@@ -9,6 +9,7 @@ import {
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { AuthDto } from './dto/auth.dto'
@@ -16,6 +17,7 @@ import { PhoneSendOtpDto, PhoneVerifyDto } from './dto/phone-auth.dto'
 
 @Controller('auth')
 @UsePipes(new ValidationPipe())
+@Throttle({ default: { ttl: 60000, limit: 10 } })
 export class AuthController {
 	constructor(private readonly authService: AuthService) {}
 

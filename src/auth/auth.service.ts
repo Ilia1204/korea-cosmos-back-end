@@ -10,6 +10,7 @@ import { hash, verify } from 'argon2'
 import { Response } from 'express'
 import { AddressService } from 'src/address/address.service'
 import { EmailService } from 'src/email/email.service'
+import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
@@ -29,7 +30,8 @@ export class AuthService {
 		private emailService: EmailService,
 		private addressService: AddressService,
 		private smsService: SmsService,
-		private configService: ConfigService
+		private configService: ConfigService,
+		private notificationsService: NotificationsService
 	) {}
 
 	async login(dto: AuthDto) {
@@ -52,6 +54,11 @@ export class AuthService {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...user } = await this.userService.create(dto)
 		this.createWordPressAccount(dto.email, dto.password).catch(() => null)
+		this.notificationsService.sendPushNotificationToAdmins(
+			'👤 Новый пользователь',
+			`Зарегистрировался: ${dto.email}`,
+			{ isRead: true }
+		).catch(() => null)
 
 		return { user, ...this.issueTokens(user.id) }
 	}
@@ -71,7 +78,6 @@ export class AuthService {
 
 		res.cookie(this.REFRESH_TOKEN_NAME, refreshToken, {
 			httpOnly: true,
-			domain: 'localhost',
 			expires,
 			secure: true,
 			sameSite: 'none'
@@ -81,7 +87,6 @@ export class AuthService {
 	removeRefreshTokenFromResponse(res: Response) {
 		res.cookie(this.REFRESH_TOKEN_NAME, '', {
 			httpOnly: true,
-			domain: 'localhost',
 			expires: new Date(0),
 			secure: true,
 			sameSite: 'none'
@@ -161,16 +166,24 @@ export class AuthService {
 			} else {
 				// Нет нигде — создаём нового
 				const email = `${normalized}@phone.koreacosmos.ru`
-				user = await this.prisma.user.create({
-					data: {
-						email,
-						password: await hash(this.generateRandomPassword()),
-						phone: '+' + normalized
-					}
-				})
-				this.createWordPressAccount(email, this.generateRandomPassword()).catch(
-					() => null
-				)
+				user = await this.prisma.user.findUnique({ where: { email } })
+				if (!user) {
+					user = await this.prisma.user.create({
+						data: {
+							email,
+							password: await hash(this.generateRandomPassword()),
+							phone: '+' + normalized
+						}
+					})
+					this.createWordPressAccount(email, this.generateRandomPassword()).catch(
+						() => null
+					)
+					this.notificationsService.sendPushNotificationToAdmins(
+						'👤 Новый пользователь',
+						`Зарегистрировался по номеру: +${normalized}`,
+						{ isRead: true }
+					).catch(() => null)
+				}
 			}
 		}
 
@@ -220,6 +233,7 @@ export class AuthService {
 					this.userService
 						.syncLoyaltyFromRetailCRM(user.id, user.phone)
 						.catch(() => null)
+				this.userService.recalculateLoyaltyLevel(user.id).catch(() => null)
 				return user
 			}
 		}

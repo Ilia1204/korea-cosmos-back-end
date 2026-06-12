@@ -217,43 +217,47 @@ export class UserService {
 			const localOrdersSum = existing?.totalAmountSpent || 0
 			const ordersSum = Math.max(retailOrdersSum, localOrdersSum)
 
-			// Авто-синхронизируем уровень из RetailCRM в локальную БД
-			let localLevel = retailLevelName
-				? await this.prisma.loyaltyLevel.findFirst({
-						where: { name: retailLevelName }
-					})
+			// Синхронизируем уровень из RetailCRM в локальную БД (обновляем скидку если изменилась)
+			let retailLevel = retailLevelName
+				? await this.prisma.loyaltyLevel.findFirst({ where: { name: retailLevelName } })
 				: null
 
-			if (!localLevel && retailLevelName) {
-				// Уровень не найден — создаём автоматически из данных RetailCRM
+			if (!retailLevel && retailLevelName) {
 				const minAmount = retailLevelType === 'base' ? 0 : retailOrdersSum
-				localLevel = await this.prisma.loyaltyLevel.create({
-					data: {
-						name: retailLevelName,
-						discount: retailDiscount,
-						minAmount
-					}
+				retailLevel = await this.prisma.loyaltyLevel.create({
+					data: { name: retailLevelName, discount: retailDiscount, minAmount }
 				})
-			} else if (localLevel && localLevel.discount !== retailDiscount) {
-				// Уровень есть, но скидка изменилась в RetailCRM — обновляем
-				localLevel = await this.prisma.loyaltyLevel.update({
-					where: { id: localLevel.id },
+			} else if (retailLevel && retailLevel.discount !== retailDiscount) {
+				retailLevel = await this.prisma.loyaltyLevel.update({
+					where: { id: retailLevel.id },
 					data: { discount: retailDiscount }
 				})
 			}
+
+			// Пересчитываем уровень по реальной сумме — берём наивысший подходящий из локальной БД
+			const calculatedLevel = await this.prisma.loyaltyLevel.findFirst({
+				where: { minAmount: { lte: ordersSum } },
+				orderBy: { minAmount: 'desc' }
+			})
+
+			// Используем уровень с максимальной скидкой (защита от даунгрейда из RetailCRM)
+			const bestLevel =
+				calculatedLevel && (!retailLevel || calculatedLevel.discount >= retailLevel.discount)
+					? calculatedLevel
+					: retailLevel
 
 			await this.prisma.userLoyalty.upsert({
 				where: { userId },
 				update: {
 					totalAmountSpent: ordersSum,
-					currentDiscount: localLevel?.discount ?? retailDiscount,
-					levelId: localLevel?.id ?? null
+					currentDiscount: bestLevel?.discount ?? retailDiscount,
+					levelId: bestLevel?.id ?? null
 				},
 				create: {
 					userId,
 					totalAmountSpent: ordersSum,
-					currentDiscount: localLevel?.discount ?? retailDiscount,
-					levelId: localLevel?.id ?? null
+					currentDiscount: bestLevel?.discount ?? retailDiscount,
+					levelId: bestLevel?.id ?? null
 				}
 			})
 		} catch {
@@ -261,9 +265,30 @@ export class UserService {
 		}
 	}
 
+	async recalculateLoyaltyLevel(userId: string) {
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+		if (!userLoyalty?.totalAmountSpent) return
+
+		const newLevel = await this.prisma.loyaltyLevel.findFirst({
+			where: { minAmount: { lte: userLoyalty.totalAmountSpent } },
+			orderBy: { minAmount: 'desc' }
+		})
+		if (!newLevel || userLoyalty.levelId === newLevel.id) return
+
+		await this.prisma.userLoyalty.update({
+			where: { userId },
+			data: { currentDiscount: newLevel.discount, levelId: newLevel.id }
+		})
+	}
+
 	async syncProfileFromWordPress(userId: string, email: string) {
 		const wcCustomer = await this.getWooCommerceCustomer(email)
 		if (!wcCustomer) return
+
+		const currentUser = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { phone: true }
+		})
 
 		const firstName = wcCustomer.first_name || ''
 		const lastName = wcCustomer.last_name || ''
@@ -278,7 +303,8 @@ export class UserService {
 				displayName,
 				name: firstName,
 				surname: lastName,
-				phone: wcCustomer.billing?.phone || ''
+				// Телефон из WC тянем только если в приложении он ещё не установлен
+				...(!currentUser?.phone && { phone: wcCustomer.billing?.phone || '' })
 			}
 		})
 	}
@@ -287,15 +313,25 @@ export class UserService {
 		const wcCustomer = await this.getWooCommerceCustomer(email)
 		if (!wcCustomer) return
 
+		const updateData: any = {
+			first_name: dto.name,
+			last_name: dto.surname,
+			display_name: dto.displayName,
+			billing: { phone: dto.phone }
+		}
+
+		if (dto.email && dto.email !== email) {
+			updateData.email = dto.email
+		}
+
+		if (dto.password) {
+			updateData.password = dto.password
+		}
+
 		await axios
 			.put(
 				`${process.env.WP_URL}/wp-json/wc/v3/customers/${wcCustomer.id}`,
-				{
-					first_name: dto.name,
-					last_name: dto.surname,
-					display_name: dto.displayName,
-					billing: { phone: dto.phone }
-				},
+				updateData,
 				{
 					auth: {
 						username: process.env.WC_CONSUMER_KEY,

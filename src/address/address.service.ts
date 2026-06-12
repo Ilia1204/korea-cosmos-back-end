@@ -142,17 +142,27 @@ export class AddressService {
 
 		try {
 			const res = await fetch(
-				`${
-					process.env.WP_URL
-				}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}`,
+				`${process.env.WP_URL}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}`,
 				{ headers: { Authorization: this.wcAuth } }
 			)
 			const customers = await res.json()
-			const billing = customers?.[0]?.billing
-			if (!billing?.city && !billing?.address_1) return
+			const customer = customers?.[0]
+			if (!customer) return
 
-			await this.prisma.address.create({
-				data: {
+			const billing = customer.billing
+			const shipping = customer.shipping
+
+			const hasBilling = billing?.city || billing?.address_1
+			const hasShipping = shipping?.city || shipping?.address_1
+
+			const billingKey = [billing?.address_1, billing?.city, billing?.postcode].join('|')
+			const shippingKey = [shipping?.address_1, shipping?.city, shipping?.postcode].join('|')
+			const isDifferent = hasShipping && billingKey !== shippingKey
+
+			const toCreate = []
+
+			if (hasBilling) {
+				toCreate.push({
 					userId,
 					city: billing.city || '',
 					region: billing.state || '',
@@ -161,8 +171,25 @@ export class AddressService {
 					apartment: billing.address_2 || '',
 					house: '',
 					isDefault: true
-				}
-			})
+				})
+			}
+
+			if (isDifferent) {
+				toCreate.push({
+					userId,
+					city: shipping.city || '',
+					region: shipping.state || '',
+					postCode: shipping.postcode || '',
+					street: shipping.address_1 || '',
+					apartment: shipping.address_2 || '',
+					house: '',
+					isDefault: false
+				})
+			}
+
+			if (toCreate.length > 0) {
+				await this.prisma.address.createMany({ data: toCreate })
+			}
 		} catch {}
 	}
 

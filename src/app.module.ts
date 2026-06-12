@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
-import { APP_GUARD } from '@nestjs/core'
+import { ThrottlerModule } from '@nestjs/throttler'
 import { ScheduleModule } from '@nestjs/schedule'
 import { ServeStaticModule } from '@nestjs/serve-static'
 import { path } from 'app-root-path'
@@ -64,6 +63,6 @@ import { SearchModule } from './search/search.module'
 		WooSyncModule,
 		SearchModule
 	],
-	providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
+	providers: []
 })
 export class AppModule {}
