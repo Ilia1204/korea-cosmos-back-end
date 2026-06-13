@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma.service'
 import { ProductService } from 'src/product/product.service'
 import { SectionService } from 'src/section/section.service'
 import { UserService } from 'src/user/user.service'
+import { AuditService } from 'src/audit/audit.service'
 import { ReviewController } from './review.controller'
 import { ReviewService } from './review.service'
 
@@ -21,7 +22,8 @@ import { ReviewService } from './review.service'
 		LabelProductService,
 		PaginationService,
 		UserService,
-		NotificationsService
+		NotificationsService,
+		AuditService
 	]
 })
 export class ReviewModule {}

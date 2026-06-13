@@ -1,6 +1,7 @@
 import {
 	Body,
 	Controller,
+	DefaultValuePipe,
 	Delete,
 	Get,
 	HttpCode,
@@ -15,7 +16,7 @@ import {
 
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { WooReviewDto } from './woo-review.dto'
+import { RejectReviewDto, WooReviewDto } from './woo-review.dto'
 import { WooReviewService } from './woo-review.service'
 
 @Controller('woo-reviews')
@@ -24,15 +25,26 @@ export class WooReviewController {
 
 	// Публичные отзывы по товару
 	@Get('by-product')
-	async getByProduct(@Query('wooProductId', ParseIntPipe) wooProductId: number) {
+	async getByProduct(
+		@Query('wooProductId', ParseIntPipe) wooProductId: number
+	) {
 		return this.wooReviewService.getByWooProductId(wooProductId)
 	}
 
 	// Все отзывы для админки
 	@Get()
 	@Auth('admin')
-	async getAll(@Query('searchTerm') searchTerm?: string) {
-		return this.wooReviewService.getAll(searchTerm)
+	async getAll(
+		@Query('searchTerm') searchTerm?: string,
+		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number
+	) {
+		return this.wooReviewService.getAll(searchTerm, page)
+	}
+
+	@Get('product-info')
+	@Auth('admin')
+	async getProductInfo(@Query('wooProductId', ParseIntPipe) wooProductId: number) {
+		return this.wooReviewService.getWooProductInfo(wooProductId)
 	}
 
 	@Get(':id')
@@ -59,7 +71,10 @@ export class WooReviewController {
 		@CurrentUser('id') userId: string,
 		@Param('wooProductId', ParseIntPipe) wooProductId: number
 	) {
-		const canReview = await this.wooReviewService.hasPurchased(userId, wooProductId)
+		const canReview = await this.wooReviewService.hasPurchased(
+			userId,
+			wooProductId
+		)
 		return { canReview }
 	}
 
@@ -72,6 +87,40 @@ export class WooReviewController {
 	}
 
 	@HttpCode(200)
+	@Put(':id/message')
+	@Auth('admin')
+	async updateMessage(@Param('id') id: string, @Body('message') message: string) {
+		return this.wooReviewService.updateMessage(id, message)
+	}
+
+	@HttpCode(200)
+	@Put(':id/rating')
+	@Auth('admin')
+	async updateRating(@Param('id') id: string, @Body('rating', ParseIntPipe) rating: number) {
+		return this.wooReviewService.updateRating(id, rating)
+	}
+
+	@HttpCode(200)
+	@Put('woo/:wooReviewId/rating')
+	@Auth('admin')
+	async updateWooNativeRating(
+		@Param('wooReviewId', ParseIntPipe) wooReviewId: number,
+		@Body('rating', ParseIntPipe) rating: number
+	) {
+		return this.wooReviewService.updateWooNativeRating(wooReviewId, rating)
+	}
+
+	@HttpCode(200)
+	@Put('woo/:wooReviewId/message')
+	@Auth('admin')
+	async updateWooNativeMessage(
+		@Param('wooReviewId', ParseIntPipe) wooReviewId: number,
+		@Body('message') message: string
+	) {
+		return this.wooReviewService.updateWooNativeMessage(wooReviewId, message)
+	}
+
+	@HttpCode(200)
 	@Put(':id/publish')
 	@Auth('admin')
 	async publish(@Param('id') id: string) {
@@ -81,8 +130,22 @@ export class WooReviewController {
 	@HttpCode(200)
 	@Put(':id/reject')
 	@Auth('admin')
-	async reject(@Param('id') id: string) {
-		return this.wooReviewService.reject(id)
+	async reject(@Param('id') id: string, @Body() dto: RejectReviewDto) {
+		return this.wooReviewService.reject(id, dto.reason)
+	}
+
+	@HttpCode(200)
+	@Put(':id/spam')
+	@Auth('admin')
+	async spam(@Param('id') id: string) {
+		return this.wooReviewService.spam(id)
+	}
+
+	@HttpCode(200)
+	@Put(':id/trash')
+	@Auth('admin')
+	async trash(@Param('id') id: string) {
+		return this.wooReviewService.trash(id)
 	}
 
 	// Управление WooCommerce-нативными отзывами (добавленными с сайта, не из мобилки)
@@ -98,6 +161,39 @@ export class WooReviewController {
 	@Auth('admin')
 	async rejectWoo(@Param('wooReviewId', ParseIntPipe) wooReviewId: number) {
 		return this.wooReviewService.rejectWooNative(wooReviewId)
+	}
+
+	@HttpCode(200)
+	@Put('woo/:wooReviewId/spam')
+	@Auth('admin')
+	async spamWoo(@Param('wooReviewId', ParseIntPipe) wooReviewId: number) {
+		return this.wooReviewService.spamWooNative(wooReviewId)
+	}
+
+	@HttpCode(200)
+	@Put('woo/:wooReviewId/trash')
+	@Auth('admin')
+	async trashWoo(@Param('wooReviewId', ParseIntPipe) wooReviewId: number) {
+		return this.wooReviewService.trashWooNative(wooReviewId)
+	}
+
+	// WooCommerce webhook — новый отзыв с сайта
+	@HttpCode(200)
+	@Post('webhook/new-review')
+	async webhookNewReview(@Body() body: any) {
+		const wooReviewId = body?.id
+		const productName = body?.product?.name || 'товар'
+		const reviewer = body?.reviewer || 'Покупатель'
+		const reviewText = (body?.review ?? '').replace(/<[^>]*>/g, '')
+		if (!wooReviewId) return { ok: false }
+		this.wooReviewService.autoTrashIfSpam(wooReviewId, reviewText, reviewer)
+			.then(wasSpam => {
+				if (!wasSpam) {
+					this.wooReviewService.notifyAdminNewWooReview(wooReviewId, productName, reviewer)
+				}
+			})
+			.catch(() => {})
+		return { ok: true }
 	}
 
 	@HttpCode(200)

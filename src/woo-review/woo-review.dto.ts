@@ -24,3 +24,9 @@ export class WooReviewDto {
 	@IsNumber()
 	wooProductId: number
 }
+
+export class RejectReviewDto {
+	@IsString()
+	@IsOptional()
+	reason?: string
+}
