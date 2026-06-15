@@ -7,6 +7,7 @@ import { PrismaService } from 'src/prisma.service'
 import { returnReviewObject } from 'src/review/return-review.object'
 import { convertToNumber } from 'src/utils/convert-to-number'
 import { generateSlug } from 'src/utils/generate-slug'
+import { AuditService } from 'src/audit/audit.service'
 import { ApplyDiscountDto } from './dto/apply-discount.dto'
 import {
 	EnumProductSort,
@@ -25,7 +26,8 @@ export class ProductService {
 		private readonly prisma: PrismaService,
 		private readonly labelProductService: LabelProductService,
 		private paginationService: PaginationService,
-		private notificationsService: NotificationsService
+		private notificationsService: NotificationsService,
+		private auditService: AuditService
 	) {}
 
 	async getAll(dto: GetAllProductDto = {}) {
@@ -515,7 +517,7 @@ export class ProductService {
 		})
 	}
 
-	async update(id: string, dto: UpdateProductDto) {
+	async update(id: string, dto: UpdateProductDto, actorId?: string) {
 		const currentProduct = await this.prisma.product.findUnique({
 			where: { id }
 		})
@@ -562,10 +564,32 @@ export class ProductService {
 			await this.notificationsService.notifySubscribedUsersAboutStock(id)
 		}
 
+		const TRACKED = ['name', 'price', 'newPrice', 'discount', 'isPublic', 'inStock'] as const
+		const before: Record<string, any> = {}
+		const after: Record<string, any> = {}
+		for (const key of TRACKED) {
+			if (currentProduct[key] !== (dto as any)[key]) {
+				before[key] = currentProduct[key]
+				after[key] = (dto as any)[key]
+			}
+		}
+		if (Object.keys(before).length > 0) {
+			this.auditService.log({
+				action: 'product.update',
+				entity: 'Product',
+				entityId: id,
+				entityName: currentProduct.name ?? undefined,
+				actorId,
+				before,
+				after,
+				revertible: true
+			}).catch(() => null)
+		}
+
 		return product
 	}
 
-	async delete(id: string) {
+	async delete(id: string, actorId?: string) {
 		const product = await this.byId(id)
 		if (!product) throw new NotFoundException('Товар не найден')
 
@@ -574,6 +598,15 @@ export class ProductService {
 				this.prisma.review.delete({ where: { id: review.id } })
 			)
 		)
+
+		this.auditService.log({
+			action: 'product.delete',
+			entity: 'Product',
+			entityId: id,
+			entityName: product.name ?? undefined,
+			actorId,
+			revertible: false
+		}).catch(() => null)
 
 		return this.prisma.product.delete({ where: { id } })
 	}

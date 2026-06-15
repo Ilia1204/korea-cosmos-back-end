@@ -8,6 +8,7 @@ import { PaginationService } from 'src/pagination/pagination.service'
 import { PrismaService } from 'src/prisma.service'
 import { SectionService } from 'src/section/section.service'
 import { UserService } from 'src/user/user.service'
+import { AuditService } from 'src/audit/audit.service'
 import { ProductController } from './product.controller'
 import { ProductService } from './product.service'
 
@@ -22,7 +23,8 @@ import { ProductService } from './product.service'
 		LabelProductService,
 		PaginationService,
 		NotificationsService,
-		UserService
+		UserService,
+		AuditService
 	]
 })
 export class ProductModule {}

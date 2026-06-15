@@ -73,15 +73,19 @@ export class ProductController {
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
-	async updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
-		return this.productService.update(id, dto)
+	async updateProduct(
+		@Param('id') id: string,
+		@Body() dto: UpdateProductDto,
+		@CurrentUser('id') actorId: string
+	) {
+		return this.productService.update(id, dto, actorId)
 	}
 
 	@HttpCode(200)
 	@Delete(':id')
 	@Auth('admin')
-	async deleteProduct(@Param('id') id: string) {
-		return this.productService.delete(id)
+	async deleteProduct(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+		return this.productService.delete(id, actorId)
 	}
 
 	@Get(':id')
