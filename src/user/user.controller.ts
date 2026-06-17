@@ -13,12 +13,16 @@ import {
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
+import { AuditService } from 'src/audit/audit.service'
 import { UserDto } from './user.dto'
 import { UserService } from './user.service'
 
 @Controller('users')
 export class UserController {
-	constructor(private readonly userService: UserService) {}
+	constructor(
+		private readonly userService: UserService,
+		private readonly auditService: AuditService
+	) {}
 
 	@HttpCode(200)
 	@Auth()
@@ -64,12 +68,49 @@ export class UserController {
 		return this.userService.getAll(searchTerm)
 	}
 
+	@Get('admin-list')
+	@Auth('admin')
+	async getAdminList(
+		@Query('search') search?: string,
+		@Query('page') page?: string,
+		@Query('role') role?: string,
+		@Query('hasOrders') hasOrders?: string
+	) {
+		return this.userService.getAdminUsers(search, page ? Number(page) : 1, role, hasOrders)
+	}
+
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
 	@Auth('admin')
-	async updateUser(@Param('id') id: string, @Body() dto: UserDto) {
-		return this.userService.update(id, dto)
+	async updateUser(
+		@Param('id') id: string,
+		@Body() dto: UserDto,
+		@CurrentUser('id') actorId: string
+	) {
+		const before = await this.userService.getById(id)
+		const updated = await this.userService.update(id, dto)
+
+		if (before && (dto as any).role && (dto as any).role !== before.role) {
+			this.auditService.log({
+				action: 'user.role',
+				entity: 'User',
+				entityId: id,
+				entityName: before.email,
+				actorId,
+				before: { role: before.role },
+				after: { role: (dto as any).role },
+				revertible: false
+			}).catch(() => null)
+		}
+
+		return updated
+	}
+
+	@Get('by-email/:email')
+	@Auth('admin')
+	async getByEmail(@Param('email') email: string) {
+		return this.userService.getByEmail(email)
 	}
 
 	@Get(':id')

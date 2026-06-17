@@ -5,7 +5,7 @@ export const returnUserObject: Prisma.UserSelect = {
 	createdAt: true,
 	email: true,
 	password: false,
-	isAdmin: true,
+	role: true,
 	name: true,
 	surname: true,
 	displayName: true,

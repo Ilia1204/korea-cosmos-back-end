@@ -13,8 +13,21 @@ export class OnlyAdminGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest<{ user: User }>()
 		const user = request.user
 
-		if (!user.isAdmin) throw new ForbiddenException('У вас нет прав!')
+		if (user.role !== 'admin') throw new ForbiddenException('У вас нет прав!')
 
-		return user.isAdmin
+		return true
+	}
+}
+
+export class ManagerOrAdminGuard implements CanActivate {
+	constructor(private reflector: Reflector) {}
+
+	canActivate(context: ExecutionContext): boolean {
+		const request = context.switchToHttp().getRequest<{ user: User }>()
+		const user = request.user
+
+		if (user.role === 'user') throw new ForbiddenException('У вас нет прав!')
+
+		return true
 	}
 }

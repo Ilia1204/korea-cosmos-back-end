@@ -20,7 +20,7 @@ import { otpStore } from './otp.store'
 
 @Injectable()
 export class AuthService {
-	private readonly EXPIRE_DAY_REFRESH_TOKEN = 1
+	private readonly EXPIRE_DAY_REFRESH_TOKEN = 90
 	readonly REFRESH_TOKEN_NAME = 'refreshToken'
 
 	constructor(
@@ -57,7 +57,7 @@ export class AuthService {
 		this.notificationsService.sendPushNotificationToAdmins(
 			'👤 Новый пользователь',
 			`Зарегистрировался: ${dto.email}`,
-			{ isRead: true }
+			{ newUser: true, newUserId: user.id }
 		).catch(() => null)
 
 		return { user, ...this.issueTokens(user.id) }
@@ -181,7 +181,7 @@ export class AuthService {
 					this.notificationsService.sendPushNotificationToAdmins(
 						'👤 Новый пользователь',
 						`Зарегистрировался по номеру: +${normalized}`,
-						{ isRead: true }
+						{ newUser: true, newUserId: user.id }
 					).catch(() => null)
 				}
 			}
@@ -215,8 +215,8 @@ export class AuthService {
 	private issueTokens(userId: string) {
 		const data = { id: userId }
 		return {
-			accessToken: this.jwt.sign(data, { expiresIn: '1h' }),
-			refreshToken: this.jwt.sign(data, { expiresIn: '7d' })
+			accessToken: this.jwt.sign(data, { expiresIn: '30d' }),
+			refreshToken: this.jwt.sign(data, { expiresIn: '90d' })
 		}
 	}
 

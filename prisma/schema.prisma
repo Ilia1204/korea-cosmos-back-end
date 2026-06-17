@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  user
+  manager
+  admin
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -14,9 +20,10 @@ model User {
 
   email    String  @unique
   password String
-  isAdmin  Boolean @default(false) @map("is_admin")
+  role     Role    @default(user)
 
-  pushToken String? @default("") @map("push_token")
+  pushToken  String?   @default("") @map("push_token")
+  lastSeenAt DateTime? @map("last_seen_at")
 
   name               String?   @default("")
   surname            String?   @default("")
@@ -36,6 +43,7 @@ model User {
   userLoyalty          UserLoyalty?
   products             Product[]
   cartItems            CartItem[]
+  chatRoom             ChatRoom?
 
   @@map("user")
 }
@@ -166,6 +174,8 @@ model WooReview {
   images       String[]
   rating       Int      @default(0)
   isPublic     Boolean  @default(false) @map("is_public")
+  wooStatus    String   @default("hold") @map("woo_status")
+  rejectReason String?  @map("reject_reason")
   wooProductId Int      @map("woo_product_id")
   wooReviewId  Int?     @map("woo_review_id")
 
@@ -286,7 +296,9 @@ model Order {
   invoiceId      Int?    @unique @map("invoice_id")
   wcOrderId      Int?    @map("wc_order_id")
   trackingNumber String? @default("") @map("tracking_number")
-  cancelReason   String? @map("cancel_reason")
+  cdekUuid        String? @map("cdek_uuid")
+  russianPostId   String? @map("russian_post_id")
+  cancelReason    String? @map("cancel_reason")
 
   items OrderItem[]
 
@@ -367,19 +379,34 @@ model PromoCode {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  title  String
-  body   String
-  data   Json?
-  isRead Boolean? @default(false) @map("is_read")
+  title       String
+  body        String
+  data        Json?
+  isRead      Boolean?  @default(false) @map("is_read")
+  tappedAt    DateTime? @map("tapped_at")
+  broadcastId String?   @map("broadcast_id")
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @map("user_id")
 
   @@map("notification")
+}
+
+model ScheduledBroadcast {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now()) @map("created_at")
+  scheduledAt DateTime  @map("scheduled_at")
+  sentAt      DateTime? @map("sent_at")
+  title       String
+  body        String
+  segment     String    @default("all")
+  data        Json?
+
+  @@map("scheduled_broadcast")
 }
 
 model SearchQuery {
@@ -418,4 +445,55 @@ enum EnumDeliveryMethod {
   russian_post
   pickup
   sdec
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  action     String
+  entity     String
+  entityId   String    @map("entity_id")
+  entityName String?   @map("entity_name")
+
+  actorId    String?   @map("actor_id")
+  actorEmail String?   @map("actor_email")
+  actorName  String?   @map("actor_name")
+  actorRole  String?   @map("actor_role")
+
+  before     Json?
+  after      Json?
+
+  revertible Boolean   @default(false)
+  revertedAt DateTime? @map("reverted_at")
+
+  @@map("audit_log")
+}
+
+model ChatRoom {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  messages  ChatMessage[]
+
+  @@map("chat_room")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  roomId    String   @map("room_id")
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  senderId  String?  @map("sender_id")
+  isAdmin   Boolean  @default(false) @map("is_admin")
+  text      String
+  isRead    Boolean  @default(false) @map("is_read")
+
+  @@map("chat_message")
 }

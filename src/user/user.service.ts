@@ -49,13 +49,17 @@ export class UserService {
 			: null
 
 		const nextLevel = loyaltyLevels.find(level => {
-			if (currentLevel && level.minAmount <= currentLevel.minAmount) return false
+			if (currentLevel && level.minAmount <= currentLevel.minAmount)
+				return false
 			return level.minAmount > totalAmountSpent
 		})
 
+		const ordersCount = await this.prisma.order.count({ where: { userId: id } })
+
 		return {
 			...user,
-			nextLevel: nextLevel || null
+			nextLevel: nextLevel || null,
+			isFirstAppOrder: ordersCount === 0
 		}
 	}
 
@@ -81,6 +85,56 @@ export class UserService {
 				createdAt: 'desc'
 			}
 		})
+	}
+
+	async getAdminUsers(search?: string, page = 1, role?: string, hasOrders?: string) {
+		const limit = 50
+		const skip = (page - 1) * limit
+		const where: Prisma.UserWhereInput = {}
+
+		if (role === 'admin' || role === 'manager' || role === 'user')
+			where.role = role as any
+
+		if (hasOrders === 'yes') where.orders = { some: {} }
+		else if (hasOrders === 'no') where.orders = { none: {} }
+
+		if (search?.trim()) {
+			const s = search.trim()
+			where.OR = [
+				{ email: { contains: s, mode: 'insensitive' } },
+				{ name: { contains: s, mode: 'insensitive' } },
+				{ surname: { contains: s, mode: 'insensitive' } },
+				{ displayName: { contains: s, mode: 'insensitive' } },
+				{ phone: { contains: s, mode: 'insensitive' } }
+			]
+		}
+
+		const users = await this.prisma.user.findMany({
+			where,
+			select: {
+				id: true,
+				createdAt: true,
+				email: true,
+				role: true,
+				name: true,
+				surname: true,
+				displayName: true,
+				phone: true,
+				userLoyalty: {
+					select: {
+						currentDiscount: true,
+						totalAmountSpent: true,
+						level: { select: { name: true, discount: true } }
+					}
+				},
+				_count: { select: { orders: true } }
+			},
+			orderBy: { createdAt: 'desc' },
+			skip,
+			take: limit
+		})
+
+		return { users, page, hasMore: users.length === limit }
 	}
 
 	private async search(searchTerm: string) {
@@ -213,13 +267,17 @@ export class UserService {
 			const retailLevelType: string | undefined = account.level?.type
 
 			// Берём максимум между RetailCRM и локальными данными (мобильные заказы)
-			const existing = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+			const existing = await this.prisma.userLoyalty.findUnique({
+				where: { userId }
+			})
 			const localOrdersSum = existing?.totalAmountSpent || 0
 			const ordersSum = Math.max(retailOrdersSum, localOrdersSum)
 
 			// Синхронизируем уровень из RetailCRM в локальную БД (обновляем скидку если изменилась)
 			let retailLevel = retailLevelName
-				? await this.prisma.loyaltyLevel.findFirst({ where: { name: retailLevelName } })
+				? await this.prisma.loyaltyLevel.findFirst({
+						where: { name: retailLevelName }
+				  })
 				: null
 
 			if (!retailLevel && retailLevelName) {
@@ -242,7 +300,8 @@ export class UserService {
 
 			// Используем уровень с максимальной скидкой (защита от даунгрейда из RetailCRM)
 			const bestLevel =
-				calculatedLevel && (!retailLevel || calculatedLevel.discount >= retailLevel.discount)
+				calculatedLevel &&
+				(!retailLevel || calculatedLevel.discount >= retailLevel.discount)
 					? calculatedLevel
 					: retailLevel
 
@@ -266,7 +325,9 @@ export class UserService {
 	}
 
 	async recalculateLoyaltyLevel(userId: string) {
-		const userLoyalty = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({
+			where: { userId }
+		})
 		if (!userLoyalty?.totalAmountSpent) return
 
 		const newLevel = await this.prisma.loyaltyLevel.findFirst({

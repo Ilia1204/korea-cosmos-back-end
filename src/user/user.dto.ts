@@ -1,12 +1,13 @@
 import {
-	IsBoolean,
 	IsDateString,
 	IsEmail,
+	IsEnum,
 	IsNumber,
 	IsOptional,
 	IsString,
 	MinLength
 } from 'class-validator'
+import { Role } from '@prisma/client'
 
 export class UserDto {
 	@IsEmail()
@@ -33,8 +34,8 @@ export class UserDto {
 	password: string
 
 	@IsOptional()
-	@IsBoolean()
-	isAdmin: boolean
+	@IsEnum(Role)
+	role: Role
 
 	@IsOptional()
 	@IsString()
