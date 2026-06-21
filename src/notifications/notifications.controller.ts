@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
+import { AdminBroadcastDto, ScheduleBroadcastDto } from './dto/admin-notification.dto'
 import { NotificationsService } from './notifications.service'
 
 @Controller('notifications')
@@ -24,6 +25,20 @@ export class NotificationsController {
 	@Patch('mark-as-read/:notificationId')
 	async markAsRead(@Param('notificationId') notificationId: string) {
 		return this.notificationsService.markAsRead(notificationId)
+	}
+
+	@HttpCode(200)
+	@Auth()
+	@Patch('tap/:notificationId')
+	async tapNotification(@Param('notificationId') notificationId: string) {
+		return this.notificationsService.tapNotification(notificationId)
+	}
+
+	@HttpCode(200)
+	@Get('admin/analytics')
+	@Auth('admin')
+	async adminAnalytics() {
+		return this.notificationsService.getAdminAnalytics()
 	}
 
 	@HttpCode(200)
@@ -97,10 +112,49 @@ export class NotificationsController {
 	@HttpCode(200)
 	@Delete(':id')
 	@Auth()
-	async delete(
-		@Param('id') id: string,
-		@CurrentUser('id') userId: string
-	) {
+	async delete(@Param('id') id: string, @CurrentUser('id') userId: string) {
 		return this.notificationsService.delete(id, userId)
+	}
+
+	@HttpCode(200)
+	@Post('admin/broadcast')
+	@Auth('admin')
+	async adminBroadcast(@Body() dto: AdminBroadcastDto) {
+		return this.notificationsService.sendAdminBroadcast(
+			dto.title,
+			dto.body,
+			dto.data,
+			dto.segment,
+			dto.categorySlug,
+			dto.frequencyDays
+		)
+	}
+
+	@HttpCode(200)
+	@Get('admin/history')
+	@Auth('admin')
+	async adminHistory(@CurrentUser('id') id: string) {
+		return this.notificationsService.getAdminBroadcastHistory(id)
+	}
+
+	@HttpCode(200)
+	@Post('admin/schedule')
+	@Auth('admin')
+	async scheduleAdminBroadcast(@Body() dto: ScheduleBroadcastDto) {
+		return this.notificationsService.scheduleAdminBroadcast(dto)
+	}
+
+	@HttpCode(200)
+	@Get('admin/scheduled')
+	@Auth('admin')
+	async getScheduledBroadcasts() {
+		return this.notificationsService.getScheduledBroadcasts()
+	}
+
+	@HttpCode(200)
+	@Delete('admin/scheduled/:id')
+	@Auth('admin')
+	async deleteScheduledBroadcast(@Param('id') id: string) {
+		return this.notificationsService.deleteScheduledBroadcast(id)
 	}
 }
