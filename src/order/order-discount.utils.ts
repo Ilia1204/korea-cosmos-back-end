@@ -9,7 +9,8 @@ export function calculateDaysBetween(date1: Date, date2: Date): number {
 
 export function getApplicableDiscount(
 	loyaltyDiscount: number,
-	birthdayDiscount: number
+	birthdayDiscount: number,
+	welcomeDiscount = 0
 ): number {
-	return birthdayDiscount > 0 ? birthdayDiscount : loyaltyDiscount
+	return Math.max(loyaltyDiscount, birthdayDiscount, welcomeDiscount)
 }

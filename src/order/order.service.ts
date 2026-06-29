@@ -4,6 +4,7 @@ import {
 	Injectable,
 	NotFoundException
 } from '@nestjs/common'
+import { DeliveryService } from 'src/delivery/delivery.service'
 import { LoyaltyLevelService } from 'src/loyalty-level/loyalty-level.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
@@ -20,6 +21,8 @@ import {
 	calculateBirthdayDiscount,
 	getApplicableDiscount
 } from './order-discount.utils'
+import { AuditService } from 'src/audit/audit.service'
+import { buildOrderData, calculateTotal } from './order-helpers'
 
 @Injectable()
 export class OrderService {
@@ -29,7 +32,9 @@ export class OrderService {
 		private robokassa: RobokassaService,
 		private wooSync: WooSyncService,
 		private retailCRM: RetailCRMSyncService,
-		private loyaltyLevel: LoyaltyLevelService
+		private loyaltyLevel: LoyaltyLevelService,
+		private delivery: DeliveryService,
+		private audit: AuditService
 	) {}
 
 	async getById(id: string) {
@@ -54,43 +59,86 @@ export class OrderService {
 		})
 	}
 
-	async getByUserId(userId: string) {
-		return this.prisma.order.findMany({
-			where: { userId },
-			orderBy: { createdAt: 'desc' },
-			include: {
-				user: { select: { ...returnUserObject } },
-				address: true,
-				items: true
-			}
+	async getByUserId(userId: string, page = 1, perPage = 10) {
+		const skip = (page - 1) * perPage
+		const [orders, total] = await Promise.all([
+			this.prisma.order.findMany({
+				where: { userId },
+				orderBy: { createdAt: 'desc' },
+				skip,
+				take: perPage,
+				include: {
+					user: { select: { ...returnUserObject } },
+					address: true,
+					items: true
+				}
+			}),
+			this.prisma.order.count({ where: { userId } })
+		])
+		return { orders, total, hasMore: skip + orders.length < total }
+	}
+
+	async getPopularProductIds(days = 30, minPrice = 1000, take = 8) {
+		const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+		const items = await this.prisma.orderItem.groupBy({
+			by: ['productId'],
+			where: {
+				productId: { not: null },
+				price: { gte: minPrice },
+				order: {
+					status: { not: 'cancelled' },
+					createdAt: { gte: since }
+				}
+			},
+			_sum: { quantity: true },
+			orderBy: { _sum: { quantity: 'desc' } },
+			take
 		})
+		return items.map(i => i.productId).filter(Boolean) as string[]
 	}
 
 	async createPayment(dto: OrderDto, userId: string) {
-		const [userLoyalty, user] = await Promise.all([
+		const [userLoyalty, user, previousOrdersCount] = await Promise.all([
 			this.prisma.userLoyalty.findUnique({ where: { userId } }),
 			this.prisma.user.findUnique({
 				where: { id: userId },
-				select: { dateOfBirth: true, name: true, surname: true, phone: true, email: true }
-			})
+				select: {
+					dateOfBirth: true,
+					name: true,
+					surname: true,
+					phone: true,
+					email: true
+				}
+			}),
+			this.prisma.order.count({ where: { userId } })
 		])
 
+		const welcomeDiscount = previousOrdersCount === 0 ? 20 : 0
 		const discount = getApplicableDiscount(
 			userLoyalty?.currentDiscount ?? 0,
-			calculateBirthdayDiscount(user.dateOfBirth)
+			calculateBirthdayDiscount(user.dateOfBirth),
+			welcomeDiscount
 		)
-		const couponData = dto.coupon ? await this.wooSync.validateCoupon(dto.coupon) : null
-		const totalPrice = this.calculateTotal(dto.items, discount, couponData, dto.deliveryPrice)
+		const couponData = dto.coupon
+			? await this.wooSync.validateCoupon(dto.coupon)
+			: null
+		const totalPrice = calculateTotal(
+			dto.items,
+			discount,
+			couponData,
+			dto.deliveryPrice
+		)
 		const invoiceId = this.robokassa.generateInvoiceId()
 
 		const order = await this.prisma.order.create({
 			include: { user: true },
-			data: this.buildOrderData(dto, userId, discount, invoiceId, totalPrice)
+			data: buildOrderData(dto, userId, discount, invoiceId, totalPrice)
 		})
 
 		const address = dto.addressId
 			? await this.prisma.address.findUnique({ where: { id: dto.addressId } })
 			: null
+
 		this.wooSync
 			.createOrderInWooCommerce(user.email, order, address, dto.items, user)
 			.then(wcOrderId => {
@@ -98,84 +146,111 @@ export class OrderService {
 					this.prisma.order
 						.update({ where: { id: order.id }, data: { wcOrderId } })
 						.catch(() => null)
-					// Create in RetailCRM with WC order ID as externalId to prevent auto-sync duplicates
-					this.retailCRM.createOrder(order, user, dto.items, wcOrderId).catch(() => null)
+					this.retailCRM
+						.createOrder(order, user, dto.items, wcOrderId)
+						.catch(() => null)
 				}
 			})
 			.catch(() => null)
 
-		setTimeout(() =>
-			this.notifications.sendPushNotificationToAdmins(
-				'🛍️ Новый заказ (приложение)',
-				`Заказ #${order.id.slice(0, 6).toUpperCase()} — ожидает оплаты`,
-				{ orderId: order.id, isRead: true }
-			), 2000)
+		if (dto.deliveryMethod === 'sdec' && address) {
+			const recipientName =
+				dto.recipientDetails === 'other_recipient'
+					? [dto.recipientName, dto.recipientSurname].filter(Boolean).join(' ')
+					: [user.name, user.surname].filter(Boolean).join(' ')
+			const recipientPhone =
+				dto.recipientDetails === 'other_recipient'
+					? dto.recipientPhone
+					: user.phone
+
+			if (address.postCode && recipientName && recipientPhone) {
+				const streetAddress = [address.street, address.house, address.apartment]
+					.filter(Boolean)
+					.join(', ')
+
+				this.delivery
+					.createCdekShipment({
+						orderNumber: order.id.slice(0, 6).toUpperCase(),
+						toPostCode: address.postCode,
+						toCity: address.city,
+						toAddress: streetAddress,
+						recipientName,
+						recipientPhone,
+						orderTotal: totalPrice,
+						items: dto.items.map(i => ({ name: i.productName || 'Косметика', quantity: i.quantity, price: i.price }))
+					})
+					.then(result => {
+						if (!result) return
+						const data: any = { cdekUuid: result.uuid }
+						if (result.trackingNumber) data.trackingNumber = result.trackingNumber
+						this.prisma.order
+							.update({ where: { id: order.id }, data })
+							.catch(() => null)
+						if (!result.trackingNumber) this.quickPollCdekTracking(order.id, result.uuid)
+					})
+					.catch(() => null)
+			}
+		}
+
+		if (dto.deliveryMethod === 'russian_post' && address) {
+			const recipientName =
+				dto.recipientDetails === 'other_recipient'
+					? dto.recipientName || user.name
+					: user.name
+			const recipientSurname =
+				dto.recipientDetails === 'other_recipient'
+					? dto.recipientSurname || user.surname
+					: user.surname
+			const recipientPhone =
+				dto.recipientDetails === 'other_recipient'
+					? dto.recipientPhone
+					: user.phone
+
+			if (address.postCode && recipientName && recipientPhone) {
+				this.delivery
+					.createRussianPostShipment({
+						orderNumber: order.id.slice(0, 6).toUpperCase(),
+						toPostCode: address.postCode,
+						toCity: address.city,
+						toRegion: address.region || address.city,
+						toStreet: address.street,
+						toHouse: address.house,
+						toApartment: address.apartment,
+						recipientName,
+						recipientSurname,
+						recipientPhone,
+						orderTotal: totalPrice,
+						items: dto.items.map(i => ({ name: i.productName || 'Косметика', quantity: i.quantity, price: i.price }))
+					})
+					.then(result => {
+						if (!result) return
+						const data: any = { russianPostId: String(result.id) }
+						if (result.barcode) data.trackingNumber = result.barcode
+						this.prisma.order
+							.update({ where: { id: order.id }, data })
+							.catch(() => null)
+					})
+					.catch(() => null)
+			}
+		}
+
+		setTimeout(
+			() =>
+				this.notifications.sendPushNotificationToAdmins(
+					'🛍️ Новый заказ (приложение)',
+					`Заказ #${order.id.slice(0, 6).toUpperCase()} — ожидает оплаты`,
+					{ orderId: order.id, isRead: true }
+				),
+			2000
+		)
 
 		const paymentUrl = this.robokassa.generatePaymentUrl(
-			invoiceId, totalPrice,
+			invoiceId,
+			totalPrice,
 			`Заказ #${order.id.slice(0, 6).toUpperCase()}`,
 			dto.podeli ? 'Podeli' : undefined
 		)
 		return { confirmation: { confirmation_url: paymentUrl }, orderId: order.id }
-	}
-
-	private calculateTotal(
-		items: OrderDto['items'],
-		discount: number,
-		couponData: any,
-		deliveryPrice = 0
-	): number {
-		const subtotal = items.reduce((acc, item) => {
-			const original = item.originalPrice || item.price
-			const saleDiscount =
-				original > item.price ? ((original - item.price) / original) * 100 : 0
-			const effective = Math.max(discount, saleDiscount)
-			return acc + original * (1 - effective / 100) * item.quantity
-		}, 0)
-
-		let afterCoupon = subtotal
-		if (couponData?.valid) {
-			afterCoupon =
-				couponData.discountType === 'percent'
-					? subtotal * (1 - couponData.amount / 100)
-					: Math.max(0, subtotal - couponData.amount)
-		}
-		return afterCoupon + deliveryPrice
-	}
-
-	private buildOrderData(
-		dto: OrderDto,
-		userId: string,
-		discount: number,
-		invoiceId: number,
-		totalPrice: number
-	) {
-		return {
-			status: dto.status,
-			deliveryMethod: dto.deliveryMethod,
-			deliveryPrice: dto.deliveryPrice,
-			coupon: dto.coupon,
-			comment: dto.comment,
-			recipientDetails: dto.recipientDetails,
-			recipientName: dto.recipientName,
-			recipientSurname: dto.recipientSurname,
-			recipientPhone: dto.recipientPhone,
-			recipientEmail: dto.recipientEmail,
-			discountApplied: discount,
-			invoiceId,
-			totalPrice,
-			items: {
-				create: dto.items.map(item => ({
-					quantity: item.quantity,
-					price: item.price,
-					productId: item.productId,
-					productName: item.productName || null,
-					productImage: item.productImage || null
-				}))
-			},
-			...(dto.addressId && { address: { connect: { id: dto.addressId } } }),
-			user: { connect: { id: userId } }
-		}
 	}
 
 	async payOrder(orderId: string) {
@@ -202,7 +277,7 @@ export class OrderService {
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}
 
-	async update(id: string, dto: UpdateOrderDto) {
+	async update(id: string, dto: UpdateOrderDto, actorId?: string) {
 		const order = await this.getById(id)
 		if (!order) throw new NotFoundException('Заказ не найден')
 
@@ -211,6 +286,17 @@ export class OrderService {
 			include: { user: true },
 			data: { status: dto.status }
 		})
+
+		this.audit.log({
+			action: 'order.status',
+			entity: 'Order',
+			entityId: id,
+			entityName: `#${id.slice(0, 6).toUpperCase()}`,
+			actorId,
+			before: { status: order.status },
+			after: { status: dto.status },
+			revertible: false
+		}).catch(() => null)
 
 		this.wooSync.updateOrderStatus(id, dto.status).catch(() => null)
 		this.retailCRM.updateOrderStatus(id, dto.status).catch(() => null)
@@ -226,28 +312,38 @@ export class OrderService {
 					})
 					if (loyalty?.currentDiscount && updated.user?.email) {
 						this.wooSync
-							.updateCustomerDiscount(updated.user.email, loyalty.currentDiscount)
+							.updateCustomerDiscount(
+								updated.user.email,
+								loyalty.currentDiscount
+							)
 							.catch(() => null)
 					}
 				})
 				.catch(() => null)
 		}
 
+		const deliveryMethod = order?.deliveryMethod as string | null
 		setTimeout(async () => {
 			const notification = await this.notifications.saveNotification(
 				updated.user.id,
-				getOrderStatusIcons(dto.status),
+				getOrderStatusIcons(dto.status, deliveryMethod),
 				`Заказ #${updated.id
 					.slice(0, 6)
-					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
+					.toUpperCase()} ${getOrderStatusTranslation(
+					dto.status,
+					deliveryMethod
+				)}`,
 				{ orderUserId: updated.id, status: updated.status }
 			)
 			await this.notifications.sendPushNotificationToUser(
 				updated.userId,
-				getOrderStatusIcons(dto.status),
+				getOrderStatusIcons(dto.status, deliveryMethod),
 				`Заказ #${updated.id
 					.slice(0, 6)
-					.toUpperCase()} ${getOrderStatusTranslation(dto.status)}`,
+					.toUpperCase()} ${getOrderStatusTranslation(
+					dto.status,
+					deliveryMethod
+				)}`,
 				{
 					orderUserId: updated.id,
 					status: updated.status,
@@ -282,6 +378,18 @@ export class OrderService {
 
 		this.wooSync.updateOrderStatus(id, 'cancelled').catch(() => null)
 		this.retailCRM.updateOrderStatus(id, 'cancelled').catch(() => null)
+		if ((order as any).cdekUuid) {
+			this.delivery.cancelCdekOrder((order as any).cdekUuid).catch(() => null)
+		}
+		if ((order as any).russianPostId) {
+			this.delivery.cancelRussianPostOrder(Number((order as any).russianPostId)).catch(() => null)
+		}
+
+		if (order.status === 'payed' && (order as any).invoiceId) {
+			this.robokassa
+				.refund((order as any).invoiceId, order.totalPrice)
+				.catch(() => null)
+		}
 
 		setTimeout(async () => {
 			const notification = await this.notifications.saveNotification(
@@ -307,30 +415,36 @@ export class OrderService {
 		return this.prisma.order.delete({ where: { id } })
 	}
 
+	private quickPollCdekTracking(orderId: string, cdekUuid: string) {
+		const tryFetch = async () => {
+			const tn = await this.delivery.getCdekTrackingNumber(cdekUuid).catch(() => null)
+			if (!tn) return false
+			await this.prisma.order
+				.update({ where: { id: orderId }, data: { trackingNumber: tn } })
+				.catch(() => null)
+			return true
+		}
+
+		// Attempt at 15s, 45s, 90s — cdek_number is usually available within seconds of creation
+		const delays = [15_000, 45_000, 90_000]
+		let resolved = false
+		for (const delay of delays) {
+			setTimeout(async () => {
+				if (resolved) return
+				resolved = await tryFetch()
+			}, delay)
+		}
+	}
+
 	markAsPaid(orderId: string) {
 		this.wooSync.updateOrderStatus(orderId, 'payed').catch(() => null)
 		this.retailCRM.updateOrderStatus(orderId, 'payed').catch(() => null)
-		this.notifications.sendPushNotificationToAdmins(
-			'💳 Заказ оплачен (приложение)',
-			`Заказ #${orderId.slice(0, 6).toUpperCase()} оплачен через приложение`,
-			{ orderId, isRead: true }
-		).catch(() => null)
-	}
-
-	validateWooCoupon(code: string) {
-		return this.wooSync.validateCoupon(code)
-	}
-
-	getWooCommerceOrders(email: string) {
-		return this.wooSync.getOrders(email)
-	}
-
-	getWooCommerceOrderById(wcId: string) {
-		return this.wooSync.getOrderById(wcId)
-	}
-
-	async updateWooCommerceOrderStatus(wcId: number, status: string) {
-		await this.wooSync.updateWooOrderById(wcId, status)
-		return { success: true }
+		this.notifications
+			.sendPushNotificationToAdmins(
+				'💳 Заказ оплачен (приложение)',
+				`Заказ #${orderId.slice(0, 6).toUpperCase()} оплачен через приложение`,
+				{ orderId, isRead: true }
+			)
+			.catch(() => null)
 	}
 }
