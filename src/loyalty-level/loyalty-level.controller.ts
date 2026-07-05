@@ -9,7 +9,7 @@ import {
 	Put,
 	Query,
 	UsePipes,
-	ValidationPipe
+	ValidationPipe,
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { LoyaltyLevelDto, UpdateLoyaltyLevelDto } from './loyalty-level.dto'
@@ -52,5 +52,12 @@ export class LoyaltyLevelController {
 	@Auth('admin')
 	async delete(@Param('id') id: string) {
 		return this.loyaltyLevelService.delete(id)
+	}
+
+	@HttpCode(200)
+	@Post('sync-from-crm')
+	@Auth('admin')
+	async syncFromCrm() {
+		return this.loyaltyLevelService.syncFromRetailCrm()
 	}
 }

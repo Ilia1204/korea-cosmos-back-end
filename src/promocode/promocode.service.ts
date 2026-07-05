@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
 import { PromoCodeDto } from './promocode.dto'
 import { returnPromoCodeObject } from './return-promocode.object'
-// import { returnPromoCodeObject } from './return-promoCode.object'
 
 @Injectable()
 export class PromoCodeService {

@@ -1,14 +1,17 @@
-import { IsNumber, IsString } from 'class-validator'
+import { IsNumber, IsOptional, IsString } from 'class-validator'
 
 export class LoyaltyLevelDto {
+	@IsOptional()
 	@IsString()
-	name: string
+	name?: string
 
+	@IsOptional()
 	@IsNumber()
-	discount: number
+	discount?: number
 
+	@IsOptional()
 	@IsNumber()
-	minAmount: number
+	minAmount?: number
 }
 
 export type UpdateLoyaltyLevelDto = Partial<LoyaltyLevelDto>
