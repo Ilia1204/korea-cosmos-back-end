@@ -100,18 +100,26 @@ export class StatisticsTabsService {
 			const customerName = o.customer
 				? `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim()
 				: `${o.firstName || ''} ${o.lastName || ''}`.trim()
+			const phone = o.customer?.phones?.[0]?.number || o.phone || null
+			const email = o.customer?.email || null
+			const items = (o.items || []).map((i: any) => ({
+				name: i.offer?.name || i.productName || 'Товар',
+				quantity: i.quantity || 1,
+				price: i.initialPrice || 0,
+			}))
 			return {
 				id: local?.id || (wcId ? String(wcId) : null) || String(o.id),
 				localId: local?.id || null,
 				wcOrderId: wcId || null,
+				retailId: o.id,
 				status: local?.status || RETAIL_STATUS_MAP[o.status] || o.status,
 				totalPrice: o.totalSumm || 0,
 				createdAt: new Date(o.createdAt),
 				userName: customerName || local?.user?.displayName || local?.user?.name || local?.user?.email || '—',
+				phone,
+				email,
 				source: local ? 'app' : (wcId ? 'site' : 'manual'),
-				retailItems: !local && !wcId
-					? (o.items || []).map((i: any) => ({ name: i.offer?.name || i.productName || 'Товар', quantity: i.quantity || 1, price: i.initialPrice || 0 }))
-					: undefined,
+				items,
 			}
 		})
 
@@ -188,9 +196,9 @@ export class StatisticsTabsService {
 		const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
 		const [appUsers, newLast30App, activeLast7App, wcTotalRaw, retailOrders, registrationsByMonth] = await Promise.all([
-			this.prisma.user.count({ where: { isAdmin: false } }),
-			this.prisma.user.count({ where: { createdAt: { gte: startOf30Days }, isAdmin: false } }),
-			this.prisma.user.count({ where: { updatedAt: { gte: startOf7Days }, isAdmin: false } }),
+			this.prisma.user.count({ where: { role: 'user' } }),
+			this.prisma.user.count({ where: { createdAt: { gte: startOf30Days }, role: 'user' } }),
+			this.prisma.user.count({ where: { updatedAt: { gte: startOf7Days }, role: 'user' } }),
 			this.wcFetchWithTotal('/customers', { per_page: '1' }),
 			this.retailCrm.fetchAllOrders(
 				dayjs().subtract(90, 'day').format('YYYY-MM-DD HH:mm:ss'),
@@ -199,19 +207,25 @@ export class StatisticsTabsService {
 			this.getUserRegistrationsByMonth(),
 		])
 
-		const customerMap = new Map<string, { name: string; totalSpent: number; ordersCount: number }>()
+		const customerMap = new Map<string, { name: string; totalSpent: number; ordersCount: number; phone: string | null; email: string | null }>()
 		for (const o of retailOrders) {
 			const customerId = o.customer?.id ? String(o.customer.id) : null
 			if (!customerId) continue
 			const name = `${o.customer?.firstName || ''} ${o.customer?.lastName || ''}`.trim() || '—'
 			const existing = customerMap.get(customerId)
 			if (existing) { existing.totalSpent += o.totalSumm || 0; existing.ordersCount++ }
-			else customerMap.set(customerId, { name, totalSpent: o.totalSumm || 0, ordersCount: 1 })
+			else customerMap.set(customerId, {
+				name,
+				totalSpent: o.totalSumm || 0,
+				ordersCount: 1,
+				phone: o.customer?.phones?.[0]?.number || null,
+				email: o.customer?.email || null,
+			})
 		}
 		const topCustomers = Array.from(customerMap.entries())
 			.sort((a, b) => b[1].totalSpent - a[1].totalSpent)
 			.slice(0, 5)
-			.map(([id, c]) => ({ userId: id, name: c.name, ordersCount: c.ordersCount, totalSpent: c.totalSpent }))
+			.map(([id, c]) => ({ userId: id, name: c.name, ordersCount: c.ordersCount, totalSpent: c.totalSpent, phone: c.phone, email: c.email }))
 
 		return { total: appUsers + wcTotalRaw.total, newLast30: newLast30App, activeLast7: activeLast7App, topCustomers, registrationsByMonth }
 	}

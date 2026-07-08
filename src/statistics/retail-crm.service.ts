@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 @Injectable()
 export class RetailCrmService {
+	private readonly logger = new Logger(RetailCrmService.name)
 	readonly url: string
 	readonly key: string
 
@@ -148,7 +149,7 @@ export class RetailCrmService {
 	async getOrder(retailId: number): Promise<any | null> {
 		if (!this.key) return null
 		try {
-			const res = await fetch(`${this.url}/api/v5/orders/${retailId}`, {
+			const res = await fetch(`${this.url}/api/v5/orders/${retailId}?by=id`, {
 				headers: this.headers
 			})
 			const data = await res.json()
@@ -159,12 +160,81 @@ export class RetailCrmService {
 		}
 	}
 
+	async getCustomers(search?: string, page = 1): Promise<any[]> {
+		if (!this.key) return []
+		try {
+			const params = new URLSearchParams({ limit: '50', page: String(page) })
+			if (search?.trim()) params.set('filter[name]', search.trim())
+			const res = await fetch(`${this.url}/api/v5/customers?${params}`, {
+				headers: this.headers
+			})
+			const data = await res.json()
+			return data.customers || []
+		} catch {
+			return []
+		}
+	}
+
+	async getCustomerById(id: number): Promise<any | null> {
+		if (!this.key) return null
+		try {
+			const res = await fetch(`${this.url}/api/v5/customers/${id}?by=id`, {
+				headers: this.headers
+			})
+			const data = await res.json()
+			if (!data.success || !data.customer) return null
+			return data.customer
+		} catch {
+			return null
+		}
+	}
+
+	async updateCustomer(
+		id: number,
+		data: { firstName?: string; lastName?: string; phone?: string }
+	): Promise<boolean> {
+		if (!this.key) return false
+		try {
+			const customer: any = {}
+			if (data.firstName !== undefined) customer.firstName = data.firstName
+			if (data.lastName !== undefined) customer.lastName = data.lastName
+			if (data.phone !== undefined) customer.phones = [{ number: data.phone }]
+			const body = new URLSearchParams({
+				by: 'id',
+				customer: JSON.stringify(customer)
+			})
+			const res = await fetch(`${this.url}/api/v5/customers/${id}/edit`, {
+				method: 'POST',
+				headers: { ...this.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: body.toString()
+			})
+			const result = await res.json()
+			return result.success === true
+		} catch {
+			return false
+		}
+	}
+
+	async fetchAllRawOrders(limit = 100): Promise<any[]> {
+		if (!this.key) return []
+		try {
+			const res = await fetch(
+				`${this.url}/api/v5/orders?limit=${limit}&page=1`,
+				{ headers: this.headers }
+			)
+			const data = await res.json()
+			return data?.orders || []
+		} catch {
+			return []
+		}
+	}
+
 	async updateOrderStatus(retailId: number, retailStatus: string): Promise<boolean> {
 		if (!this.key) return false
 		try {
 			const body = new URLSearchParams({
 				by: 'id',
-				'order[status]': retailStatus
+				order: JSON.stringify({ status: retailStatus })
 			})
 			const res = await fetch(`${this.url}/api/v5/orders/${retailId}/edit`, {
 				method: 'POST',
@@ -172,9 +242,50 @@ export class RetailCrmService {
 				body: body.toString()
 			})
 			const data = await res.json()
+
+			if (data.success && retailStatus === 'complete') {
+				this.markPaymentsAsPaid(retailId).catch(() => null)
+			}
+
 			return data.success === true
 		} catch {
 			return false
+		}
+	}
+
+	private async markPaymentsAsPaid(retailId: number) {
+		const res = await fetch(`${this.url}/api/v5/orders/${retailId}?by=id`, {
+			headers: this.headers
+		})
+		const data = await res.json().catch(() => null)
+		this.logger.log(`[RetailCRM] markPaymentsAsPaid retailId=${retailId} payments=${JSON.stringify(data?.order?.payments)}`)
+		if (!data?.success || !data.order) return
+
+		const paymentsRaw = data.order.payments
+		const payments: any[] = Array.isArray(paymentsRaw)
+			? paymentsRaw
+			: Object.values(paymentsRaw ?? {})
+
+		if (!payments.length) {
+			this.logger.log(`[RetailCRM] No payments for retailId=${retailId}`)
+			return
+		}
+
+		for (const payment of payments) {
+			if (!payment.id || payment.status === 'paid') continue
+
+			const editRes = await fetch(
+				`${this.url}/api/v5/orders/payments/${payment.id}/edit`,
+				{
+					method: 'POST',
+					headers: { ...this.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+					body: new URLSearchParams({
+						payment: JSON.stringify({ status: 'paid' })
+					}).toString()
+				}
+			)
+			const editData = await editRes.json().catch(() => null)
+			this.logger.log(`[RetailCRM] Payment ${payment.id} edit result: ${JSON.stringify(editData)}`)
 		}
 	}
 }

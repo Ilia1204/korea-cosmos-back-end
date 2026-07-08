@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
 
 @Injectable()
 export class RobokassaService {
+	private readonly logger = new Logger(RobokassaService.name)
 	private readonly login = process.env['ROBOKASSA_LOGIN']
 	private readonly isTest = process.env['ROBOKASSA_TEST'] === 'true'
 
@@ -18,7 +19,12 @@ export class RobokassaService {
 			: process.env['ROBOKASSA_PASSWORD2']
 	}
 
-	generatePaymentUrl(invoiceId: number, amount: number, description: string, incCurrLabel?: string): string {
+	generatePaymentUrl(
+		invoiceId: number,
+		amount: number,
+		description: string,
+		incCurrLabel?: string
+	): string {
 		const outSum = amount.toFixed(2)
 		const sig = this.md5(`${this.login}:${outSum}:${invoiceId}:${this.pass1}`)
 
@@ -40,6 +46,32 @@ export class RobokassaService {
 	verifyResult(outSum: string, invId: string, sig: string): boolean {
 		const expected = this.md5(`${outSum}:${invId}:${this.pass2}`)
 		return expected.toLowerCase() === sig.toLowerCase()
+	}
+
+	async refund(invoiceId: number, amount: number): Promise<boolean> {
+		const outSum = amount.toFixed(2)
+		const sig = this.md5(`${this.login}:${outSum}:${invoiceId}:${this.pass2}`)
+
+		const params = new URLSearchParams({
+			MrchLogin: this.login,
+			InvId: String(invoiceId),
+			OutSum: outSum,
+			SignatureValue: sig,
+			...(this.isTest && { IsTest: '1' })
+		})
+
+		try {
+			const res = await fetch(
+				`https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpReturn?${params.toString()}`
+			)
+			const text = await res.text()
+			const ok = text.includes('<Result>0</Result>')
+			if (!ok) this.logger.warn(`Robokassa refund failed: ${text}`)
+			return ok
+		} catch (e) {
+			this.logger.error(`Robokassa refund error: ${e}`)
+			return false
+		}
 	}
 
 	generateInvoiceId(): number {

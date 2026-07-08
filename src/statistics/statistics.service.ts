@@ -88,35 +88,39 @@ export class StatisticsService {
 		return data
 	}
 
+	private calcPeriodMetrics(orders: any[]) {
+		const paidStatuses = ['prepayed', 'client-confirmed', 'complete', 'assembling-complete', 'send-to-delivery', 'delivering']
+		const cancelStatuses = ['cancel-other', 'no-call', 'no-product']
+		const revenue = orders.reduce((s, o) => s + (o.totalSumm || 0), 0)
+		const cancelledCount = orders.filter(o => cancelStatuses.includes(o.status)).length
+		return {
+			revenue: Math.round(revenue),
+			ordersCount: orders.length,
+			cancelledCount,
+			avgCheck: orders.length > 0 ? Math.round(revenue / orders.length) : 0,
+			cancelRate: orders.length > 0 ? Math.round((cancelledCount / orders.length) * 100) : 0,
+			paidRevenue: Math.round(orders.filter(o => paidStatuses.includes(o.status)).reduce((s, o) => s + (o.totalSumm || 0), 0))
+		}
+	}
+
+	private calcTrend(current: number, prev: number): number | null {
+		if (prev === 0) return null
+		return Math.round(((current - prev) / prev) * 100)
+	}
+
 	private async buildRetailCRMStats(period: Period) {
 		const now = dayjs()
-		const from =
-			period === 'week'
-				? now.subtract(7, 'day')
-				: period === 'quarter'
-				? now.subtract(90, 'day')
-				: now.subtract(30, 'day')
-		const orders = await this.retailCrm.fetchAllOrders(
-			from.format('YYYY-MM-DD HH:mm:ss'),
-			now.format('YYYY-MM-DD HH:mm:ss')
-		)
+		const days = period === 'week' ? 7 : period === 'quarter' ? 90 : 30
+		const from = now.subtract(days, 'day')
+		const prevFrom = now.subtract(days * 2, 'day')
 
-		const revenue = orders.reduce((s, o) => s + (o.totalSumm || 0), 0)
-		const paidStatuses = [
-			'prepayed',
-			'client-confirmed',
-			'complete',
-			'assembling-complete',
-			'send-to-delivery',
-			'delivering'
-		]
-		const cancelStatuses = ['cancel-other', 'no-call', 'no-product']
-		const paidRevenue = orders
-			.filter(o => paidStatuses.includes(o.status))
-			.reduce((s, o) => s + (o.totalSumm || 0), 0)
-		const cancelledCount = orders.filter(o =>
-			cancelStatuses.includes(o.status)
-		).length
+		const [orders, prevOrders] = await Promise.all([
+			this.retailCrm.fetchAllOrders(from.format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss')),
+			this.retailCrm.fetchAllOrders(prevFrom.format('YYYY-MM-DD HH:mm:ss'), from.format('YYYY-MM-DD HH:mm:ss'))
+		])
+
+		const cur = this.calcPeriodMetrics(orders)
+		const prev = this.calcPeriodMetrics(prevOrders)
 
 		const statusCounts: Record<string, number> = {}
 		const productMap: Record<
@@ -143,29 +147,27 @@ export class StatisticsService {
 			topCandidates.map(async p => {
 				const slug = await this.getWCProductSlug(p.wcId, p.name)
 				return slug
-					? { name: p.name, count: p.count, revenue: p.revenue, slug }
+					? { name: p.name, count: p.count, revenue: p.revenue, slug, id: p.wcId }
 					: null
 			})
 		)
 
 		return {
-			revenue: Math.round(revenue),
-			paidRevenue: Math.round(paidRevenue),
-			ordersCount: orders.length,
-			cancelledCount,
-			avgCheck: orders.length > 0 ? Math.round(revenue / orders.length) : 0,
-			cancelRate:
-				orders.length > 0
-					? Math.round((cancelledCount / orders.length) * 100)
-					: 0,
+			revenue: cur.revenue,
+			paidRevenue: cur.paidRevenue,
+			ordersCount: cur.ordersCount,
+			cancelledCount: cur.cancelledCount,
+			avgCheck: cur.avgCheck,
+			cancelRate: cur.cancelRate,
+			trends: {
+				revenue: this.calcTrend(cur.revenue, prev.revenue),
+				ordersCount: this.calcTrend(cur.ordersCount, prev.ordersCount),
+				avgCheck: this.calcTrend(cur.avgCheck, prev.avgCheck),
+				cancelRate: this.calcTrend(cur.cancelRate, prev.cancelRate)
+			},
 			statusCounts,
 			topProducts: resolved.filter(Boolean).slice(0, 5),
-			chartData: this.buildChartData(
-				orders,
-				from.toDate(),
-				now.toDate(),
-				period
-			)
+			chartData: this.buildChartData(orders, from.toDate(), now.toDate(), period)
 		}
 	}
 

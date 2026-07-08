@@ -2,15 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
 import { RetailCrmService } from './retail-crm.service'
 import { RETAIL_STATUS_MAP } from './constants'
-
-const LOCAL_TO_RETAILCRM: Record<string, string> = {
-	pending: 'new',
-	payed: 'prepayed',
-	shipped: 'send-to-delivery',
-	delivered: 'complete',
-	cancelled: 'cancel-other',
-	ready_to_receive: 'assembling-complete'
-}
+import { LOCAL_TO_RETAILCRM, RETAILCRM_TO_LOCAL } from 'src/retailcrm-sync/retailcrm-status.constants'
 
 @Injectable()
 export class AdminOrdersService {
@@ -43,6 +35,7 @@ export class AdminOrdersService {
 			select: {
 				id: true,
 				wcOrderId: true,
+				invoiceId: true,
 				status: true,
 				totalPrice: true,
 				createdAt: true,
@@ -88,32 +81,37 @@ export class AdminOrdersService {
 
 		const orders = retailOrders.map((o: any) => {
 			const wcId = o.externalId ? parseInt(o.externalId) : null
-			// appLocal: externalId matches a CUID in local DB (app orders have CUID ids, not numeric)
+			// appLocal: externalId matches a CUID in local DB (app orders without wcOrderId)
 			const appLocal = o.externalId && isNaN(Number(o.externalId))
 				? localMap.byId.get(o.externalId)
 				: undefined
 			// wcLocal: numeric externalId matches a WooCommerce order AND dates are close
-			// (retail orders can have same numeric externalId as unrelated WC orders)
 			const wcLocalCandidate = wcId ? localMap.byWc.get(wcId) : undefined
 			const dateDiffMs = wcLocalCandidate && o.createdAt
 				? Math.abs(new Date(o.createdAt).getTime() - new Date(wcLocalCandidate.createdAt).getTime())
 				: Infinity
 			const wcLocal = dateDiffMs < 7 * 24 * 60 * 60 * 1000 ? wcLocalCandidate : undefined
 
-			const source: 'app' | 'site' | 'manual' = appLocal
+			// App orders go through Robokassa and always have invoiceId set.
+			// Site orders created via WC webhook do not have invoiceId.
+			const isAppOrder = !!appLocal || !!(wcLocal?.invoiceId)
+			const localData = appLocal || (isAppOrder ? wcLocal : undefined)
+
+			const source: 'app' | 'site' | 'manual' = isAppOrder
 				? 'app'
 				: wcLocal
 				? 'site'
 				: wcId && !wcLocalCandidate
 				? 'site'
 				: 'manual'
+
 			const customerName = o.customer
 				? `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim()
 				: `${o.firstName || ''} ${o.lastName || ''}`.trim()
 			const phone =
-				o.customer?.phones?.[0]?.number || o.phone || appLocal?.user?.phone || null
+				o.customer?.phones?.[0]?.number || o.phone || localData?.user?.phone || null
 			const items =
-				appLocal?.items?.map((i: any) => ({
+				localData?.items?.map((i: any) => ({
 					name: i.productName || 'Товар',
 					quantity: i.quantity,
 					price: i.price,
@@ -129,21 +127,21 @@ export class AdminOrdersService {
 				}))
 
 			return {
-				id: appLocal?.id || (wcId ? String(wcId) : String(o.id)),
-				localId: appLocal?.id || null,
+				id: localData?.id || (wcId ? String(wcId) : String(o.id)),
+				localId: localData?.id || null,
 				wcOrderId: wcId,
 				retailId: o.id,
 				source,
-				status: appLocal?.status || wcLocal?.status || RETAIL_STATUS_MAP[o.status] || o.status,
-				totalPrice: appLocal?.totalPrice || o.totalSumm || 0,
+				status: localData?.status || RETAIL_STATUS_MAP[o.status] || o.status,
+				totalPrice: localData?.totalPrice || o.totalSumm || 0,
 				createdAt: o.createdAt,
 				customerName:
-					customerName || appLocal?.user?.displayName || appLocal?.user?.name || '—',
+					customerName || localData?.user?.displayName || localData?.user?.name || '—',
 				phone,
 				itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
 				items,
-				deliveryMethod: appLocal?.deliveryMethod || null,
-				deliveryPrice: appLocal?.deliveryPrice || 0
+				deliveryMethod: localData?.deliveryMethod || o.delivery?.name || null,
+				deliveryPrice: localData?.deliveryPrice || o.delivery?.cost || 0
 			}
 		})
 
@@ -205,5 +203,33 @@ export class AdminOrdersService {
 		const ok = await this.retailCrm.updateOrderStatus(retailId, retailStatus)
 		if (!ok) throw new Error('RetailCRM update failed')
 		return { success: true }
+	}
+
+	async closeAllRetailOrders() {
+		// Берём все последние заказы (те же что показывает список заказов в приложении)
+		const all = await this.retailCrm.fetchAllRawOrders(100)
+
+		// Все RetailCRM-статусы, которые в нашем маппинге означают "Оплачен"
+		const payedStatuses = new Set<string>(
+			Object.entries(RETAILCRM_TO_LOCAL)
+				.filter(([, local]) => local === 'payed')
+				.map(([retail]) => retail)
+		)
+
+		// Розничные = нет externalId (app → CUID, site → числовой WC id)
+		const retailPayed = all.filter(
+			(o: any) => !o.externalId && payedStatuses.has(o.status)
+		)
+
+		// Параллельно обновляем все заказы
+		const results = await Promise.all(
+			retailPayed.map(async (o: any) => {
+				const ok = await this.retailCrm.updateOrderStatus(o.id, 'complete')
+				return ok ? (o.id as number) : null
+			})
+		)
+		const closedIds = results.filter((id): id is number => id !== null)
+
+		return { closed: closedIds.length, total: retailPayed.length, closedIds }
 	}
 }

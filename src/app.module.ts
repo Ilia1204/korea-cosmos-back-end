@@ -28,6 +28,12 @@ import { RobokassaModule } from './robokassa/robokassa.module'
 import { RetailCRMSyncModule } from './retailcrm-sync/retailcrm-sync.module'
 import { WooSyncModule } from './woo-sync/woo-sync.module'
 import { SearchModule } from './search/search.module'
+import { WooCategoryModule } from './woo-category/woo-category.module'
+import { WooTagModule } from './woo-tag/woo-tag.module'
+import { WooCouponModule } from './woo-coupon/woo-coupon.module'
+import { WooDiscountModule } from './woo-discount/woo-discount.module'
+import { AuditModule } from './audit/audit.module'
+import { ChatModule } from './chat/chat.module'
 
 @Module({
 	imports: [
@@ -61,7 +67,13 @@ import { SearchModule } from './search/search.module'
 		RobokassaModule,
 		RetailCRMSyncModule,
 		WooSyncModule,
-		SearchModule
+		SearchModule,
+		WooCategoryModule,
+		WooTagModule,
+		WooCouponModule,
+		WooDiscountModule,
+		AuditModule,
+		ChatModule
 	],
 	providers: []
 })

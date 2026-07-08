@@ -7,26 +7,10 @@ import {
 	getOrderStatusIcons,
 	getOrderStatusTranslation
 } from 'src/utils/translate-status'
-
-const LOCAL_TO_RETAILCRM: Record<string, string> = {
-	payed: 'prepayed',
-	shipped: 'send-to-delivery',
-	delivered: 'complete',
-	cancelled: 'cancel-other',
-	ready_to_receive: 'assembling-complete'
-}
-
-const RETAILCRM_TO_LOCAL: Record<string, string> = {
-	prepayed: 'payed',
-	'client-confirmed': 'payed',
-	'send-to-delivery': 'shipped',
-	delivering: 'shipped',
-	complete: 'delivered',
-	'cancel-other': 'cancelled',
-	'no-call': 'cancelled',
-	'no-product': 'cancelled',
-	'assembling-complete': 'ready_to_receive'
-}
+import {
+	LOCAL_TO_RETAILCRM,
+	RETAILCRM_TO_LOCAL
+} from './retailcrm-status.constants'
 
 @Injectable()
 export class RetailCRMSyncService {
@@ -63,7 +47,10 @@ export class RetailCRMSyncService {
 			const params = new URLSearchParams({ limit: '50' })
 			activeOrders.forEach(o => {
 				// Use WC order ID as externalId if available, otherwise local UUID
-				params.append('filter[externalIds][]', o.wcOrderId ? String(o.wcOrderId) : o.id)
+				params.append(
+					'filter[externalIds][]',
+					o.wcOrderId ? String(o.wcOrderId) : o.id
+				)
 			})
 
 			const res = await fetch(`${this.url}/api/v5/orders?${params}`, {
@@ -81,8 +68,10 @@ export class RetailCRMSyncService {
 				if (!localStatus) continue
 
 				// Match by wcOrderId (string) or local UUID
-				const localOrder = activeOrders.find(o =>
-					(o.wcOrderId && String(o.wcOrderId) === externalId) || o.id === externalId
+				const localOrder = activeOrders.find(
+					o =>
+						(o.wcOrderId && String(o.wcOrderId) === externalId) ||
+						o.id === externalId
 				)
 				if (!localOrder || localOrder.status === localStatus) continue
 
@@ -130,11 +119,21 @@ export class RetailCRMSyncService {
 			channel: 'mobile-app',
 			tags: [{ name: 'Мобильное приложение' }],
 			customer: { email: user.email },
-			firstName: isOtherRecipient ? order.recipientName || user.name || '' : user.name || '',
-			lastName: isOtherRecipient ? order.recipientSurname || user.surname || '' : user.surname || '',
-			phone: isOtherRecipient ? order.recipientPhone || user.phone || '' : user.phone || '',
-			email: isOtherRecipient ? order.recipientEmail || user.email || '' : user.email || '',
-			customerComment: [order.comment, order.address?.comment].filter(Boolean).join(' | ') || undefined,
+			firstName: isOtherRecipient
+				? order.recipientName || user.name || ''
+				: user.name || '',
+			lastName: isOtherRecipient
+				? order.recipientSurname || user.surname || ''
+				: user.surname || '',
+			phone: isOtherRecipient
+				? order.recipientPhone || user.phone || ''
+				: user.phone || '',
+			email: isOtherRecipient
+				? order.recipientEmail || user.email || ''
+				: user.email || '',
+			customerComment:
+				[order.comment, order.address?.comment].filter(Boolean).join(' | ') ||
+				undefined,
 			delivery: {
 				address: {
 					text: [
@@ -142,7 +141,9 @@ export class RetailCRMSyncService {
 						order.address?.street,
 						order.address?.house,
 						order.address?.apartment ? `кв. ${order.address.apartment}` : null
-					].filter(Boolean).join(', ')
+					]
+						.filter(Boolean)
+						.join(', ')
 				}
 			},
 			items: items.map(item => ({
@@ -155,19 +156,30 @@ export class RetailCRMSyncService {
 		try {
 			const res = await fetch(`${this.url}/api/v5/orders/create`, {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-API-KEY': this.apiKey },
-				body: new URLSearchParams({ order: JSON.stringify(orderPayload) }).toString()
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'X-API-KEY': this.apiKey
+				},
+				body: new URLSearchParams({
+					order: JSON.stringify(orderPayload)
+				}).toString()
 			})
 			const data = await res.json()
 
 			if (data?.success) {
-				this.logger.log(`[RetailCRM] Order created OK: id=${data.id} externalId=${externalId}`)
+				this.logger.log(
+					`[RetailCRM] Order created OK: id=${data.id} externalId=${externalId}`
+				)
 			} else if (data?.errorMsg?.includes('already exists')) {
 				// RetailCRM WC autosync already created the order — patch prices on existing items
-				this.logger.log(`[RetailCRM] Order already exists, patching prices for externalId=${externalId}`)
+				this.logger.log(
+					`[RetailCRM] Order already exists, patching prices for externalId=${externalId}`
+				)
 				await this.patchOrderItems(externalId, items)
 			} else {
-				this.logger.error(`[RetailCRM] Order create FAILED: ${JSON.stringify(data)}`)
+				this.logger.error(
+					`[RetailCRM] Order create FAILED: ${JSON.stringify(data)}`
+				)
 			}
 		} catch (e) {
 			this.logger.error('RetailCRM createOrder error:', e)
@@ -176,9 +188,12 @@ export class RetailCRMSyncService {
 
 	private async patchOrderItems(externalId: string, items: any[]) {
 		try {
-			const fetchRes = await fetch(`${this.url}/api/v5/orders/${externalId}?by=externalId`, {
-				headers: { 'X-API-KEY': this.apiKey }
-			})
+			const fetchRes = await fetch(
+				`${this.url}/api/v5/orders/${externalId}?by=externalId`,
+				{
+					headers: { 'X-API-KEY': this.apiKey }
+				}
+			)
 			const fetchData = await fetchRes.json()
 			if (!fetchData.success || !fetchData.order) return
 
@@ -201,20 +216,30 @@ export class RetailCRMSyncService {
 				}))
 			}
 
-			const editRes = await fetch(`${this.url}/api/v5/orders/${externalId}/edit`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-API-KEY': this.apiKey },
-				body: new URLSearchParams({
-					by: 'externalId',
-					order: JSON.stringify({ items: updatedItems })
-				}).toString()
-			})
+			const editRes = await fetch(
+				`${this.url}/api/v5/orders/${externalId}/edit`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'X-API-KEY': this.apiKey
+					},
+					body: new URLSearchParams({
+						by: 'externalId',
+						order: JSON.stringify({ items: updatedItems })
+					}).toString()
+				}
+			)
 			const editData = await editRes.json()
 
 			if (editData.success) {
-				this.logger.log(`[RetailCRM] Order items patched OK (externalId=${externalId})`)
+				this.logger.log(
+					`[RetailCRM] Order items patched OK (externalId=${externalId})`
+				)
 			} else {
-				this.logger.error(`[RetailCRM] Order patch FAILED: ${JSON.stringify(editData)}`)
+				this.logger.error(
+					`[RetailCRM] Order patch FAILED: ${JSON.stringify(editData)}`
+				)
 			}
 		} catch (e) {
 			this.logger.error('RetailCRM patchOrderItems error:', e)
@@ -230,19 +255,109 @@ export class RetailCRMSyncService {
 				select: { wcOrderId: true }
 			})
 			const externalId = order?.wcOrderId ? String(order.wcOrderId) : orderId
-			await fetch(`${this.url}/api/v5/orders/${externalId}/edit`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'X-API-KEY': this.apiKey
-				},
-				body: new URLSearchParams({
-					by: 'externalId',
-					order: JSON.stringify({ status: retailStatus })
-				}).toString()
-			})
+			await this.patchRetailCrmByExternalId(externalId, retailStatus)
 		} catch (e) {
 			this.logger.error('RetailCRM updateOrderStatus error:', e)
+		}
+	}
+
+	async updateStatusByWcId(wcId: number, localStatus: string) {
+		const retailStatus = LOCAL_TO_RETAILCRM[localStatus]
+		if (!retailStatus) return
+		try {
+			await this.patchRetailCrmByExternalId(String(wcId), retailStatus)
+		} catch (e) {
+			this.logger.error('RetailCRM updateStatusByWcId error:', e)
+		}
+	}
+
+	private async patchRetailCrmByExternalId(
+		externalId: string,
+		retailStatus: string
+	) {
+		const res = await fetch(`${this.url}/api/v5/orders/${externalId}/edit`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'X-API-KEY': this.apiKey
+			},
+			body: new URLSearchParams({
+				by: 'externalId',
+				order: JSON.stringify({ status: retailStatus })
+			}).toString()
+		})
+		const data = await res.json().catch(() => null)
+		if (!data?.success) {
+			this.logger.error(
+				`[RetailCRM] patchStatus failed (externalId=${externalId}): ${JSON.stringify(data)}`
+			)
+		} else {
+			this.logger.log(
+				`[RetailCRM] Status updated OK (externalId=${externalId}) → ${retailStatus}`
+			)
+		}
+
+		if (retailStatus === 'complete') {
+			this.markPaymentsAsPaid(externalId).catch(() => null)
+		}
+	}
+
+	private async markPaymentsAsPaid(externalId: string) {
+		const res = await fetch(
+			`${this.url}/api/v5/orders/${externalId}?by=externalId`,
+			{ headers: { 'X-API-KEY': this.apiKey } }
+		)
+		const data = await res.json().catch(() => null)
+		if (!data?.success || !data.order) return
+
+		const orderId: number = data.order.id
+		const paymentsRaw = data.order.payments
+		this.logger.log(
+			`[RetailCRM] markPaymentsAsPaid orderId=${orderId} payments=${JSON.stringify(paymentsRaw)}`
+		)
+
+		const payments: any[] = Array.isArray(paymentsRaw)
+			? paymentsRaw
+			: Object.values(paymentsRaw ?? {})
+
+		if (!payments.length) {
+			this.logger.log(
+				`[RetailCRM] No payments found for externalId=${externalId}`
+			)
+			return
+		}
+
+		for (const payment of payments) {
+			if (!payment.id) continue
+			if (payment.status === 'paid') {
+				this.logger.log(`[RetailCRM] Payment ${payment.id} already paid, skip`)
+				continue
+			}
+
+			const editRes = await fetch(
+				`${this.url}/api/v5/orders/payments/${payment.id}/edit`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'X-API-KEY': this.apiKey
+					},
+					body: new URLSearchParams({
+						payment: JSON.stringify({ status: 'paid' })
+					}).toString()
+				}
+			)
+			const editData = await editRes.json().catch(() => null)
+
+			if (editData?.success) {
+				this.logger.log(
+					`[RetailCRM] Payment ${payment.id} marked paid (order externalId=${externalId})`
+				)
+			} else {
+				this.logger.error(
+					`[RetailCRM] Payment update failed (id=${payment.id}): ${JSON.stringify(editData)}`
+				)
+			}
 		}
 	}
 }
