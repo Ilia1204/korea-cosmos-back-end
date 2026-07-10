@@ -29,7 +29,10 @@ export class FileService {
 			data: []
 		}
 
-		const uploadFolder = path.join(path.resolve(), 'uploads', folder)
+		const baseDir = process.env.NODE_ENV === 'production'
+			? '/data/uploads'
+			: path.join(path.resolve(), 'uploads')
+		const uploadFolder = path.join(baseDir, folder)
 		await ensureDir(uploadFolder)
 
 		const data: IFileResponse[] = await Promise.all(
@@ -43,7 +46,7 @@ export class FileService {
 					.replace(/ /g, '-')
 
 				const imagePath = path.join(uploadFolder, name)
-				fs.writeFileSync(imagePath, buffer)
+				fs.writeFileSync(imagePath, new Uint8Array(buffer))
 
 				return {
 					_id: ++this.fileIdCounter,
@@ -71,7 +74,9 @@ export class FileService {
 
 	private checkFileType(file: Express.Multer.File): void {
 		const filetypes = /jpeg|jpg|png|svg+xml|svg|webp|pjpeg/
-		const extname = filetypes.test(path.extname(file.originalname).toLowerCase())
+		const extname = filetypes.test(
+			path.extname(file.originalname).toLowerCase()
+		)
 		const mimetype = filetypes.test(file.mimetype)
 
 		if (!extname && !mimetype)

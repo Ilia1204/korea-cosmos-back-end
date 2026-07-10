@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { Expo, ExpoPushMessage } from 'expo-server-sdk'
 import { PrismaService } from 'src/prisma.service'
+import { NotificationsService } from 'src/notifications/notifications.service'
 
 @Injectable()
 export class ChatService {
-	private expo = new Expo()
-
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private notifications: NotificationsService
+	) {}
 
 	async getOrCreateRoom(userId: string) {
 		return this.prisma.chatRoom.upsert({
@@ -16,9 +17,71 @@ export class ChatService {
 		})
 	}
 
-	async saveMessage(roomId: string, senderId: string | null, text: string, isAdmin: boolean) {
+	async getRoomStatus(roomId: string): Promise<string> {
+		const room = await this.prisma.chatRoom.findUnique({
+			where: { id: roomId },
+			select: { status: true }
+		})
+		return room?.status ?? 'open'
+	}
+
+	async closeRoom(roomId: string) {
+		return this.prisma.chatRoom.update({
+			where: { id: roomId },
+			data: { status: 'closed' }
+		})
+	}
+
+	async reopenRoom(roomId: string) {
+		return this.prisma.chatRoom.update({
+			where: { id: roomId },
+			data: { status: 'open' }
+		})
+	}
+
+	private senderSelect = {
+		id: true,
+		name: true,
+		displayName: true,
+		avatarPath: true,
+		role: true
+	}
+
+	private messageInclude = {
+		sender: { select: this.senderSelect },
+		replyTo: {
+			select: {
+				id: true,
+				text: true,
+				imageUrls: true,
+				deletedAt: true,
+				isAdmin: true,
+				sender: { select: { name: true, displayName: true } }
+			}
+		},
+		reactions: {
+			select: { id: true, userId: true, emoji: true }
+		}
+	}
+
+	async saveMessage(
+		roomId: string,
+		senderId: string | null,
+		text: string,
+		isAdmin: boolean,
+		replyToId?: string,
+		imageUrls?: string[]
+	) {
 		return this.prisma.chatMessage.create({
-			data: { roomId, senderId, text, isAdmin }
+			data: {
+				roomId,
+				senderId,
+				text,
+				isAdmin,
+				replyToId,
+				...(imageUrls?.length ? { imageUrls } : {})
+			},
+			include: this.messageInclude
 		})
 	}
 
@@ -27,7 +90,38 @@ export class ChatService {
 			where: { roomId },
 			orderBy: { createdAt: 'desc' },
 			skip,
-			take
+			take,
+			include: this.messageInclude
+		})
+	}
+
+	async editMessage(messageId: string, text: string) {
+		return this.prisma.chatMessage.update({
+			where: { id: messageId },
+			data: { text, editedAt: new Date() },
+			include: this.messageInclude
+		})
+	}
+
+	async deleteMessage(messageId: string) {
+		return this.prisma.chatMessage.update({
+			where: { id: messageId },
+			data: { deletedAt: new Date() }
+		})
+	}
+
+	async restoreMessage(messageId: string) {
+		return this.prisma.chatMessage.update({
+			where: { id: messageId },
+			data: { deletedAt: null },
+			include: this.messageInclude
+		})
+	}
+
+	async getMessage(messageId: string) {
+		return this.prisma.chatMessage.findUnique({
+			where: { id: messageId },
+			include: this.messageInclude
 		})
 	}
 
@@ -38,20 +132,57 @@ export class ChatService {
 		})
 	}
 
+	async markAsReadAndGetIds(
+		roomId: string,
+		isAdmin: boolean
+	): Promise<string[]> {
+		const msgs = await this.prisma.chatMessage.findMany({
+			where: { roomId, isAdmin: !isAdmin, isRead: false },
+			select: { id: true }
+		})
+		if (msgs.length === 0) return []
+		await this.prisma.chatMessage.updateMany({
+			where: { roomId, isAdmin: !isAdmin, isRead: false },
+			data: { isRead: true }
+		})
+		return msgs.map(m => m.id)
+	}
+
+	async markMessageAsRead(messageId: string): Promise<void> {
+		await this.prisma.chatMessage.update({
+			where: { id: messageId },
+			data: { isRead: true }
+		})
+	}
+
 	async getAllRooms() {
-		return this.prisma.chatRoom.findMany({
-			where: {
-				user: { role: 'user' }
-			},
+		const rooms = await this.prisma.chatRoom.findMany({
+			where: { user: { role: 'user' } },
 			orderBy: { updatedAt: 'desc' },
 			include: {
-				user: { select: { id: true, email: true, name: true, displayName: true, avatarPath: true } },
+				user: {
+					select: {
+						id: true,
+						email: true,
+						name: true,
+						displayName: true,
+						avatarPath: true
+					}
+				},
 				messages: {
 					orderBy: { createdAt: 'desc' },
 					take: 1
+				},
+				_count: {
+					select: { messages: { where: { isAdmin: false, isRead: false } } }
 				}
 			}
 		})
+		return rooms.map(r => ({
+			...r,
+			lastMessage: r.messages[0] ?? null,
+			unreadCount: r._count.messages
+		}))
 	}
 
 	async sendPushToAdmins(
@@ -60,29 +191,29 @@ export class ChatService {
 		excludeUserId?: string,
 		roomData?: { roomId: string; userName: string }
 	) {
+		const mutedByIds = roomData ? await this.getMutedByIds(roomData.roomId) : []
 		const admins = await this.prisma.user.findMany({
 			where: {
 				role: { in: ['admin', 'manager'] },
-				pushToken: { not: '' },
 				...(excludeUserId ? { id: { not: excludeUserId } } : {})
 			},
-			select: { pushToken: true }
+			select: { id: true }
 		})
 		const data = roomData
-			? { screen: 'AdminChatRoom', roomId: roomData.roomId, userName: roomData.userName }
+			? {
+					screen: 'AdminChatRoom',
+					params: { roomId: roomData.roomId, userName: roomData.userName }
+			  }
 			: { screen: 'ChatsList' }
-		const messages = admins
-			.filter(a => a.pushToken && Expo.isExpoPushToken(a.pushToken))
-			.map(a => ({
-				to: a.pushToken!,
-				sound: 'default' as const,
-				title,
-				body,
-				data
-			}))
-		if (messages.length) {
-			try { await this.expo.sendPushNotificationsAsync(messages) } catch {}
-		}
+		await Promise.all(
+			admins
+				.filter(a => !mutedByIds.includes(a.id))
+				.map(admin =>
+					this.notifications
+						.sendPushNotificationToUser(admin.id, title, body, data)
+						.catch(() => {})
+				)
+		)
 	}
 
 	async getUserDisplayName(userId: string): Promise<string> {
@@ -92,7 +223,8 @@ export class ChatService {
 		})
 		if (!user) return 'Пользователь'
 		if (user.displayName) return user.displayName
-		if (user.name) return user.surname ? `${user.name} ${user.surname}` : user.name
+		if (user.name)
+			return user.surname ? `${user.name} ${user.surname}` : user.name
 		return user.email ?? 'Пользователь'
 	}
 
@@ -102,22 +234,22 @@ export class ChatService {
 		})
 	}
 
-	async sendPushToUser(userId: string, title: string, body: string) {
-		const user = await this.prisma.user.findUnique({
-			where: { id: userId },
-			select: { pushToken: true }
+	async getUnreadRoomsCount(): Promise<number> {
+		const rooms = await this.prisma.chatRoom.findMany({
+			where: {
+				user: { role: 'user' },
+				messages: { some: { isAdmin: false, isRead: false } }
+			},
+			select: { id: true }
 		})
-		if (!user?.pushToken || !Expo.isExpoPushToken(user.pushToken)) return
-		const message: ExpoPushMessage = {
-			to: user.pushToken,
-			sound: 'default',
-			title,
-			body,
-			data: { screen: 'SupportChat' }
-		}
-		try {
-			await this.expo.sendPushNotificationsAsync([message])
-		} catch {}
+		return rooms.length
+	}
+
+	async sendPushToUser(userId: string, title: string, body: string) {
+		const data = { screen: 'SupportChat' }
+		this.notifications
+			.sendPushNotificationToUser(userId, title, body, data)
+			.catch(() => {})
 	}
 
 	async getRoomByUserId(userId: string) {
@@ -160,10 +292,63 @@ export class ChatService {
 		return this.prisma.chatRoom.findUnique({ where: { id: roomId } })
 	}
 
+	async toggleReaction(messageId: string, userId: string, emoji: string) {
+		const existing = await this.prisma.chatMessageReaction.findUnique({
+			where: { messageId_userId_emoji: { messageId, userId, emoji } }
+		})
+		if (existing) {
+			await this.prisma.chatMessageReaction.delete({
+				where: { messageId_userId_emoji: { messageId, userId, emoji } }
+			})
+		} else {
+			await this.prisma.chatMessageReaction.create({
+				data: { messageId, userId, emoji }
+			})
+		}
+		return this.prisma.chatMessageReaction.findMany({
+			where: { messageId },
+			select: { id: true, userId: true, emoji: true }
+		})
+	}
+
+	async getMessageCount(roomId: string): Promise<number> {
+		return this.prisma.chatMessage.count({ where: { roomId } })
+	}
+
 	async touchRoom(roomId: string) {
 		await this.prisma.chatRoom.update({
 			where: { id: roomId },
 			data: { updatedAt: new Date() }
 		})
+	}
+
+	async deleteRoom(roomId: string) {
+		await this.prisma.chatRoom.delete({ where: { id: roomId } })
+	}
+
+	async toggleMute(roomId: string, adminId: string): Promise<boolean> {
+		const room = await this.prisma.chatRoom.findUnique({
+			where: { id: roomId },
+			select: { mutedByIds: true }
+		})
+		if (!room) return false
+		const isMuted = room.mutedByIds.includes(adminId)
+		await this.prisma.chatRoom.update({
+			where: { id: roomId },
+			data: {
+				mutedByIds: isMuted
+					? { set: room.mutedByIds.filter(id => id !== adminId) }
+					: { push: adminId }
+			}
+		})
+		return !isMuted
+	}
+
+	async getMutedByIds(roomId: string): Promise<string[]> {
+		const room = await this.prisma.chatRoom.findUnique({
+			where: { id: roomId },
+			select: { mutedByIds: true }
+		})
+		return room?.mutedByIds ?? []
 	}
 }

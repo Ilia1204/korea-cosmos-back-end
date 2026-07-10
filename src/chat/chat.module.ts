@@ -6,6 +6,8 @@ import { getJwtConfig } from 'src/config/jwt.config'
 import { ChatController } from './chat.controller'
 import { ChatGateway } from './chat.gateway'
 import { ChatService } from './chat.service'
+import { FileService } from 'src/file/file.service'
+import { NotificationsModule } from 'src/notifications/notifications.module'
 
 @Module({
 	imports: [
@@ -14,9 +16,10 @@ import { ChatService } from './chat.service'
 			imports: [ConfigModule],
 			inject: [ConfigService],
 			useFactory: getJwtConfig
-		})
+		}),
+		NotificationsModule
 	],
 	controllers: [ChatController],
-	providers: [ChatGateway, ChatService, PrismaService]
+	providers: [ChatGateway, ChatService, PrismaService, FileService]
 })
 export class ChatModule {}
