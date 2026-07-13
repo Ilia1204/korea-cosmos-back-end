@@ -78,7 +78,10 @@ export class WooSyncService {
 		return this.wooOrders.getCustomerById(wcId)
 	}
 
-	updateCustomerById(wcId: number, data: { firstName?: string; lastName?: string; phone?: string }) {
+	updateCustomerById(
+		wcId: number,
+		data: { firstName?: string; lastName?: string; phone?: string }
+	) {
 		return this.wooOrders.updateCustomerById(wcId, data)
 	}
 

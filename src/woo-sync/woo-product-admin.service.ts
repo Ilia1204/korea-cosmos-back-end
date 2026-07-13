@@ -1,6 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException
+} from '@nestjs/common'
 import { WooApiClient } from './woo-api.client'
-import { WcProductQueryDto, WcProductUpdateDto } from './dto/wc-product-admin.dto'
+import { WcProductQueryDto } from './dto/wc-product-dto'
+import { WcProductUpdateDto } from './dto/wc-product-update.dto'
 
 const LIST_FIELDS =
 	'id,name,slug,images,regular_price,sale_price,stock_status,status,categories,tags,type,date_created,short_description'
@@ -29,7 +34,11 @@ export class WooProductAdminService {
 		const products = await res.json()
 		const total = Number(res.headers.get('X-WP-Total') ?? 0)
 		const totalPages = Number(res.headers.get('X-WP-TotalPages') ?? 1)
-		return { products: Array.isArray(products) ? products : [], total, totalPages }
+		return {
+			products: Array.isArray(products) ? products : [],
+			total,
+			totalPages
+		}
 	}
 
 	async getProduct(id: number) {

@@ -18,11 +18,25 @@ export class WooOrdersService {
 		return WC_TO_LOCAL[wcStatus] || 'pending'
 	}
 
-	private mapDeliveryMethod(methodId: string | null, methodTitle: string | null): string | null {
+	private mapDeliveryMethod(
+		methodId: string | null,
+		methodTitle: string | null
+	): string | null {
 		const id = (methodId || '').toLowerCase()
 		const title = (methodTitle || '').toLowerCase()
-		if (id.includes('cdek') || id.includes('sdek') || title.includes('сдэк') || title.includes('cdek')) return 'sdec'
-		if (id.includes('pochta') || id.includes('russian_post') || title.includes('почта')) return 'russian_post'
+		if (
+			id.includes('cdek') ||
+			id.includes('sdek') ||
+			title.includes('сдэк') ||
+			title.includes('cdek')
+		)
+			return 'sdec'
+		if (
+			id.includes('pochta') ||
+			id.includes('russian_post') ||
+			title.includes('почта')
+		)
+			return 'russian_post'
 		if (id.includes('pickup') || title.includes('самовывоз')) return 'pickup'
 		return methodTitle || null
 	}
@@ -69,40 +83,45 @@ export class WooOrdersService {
 			if (!Array.isArray(orders)) return []
 
 			const result = orders
-				.filter(o => !o.meta_data?.some((m: any) => m.key === '_kc_app_order_id'))
+				.filter(
+					o => !o.meta_data?.some((m: any) => m.key === '_kc_app_order_id')
+				)
 				.map(o => ({
-				id: String(o.id),
-				number: o.number,
-				status: this.mapStatus(o.status),
-				totalPrice: Math.round(parseFloat(o.total)),
-				deliveryPrice: Math.round(parseFloat(o.shipping_total || '0')),
-				deliveryMethod: this.mapDeliveryMethod(o.shipping_lines?.[0]?.method_id, o.shipping_lines?.[0]?.method_title),
-				createdAt: o.date_created,
-				source: 'woocommerce',
-				items: [
-					...(o.line_items || []).map((li: any) => ({
-						id: String(li.id),
-						productId: null,
-						quantity: li.quantity,
-						price: Math.round(parseFloat(li.price || li.total || '0')),
-						productName: li.name,
-						productImage: li.image?.src || '',
-						product: {
-							name: li.name,
-							images: li.image?.src ? [li.image.src] : []
-						}
-					})),
-					...(o.fee_lines || []).map((fl: any) => ({
-						id: String(fl.id),
-						productId: null,
-						quantity: 1,
-						price: Math.round(parseFloat(fl.total || '0')),
-						productName: fl.name,
-						productImage: '',
-						product: { name: fl.name, images: [] }
-					}))
-				]
-			}))
+					id: String(o.id),
+					number: o.number,
+					status: this.mapStatus(o.status),
+					totalPrice: Math.round(parseFloat(o.total)),
+					deliveryPrice: Math.round(parseFloat(o.shipping_total || '0')),
+					deliveryMethod: this.mapDeliveryMethod(
+						o.shipping_lines?.[0]?.method_id,
+						o.shipping_lines?.[0]?.method_title
+					),
+					createdAt: o.date_created,
+					source: 'woocommerce',
+					items: [
+						...(o.line_items || []).map((li: any) => ({
+							id: String(li.id),
+							productId: null,
+							quantity: li.quantity,
+							price: Math.round(parseFloat(li.price || li.total || '0')),
+							productName: li.name,
+							productImage: li.image?.src || '',
+							product: {
+								name: li.name,
+								images: li.image?.src ? [li.image.src] : []
+							}
+						})),
+						...(o.fee_lines || []).map((fl: any) => ({
+							id: String(fl.id),
+							productId: null,
+							quantity: 1,
+							price: Math.round(parseFloat(fl.total || '0')),
+							productName: fl.name,
+							productImage: '',
+							product: { name: fl.name, images: [] }
+						}))
+					]
+				}))
 			this.ordersCache.set(email, { data: result, ts: Date.now() })
 
 			return result
@@ -123,7 +142,10 @@ export class WooOrdersService {
 				status: this.mapStatus(o.status),
 				totalPrice: Math.round(parseFloat(o.total)),
 				deliveryPrice: Math.round(parseFloat(o.shipping_total || '0')),
-				deliveryMethod: this.mapDeliveryMethod(o.shipping_lines?.[0]?.method_id, o.shipping_lines?.[0]?.method_title),
+				deliveryMethod: this.mapDeliveryMethod(
+					o.shipping_lines?.[0]?.method_id,
+					o.shipping_lines?.[0]?.method_title
+				),
 				discountApplied: 0,
 				createdAt: o.date_created,
 				source: 'woocommerce',

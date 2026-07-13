@@ -8,9 +8,10 @@ import {
 	Query
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
-import { WcProductQueryDto, WcProductUpdateDto } from './dto/wc-product-admin.dto'
 import { WooProductAdminService } from './woo-product-admin.service'
 import { WooSyncService } from './woo-sync.service'
+import { WcProductQueryDto } from './dto/wc-product-dto'
+import { WcProductUpdateDto } from './dto/wc-product-update.dto'
 
 @Controller('woo')
 export class WooSyncController {

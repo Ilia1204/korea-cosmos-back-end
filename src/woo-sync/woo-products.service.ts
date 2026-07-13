@@ -2,8 +2,16 @@ import { Injectable } from '@nestjs/common'
 import { WooApiClient } from './woo-api.client'
 
 const TAG_IDS = [21, 22, 23]
-const TAG_NAMES: Record<number, string> = { 21: 'Новинки', 22: 'Хиты', 23: 'Рекомендуем' }
-const TAG_SLUGS: Record<number, string> = { 21: 'novinki', 22: 'hity', 23: 'rekomenduem' }
+const TAG_NAMES: Record<number, string> = {
+	21: 'Новинки',
+	22: 'Хиты',
+	23: 'Рекомендуем'
+}
+const TAG_SLUGS: Record<number, string> = {
+	21: 'novinki',
+	22: 'hity',
+	23: 'rekomenduem'
+}
 
 const PRODUCT_FIELDS =
 	'id,name,slug,price,regular_price,sale_price,on_sale,images,average_rating,rating_count,stock_status,categories,tags,meta_data,attributes,type,total_sales'
@@ -21,7 +29,9 @@ export class WooProductsService {
 				return this.labelProductsCache.data
 			}
 			this.buildLabelProducts()
-				.then(data => { this.labelProductsCache = { data, ts: Date.now() } })
+				.then(data => {
+					this.labelProductsCache = { data, ts: Date.now() }
+				})
 				.catch(() => {})
 			return this.labelProductsCache.data
 		}
