@@ -191,54 +191,57 @@ export class NotificationsScheduledService {
 		})
 	}
 
-	// Брошенная корзина: каждый час проверяем пользователей с непустой корзиной
+	// Брошенная корзина: ровно одно уведомление на каждое изменение корзины,
+	// через 4+ часа после последнего обновления
 	@Cron('0 * * * *')
 	async handleAbandonedCart() {
 		const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
-		const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-		// Пользователи у которых есть товары в корзине
-		const cartsWithItems = await this.prisma.cartItem.groupBy({
+		// Корзины, которые не трогали 4+ часов
+		const staleCarts = await this.prisma.cartItem.groupBy({
 			by: ['userId'],
-			_count: { productId: true }
+			where: { updatedAt: { lt: fourHoursAgo } },
+			_max: { updatedAt: true }
 		})
-		const userIdsWithCart = cartsWithItems
-			.filter(c => c._count.productId > 0)
-			.map(c => c.userId)
-		if (!userIdsWithCart.length) return
+		if (!staleCarts.length) return
+
+		const userIds = staleCarts.map(c => c.userId)
 
 		// Исключаем тех, кто оформил заказ за последние 4 часа
 		const recentOrders = await this.prisma.order.findMany({
-			where: { userId: { in: userIdsWithCart }, createdAt: { gte: fourHoursAgo } },
+			where: { userId: { in: userIds }, createdAt: { gte: fourHoursAgo } },
 			select: { userId: true }
 		})
-		const recentBuyerIds = new Set(recentOrders.map(o => o.userId).filter(Boolean))
+		const recentBuyerIds = new Set(
+			recentOrders.map(o => o.userId).filter(Boolean)
+		)
 
-		// Исключаем тех, кому уже отправляли за последние 24 часа
-		const recentNotifs = await this.prisma.notification.findMany({
-			where: {
-				userId: { in: userIdsWithCart },
-				createdAt: { gte: oneDayAgo },
-				data: { path: ['abandonedCart'], equals: true }
-			},
-			select: { userId: true }
-		})
-		const alreadyNotifiedIds = new Set(recentNotifs.map(n => n.userId))
+		const candidates = staleCarts.filter(c => !recentBuyerIds.has(c.userId))
+		if (!candidates.length) return
 
-		// Фильтруем финальный список
 		const targets = await this.prisma.user.findMany({
 			where: {
-				id: {
-					in: userIdsWithCart.filter(
-						id => !recentBuyerIds.has(id) && !alreadyNotifiedIds.has(id)
-					)
-				},
+				id: { in: candidates.map(c => c.userId) },
 				pushToken: { not: null }
 			},
 			select: { id: true, name: true }
 		})
 
 		for (const user of targets) {
+			const cartLastUpdated = candidates.find(c => c.userId === user.id)?._max
+				.updatedAt
+			if (!cartLastUpdated) continue
+
+			// Уже отправляли уведомление после последнего изменения корзины — пропускаем
+			const alreadyNotified = await this.prisma.notification.findFirst({
+				where: {
+					userId: user.id,
+					createdAt: { gte: cartLastUpdated },
+					data: { path: ['abandonedCart'], equals: true }
+				}
+			})
+			if (alreadyNotified) continue
+
 			const firstName = user.name ? `, ${user.name}` : ''
 			const notification = await this.notifications.saveNotification(
 				user.id,
@@ -251,7 +254,11 @@ export class NotificationsScheduledService {
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{ abandonedCart: true, screen: 'Cart', notificationId: notification.id }
+					{
+						abandonedCart: true,
+						screen: 'Cart',
+						notificationId: notification.id
+					}
 				)
 				.catch(() => {})
 		}
