@@ -43,7 +43,9 @@ export class WooReviewController {
 
 	@Get('product-info')
 	@Auth('admin')
-	async getProductInfo(@Query('wooProductId', ParseIntPipe) wooProductId: number) {
+	async getProductInfo(
+		@Query('wooProductId', ParseIntPipe) wooProductId: number
+	) {
 		return this.wooReviewService.getWooProductInfo(wooProductId)
 	}
 
@@ -89,14 +91,20 @@ export class WooReviewController {
 	@HttpCode(200)
 	@Put(':id/message')
 	@Auth('admin')
-	async updateMessage(@Param('id') id: string, @Body('message') message: string) {
+	async updateMessage(
+		@Param('id') id: string,
+		@Body('message') message: string
+	) {
 		return this.wooReviewService.updateMessage(id, message)
 	}
 
 	@HttpCode(200)
 	@Put(':id/rating')
 	@Auth('admin')
-	async updateRating(@Param('id') id: string, @Body('rating', ParseIntPipe) rating: number) {
+	async updateRating(
+		@Param('id') id: string,
+		@Body('rating', ParseIntPipe) rating: number
+	) {
 		return this.wooReviewService.updateRating(id, rating)
 	}
 
@@ -186,10 +194,15 @@ export class WooReviewController {
 		const reviewer = body?.reviewer || 'Покупатель'
 		const reviewText = (body?.review ?? '').replace(/<[^>]*>/g, '')
 		if (!wooReviewId) return { ok: false }
-		this.wooReviewService.autoTrashIfSpam(wooReviewId, reviewText, reviewer)
+		this.wooReviewService
+			.autoTrashIfSpam(wooReviewId, reviewText, reviewer)
 			.then(wasSpam => {
 				if (!wasSpam) {
-					this.wooReviewService.notifyAdminNewWooReview(wooReviewId, productName, reviewer)
+					this.wooReviewService.notifyAdminNewWooReview(
+						wooReviewId,
+						productName,
+						reviewer
+					)
 				}
 			})
 			.catch(() => {})

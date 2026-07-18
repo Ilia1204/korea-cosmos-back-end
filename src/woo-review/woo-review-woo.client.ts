@@ -15,7 +15,9 @@ export class WooReviewWooClient {
 
 	private reviewsCache = new Map<string, { data: any[]; ts: number }>()
 
-	async fetchReviews(status: 'hold' | 'approved' | 'spam' | 'trash'): Promise<any[]> {
+	async fetchReviews(
+		status: 'hold' | 'approved' | 'spam' | 'trash'
+	): Promise<any[]> {
 		const cached = this.reviewsCache.get(status)
 		if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data
 		try {
@@ -80,7 +82,9 @@ export class WooReviewWooClient {
 		})
 	}
 
-	async fetchProduct(productId: number): Promise<{ name: string; slug: string; image: string | null } | null> {
+	async fetchProduct(
+		productId: number
+	): Promise<{ name: string; slug: string; image: string | null } | null> {
 		try {
 			const res = await this.api.get(`/products/${productId}`)
 			const d = res.data

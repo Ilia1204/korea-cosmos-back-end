@@ -37,14 +37,20 @@ export class WebhookOrdersService {
 			// Заказ с сайта без записи в локальной БД: ищем пользователя по email
 			const customerEmail = order.customer?.email || order.email
 			if (customerEmail) {
-				await this.notifyUserByEmail(customerEmail, order.externalId, localStatus)
+				await this.notifyUserByEmail(
+					customerEmail,
+					order.externalId,
+					localStatus
+				)
 			}
 			return { ok: true }
 		}
 
 		if (existing.status === localStatus) return { ok: true }
 
-		const trackingNumber = order.delivery?.data?.trackNumber as string | undefined
+		const trackingNumber = order.delivery?.data?.trackNumber as
+			| string
+			| undefined
 
 		const updated = await this.prisma.order.update({
 			where: { id: existing.id },
@@ -71,7 +77,11 @@ export class WebhookOrdersService {
 		return { ok: true }
 	}
 
-	private async notifyUserByEmail(email: string, externalId: string, localStatus: string) {
+	private async notifyUserByEmail(
+		email: string,
+		externalId: string,
+		localStatus: string
+	) {
 		const user = await this.prisma.user.findFirst({
 			where: { email },
 			select: { id: true }
@@ -83,7 +93,12 @@ export class WebhookOrdersService {
 		const title = `Заказ #${shortId} ${getOrderStatusTranslation(localStatus)}`
 		const data = { status: localStatus }
 
-		const notification = await this.notifications.saveNotification(user.id, icon, title, data)
+		const notification = await this.notifications.saveNotification(
+			user.id,
+			icon,
+			title,
+			data
+		)
 		await this.notifications.sendPushNotificationToUser(user.id, icon, title, {
 			...data,
 			notification: notification.id

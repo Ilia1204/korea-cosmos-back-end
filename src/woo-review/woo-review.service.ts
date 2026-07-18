@@ -62,8 +62,16 @@ export class WooReviewService {
 	autoTrashIfSpam(wooReviewId: number, text: string, reviewer: string) {
 		return this.moderation.autoTrashIfSpam(wooReviewId, text, reviewer)
 	}
-	notifyAdminNewWooReview(wooReviewId: number, productName: string, reviewer: string) {
-		return this.moderation.notifyAdminNewWooReview(wooReviewId, productName, reviewer)
+	notifyAdminNewWooReview(
+		wooReviewId: number,
+		productName: string,
+		reviewer: string
+	) {
+		return this.moderation.notifyAdminNewWooReview(
+			wooReviewId,
+			productName,
+			reviewer
+		)
 	}
 	publishWooNative(wooReviewId: number) {
 		return this.moderation.publishWooNative(wooReviewId)

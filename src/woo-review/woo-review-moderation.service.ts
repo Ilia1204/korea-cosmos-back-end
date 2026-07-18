@@ -175,13 +175,21 @@ export class WooReviewModerationService {
 		await this.woo.updateText(wooReviewId, message)
 	}
 
-	async autoTrashIfSpam(wooReviewId: number, text: string, reviewer: string): Promise<boolean> {
+	async autoTrashIfSpam(
+		wooReviewId: number,
+		text: string,
+		reviewer: string
+	): Promise<boolean> {
 		if (!isSpam(text, reviewer)) return false
 		await this.woo.updateStatus(wooReviewId, 'trash').catch(() => {})
 		return true
 	}
 
-	async notifyAdminNewWooReview(wooReviewId: number, productName: string, reviewer: string) {
+	async notifyAdminNewWooReview(
+		wooReviewId: number,
+		productName: string,
+		reviewer: string
+	) {
 		setTimeout(() => {
 			this.notifications.sendPushNotificationToAdmins(
 				'📝 Новый отзыв с сайта!',
@@ -199,7 +207,10 @@ export class WooReviewModerationService {
 		await this.woo.updateStatus(wooReviewId, 'hold')
 	}
 
-	async setWooNativeStatus(wooReviewId: number, status: 'approved' | 'hold' | 'spam' | 'trash') {
+	async setWooNativeStatus(
+		wooReviewId: number,
+		status: 'approved' | 'hold' | 'spam' | 'trash'
+	) {
 		await this.woo.updateStatus(wooReviewId, status)
 	}
 

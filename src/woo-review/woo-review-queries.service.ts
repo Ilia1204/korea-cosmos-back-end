@@ -47,19 +47,35 @@ export class WooReviewQueriesService {
 			? {
 					OR: [
 						{ message: { contains: searchTerm, mode: 'insensitive' as const } },
-						{ user: { name: { contains: searchTerm, mode: 'insensitive' as const } } }
+						{
+							user: {
+								name: { contains: searchTerm, mode: 'insensitive' as const }
+							}
+						}
 					]
 			  }
 			: {}
 
-		const [localReviews, holdReviews, approvedReviews, spamReviews, trashReviews] = await Promise.all([
+		const [
+			localReviews,
+			holdReviews,
+			approvedReviews,
+			spamReviews,
+			trashReviews
+		] = await Promise.all([
 			this.prisma.wooReview.findMany({
 				where: textWhere,
 				orderBy: { createdAt: 'desc' },
 				select: {
-					id: true, message: true, images: true, rating: true,
-					isPublic: true, wooStatus: true, createdAt: true,
-					wooProductId: true, wooReviewId: true,
+					id: true,
+					message: true,
+					images: true,
+					rating: true,
+					isPublic: true,
+					wooStatus: true,
+					createdAt: true,
+					wooProductId: true,
+					wooReviewId: true,
 					user: { select: { id: true, name: true } }
 				}
 			}),
@@ -69,9 +85,16 @@ export class WooReviewQueriesService {
 			this.woo.fetchReviews('trash')
 		])
 
-		const localWooIds = new Set(localReviews.map(r => r.wooReviewId).filter(Boolean))
+		const localWooIds = new Set(
+			localReviews.map(r => r.wooReviewId).filter(Boolean)
+		)
 
-		const wooOnlyReviews = [...holdReviews, ...approvedReviews, ...spamReviews, ...trashReviews]
+		const wooOnlyReviews = [
+			...holdReviews,
+			...approvedReviews,
+			...spamReviews,
+			...trashReviews
+		]
 			.filter(r => !localWooIds.has(r.id))
 			.map(r => {
 				const text = r.review?.replace(/<[^>]*>/g, '') ?? ''
@@ -86,7 +109,11 @@ export class WooReviewQueriesService {
 					images: [],
 					rating: r.rating,
 					isPublic: r.status === 'approved',
-					wooStatus: (detectedSpam ? 'trash' : r.status) as 'approved' | 'hold' | 'spam' | 'trash',
+					wooStatus: (detectedSpam ? 'trash' : r.status) as
+						| 'approved'
+						| 'hold'
+						| 'spam'
+						| 'trash',
 					createdAt: r.date_created,
 					wooProductId: r.product_id,
 					wooReviewId: r.id,
@@ -102,22 +129,26 @@ export class WooReviewQueriesService {
 				wooStatus: r.wooStatus as 'approved' | 'hold' | 'spam' | 'trash'
 			})),
 			...wooOnlyReviews
-		].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+		].sort(
+			(a, b) =>
+				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		)
 
 		if (searchTerm) {
-			allReviews = allReviews.filter(r =>
-				r.source === 'local' ||
-				r.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				r.user.name.toLowerCase().includes(searchTerm.toLowerCase())
+			allReviews = allReviews.filter(
+				r =>
+					r.source === 'local' ||
+					r.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+					r.user.name.toLowerCase().includes(searchTerm.toLowerCase())
 			)
 		}
 
 		const counts = {
-			all:      allReviews.length,
-			pending:  allReviews.filter(r => r.wooStatus === 'hold').length,
+			all: allReviews.length,
+			pending: allReviews.filter(r => r.wooStatus === 'hold').length,
 			approved: allReviews.filter(r => r.wooStatus === 'approved').length,
-			spam:     allReviews.filter(r => r.wooStatus === 'spam').length,
-			trash:    allReviews.filter(r => r.wooStatus === 'trash').length
+			spam: allReviews.filter(r => r.wooStatus === 'spam').length,
+			trash: allReviews.filter(r => r.wooStatus === 'trash').length
 		}
 
 		const skip = (page - 1) * limit
