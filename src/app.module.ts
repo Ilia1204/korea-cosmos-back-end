@@ -40,8 +40,9 @@ import { ChatModule } from './chat/chat.module'
 		ThrottlerModule.forRoot([{ ttl: 60000, limit: 5 }]),
 		ScheduleModule.forRoot(),
 		ServeStaticModule.forRoot({
-			rootPath: `${path}/uploads`,
-			serveRoot: '/uploads'
+			rootPath: process.env.NODE_ENV === 'production' ? '/data/uploads' : `${path}/uploads`,
+			serveRoot: '/uploads',
+			serveStaticOptions: { index: false }
 		}),
 		ConfigModule.forRoot(),
 		AuthModule,
