@@ -1,5 +1,5 @@
-FROM node:20-alpine
-RUN apk add --no-cache openssl
+FROM node:20-slim
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY package.json yarn.lock ./
@@ -13,4 +13,4 @@ RUN yarn build
 
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "yarn prisma migrate deploy && node dist/main"]
+CMD ["node", "dist/main"]
