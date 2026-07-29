@@ -12,5 +12,6 @@ COPY . .
 RUN yarn build
 
 ENV NODE_ENV=production
+EXPOSE 4200
 
 CMD ["node", "dist/main"]
