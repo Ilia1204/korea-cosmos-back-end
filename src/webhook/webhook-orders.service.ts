@@ -12,6 +12,9 @@ import { WC_TO_LOCAL } from 'src/woo-sync/woo-status.constants'
 
 @Injectable()
 export class WebhookOrdersService {
+	// Дедупликация: не слать два уведомления об одном WC заказе (created + updated стреляют одновременно)
+	private notifiedWcOrders = new Set<string>()
+
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly notifications: NotificationsService,
@@ -116,6 +119,11 @@ export class WebhookOrdersService {
 		const isAppOrder = metaData.some((m: any) => m.key === '_kc_app_order_id')
 		if (isAppOrder) return { ok: true }
 
+		const dedupKey = `wc:${wcOrderId}`
+		if (this.notifiedWcOrders.has(dedupKey)) return { ok: true }
+		this.notifiedWcOrders.add(dedupKey)
+		setTimeout(() => this.notifiedWcOrders.delete(dedupKey), 5 * 60 * 1000)
+
 		const customerName = [billing?.first_name, billing?.last_name]
 			.filter(Boolean)
 			.join(' ')
@@ -132,9 +140,15 @@ export class WebhookOrdersService {
 				? `Заказ #${shortId} от ${customerLabel} на ${amount}₽`
 				: `Заказ #${shortId} от ${customerLabel} на ${amount}₽ — ожидает оплаты`
 
-		await this.notifications.sendPushNotificationToAdmins(title, body, {
-			newWcOrder: true
+		// Передаём localOrderId если заказ уже синхронизирован в локальную БД
+		const localOrder = await this.prisma.order.findFirst({
+			where: { wcOrderId: Number(wcOrderId) },
+			select: { id: true }
 		})
+		const notifData: Record<string, any> = { newWcOrder: true, wcOrderId }
+		if (localOrder) notifData.orderId = localOrder.id
+
+		await this.notifications.sendPushNotificationToAdmins(title, body, notifData)
 		return { ok: true }
 	}
 
@@ -154,17 +168,22 @@ export class WebhookOrdersService {
 
 		if (!order) {
 			if (wcStatus === 'processing') {
-				const customerName = [billing?.first_name, billing?.last_name]
-					.filter(Boolean)
-					.join(' ')
-				const customerLabel = customerName || billing?.email || 'с сайта'
-				const shortId = String(wcOrderId).slice(-6).toUpperCase()
-				const amount = Math.round(Number(total || 0))
-				await this.notifications.sendPushNotificationToAdmins(
-					'💳 Заказ с сайта оплачен',
-					`Заказ #${shortId} от ${customerLabel} на ${amount}₽`,
-					{ newWcOrder: true }
-				)
+				const dedupKey = `wc:${wcOrderId}`
+				if (!this.notifiedWcOrders.has(dedupKey)) {
+					this.notifiedWcOrders.add(dedupKey)
+					setTimeout(() => this.notifiedWcOrders.delete(dedupKey), 5 * 60 * 1000)
+					const customerName = [billing?.first_name, billing?.last_name]
+						.filter(Boolean)
+						.join(' ')
+					const customerLabel = customerName || billing?.email || 'с сайта'
+					const shortId = String(wcOrderId).slice(-6).toUpperCase()
+					const amount = Math.round(Number(total || 0))
+					await this.notifications.sendPushNotificationToAdmins(
+						'💳 Заказ с сайта оплачен',
+						`Заказ #${shortId} от ${customerLabel} на ${amount}₽`,
+						{ newWcOrder: true, wcOrderId }
+					)
+				}
 			}
 			return { ok: true }
 		}

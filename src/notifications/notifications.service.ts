@@ -64,10 +64,13 @@ export class NotificationsService {
 		})
 
 		await Promise.all(
-			admins.map(admin => {
-				this.saveNotification(admin.id, title, message, data)
+			admins.map(async admin => {
+				const notification = await this.saveNotification(admin.id, title, message, data)
 				if (admin.pushToken) {
-					return this.sendPushNotificationToUser(admin.id, title, message, data)
+					return this.sendPushNotificationToUser(admin.id, title, message, {
+						...data,
+						notificationId: notification.id
+					})
 				}
 			})
 		)
