@@ -6,20 +6,25 @@ export function calculateTotal(
 	couponData: any,
 	deliveryPrice = 0
 ): number {
+	// Если купон процентный — берём наибольшее из автоскидки и купона (не суммируем)
+	const percentCoupon =
+		couponData?.valid && couponData.discountType === 'percent'
+			? couponData.amount
+			: 0
+	const effectiveDiscount = Math.max(discount, percentCoupon)
+
 	const subtotal = items.reduce((acc, item) => {
 		const original = item.originalPrice || item.price
 		const saleDiscount =
 			original > item.price ? ((original - item.price) / original) * 100 : 0
-		const effective = Math.max(discount, saleDiscount)
+		const effective = Math.max(effectiveDiscount, saleDiscount)
 		return acc + original * (1 - effective / 100) * item.quantity
 	}, 0)
 
+	// Фиксированный купон применяется поверх (он не конкурирует с процентной скидкой)
 	let afterCoupon = subtotal
-	if (couponData?.valid) {
-		afterCoupon =
-			couponData.discountType === 'percent'
-				? subtotal * (1 - couponData.amount / 100)
-				: Math.max(0, subtotal - couponData.amount)
+	if (couponData?.valid && couponData.discountType !== 'percent') {
+		afterCoupon = Math.max(0, subtotal - couponData.amount)
 	}
 	return afterCoupon + deliveryPrice
 }
