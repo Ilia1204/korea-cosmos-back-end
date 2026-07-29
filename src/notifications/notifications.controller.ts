@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { AdminBroadcastDto, ScheduleBroadcastDto } from './dto/admin-notification.dto'
+import {
+	AdminBroadcastDto,
+	ScheduleBroadcastDto
+} from './dto/admin-notification.dto'
 import { NotificationsService } from './notifications.service'
 
 @Controller('notifications')
@@ -39,6 +42,13 @@ export class NotificationsController {
 	@Auth('admin')
 	async adminAnalytics() {
 		return this.notificationsService.getAdminAnalytics()
+	}
+
+	@HttpCode(200)
+	@Delete('admin/broadcast/:broadcastId')
+	@Auth('admin')
+	async deleteBroadcast(@Param('broadcastId') broadcastId: string) {
+		return this.notificationsService.deleteBroadcast(broadcastId)
 	}
 
 	@HttpCode(200)

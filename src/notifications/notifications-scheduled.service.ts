@@ -192,9 +192,12 @@ export class NotificationsScheduledService {
 	}
 
 	// Брошенная корзина: ровно одно уведомление на каждое изменение корзины,
-	// через 4+ часа после последнего обновления
+	// через 4+ часа после последнего обновления, только с 9:00 до 21:00
 	@Cron('0 * * * *')
 	async handleAbandonedCart() {
+		const nowHour = new Date().getUTCHours() + 4 // UTC+4 Samara
+		if (nowHour < 9 || nowHour >= 21) return
+
 		const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
 
 		// Корзины, которые не трогали 4+ часов
@@ -237,7 +240,7 @@ export class NotificationsScheduledService {
 				where: {
 					userId: user.id,
 					createdAt: { gte: cartLastUpdated },
-					data: { path: ['abandonedCart'], equals: true }
+					title: { contains: 'Забыли' }
 				}
 			})
 			if (alreadyNotified) continue

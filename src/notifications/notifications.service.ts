@@ -167,12 +167,19 @@ export class NotificationsService {
 		const alreadyNotified = new Set(recentNotifs.map(n => n.userId))
 
 		const title = `💸 Цена снизилась!`
-		const body = `${name} — было ${Math.round(parsedOld)}₽, теперь ${Math.round(parsedNew)}₽ 🎉`
+		const body = `${name} — было ${Math.round(parsedOld)}₽, теперь ${Math.round(
+			parsedNew
+		)}₽ 🎉`
 		const data = { priceDrop: true, productSlug: slug }
 
 		for (const user of users) {
 			if (alreadyNotified.has(user.id)) continue
-			const notification = await this.saveNotification(user.id, title, body, data)
+			const notification = await this.saveNotification(
+				user.id,
+				title,
+				body,
+				data
+			)
 			this.sendPushNotificationToUser(user.id, title, body, {
 				...data,
 				notificationId: notification.id
@@ -346,27 +353,41 @@ export class NotificationsService {
 				select: { id: true, pushToken: true }
 			})
 		} else if (segment === 'inactive') {
-			const recentUserIds = (await this.prisma.order.findMany({
-				where: { createdAt: { gte: cutoff90 } },
-				select: { userId: true },
-				distinct: ['userId']
-			})).map(o => o.userId).filter(Boolean) as string[]
+			const recentUserIds = (
+				await this.prisma.order.findMany({
+					where: { createdAt: { gte: cutoff90 } },
+					select: { userId: true },
+					distinct: ['userId']
+				})
+			)
+				.map(o => o.userId)
+				.filter(Boolean) as string[]
 
-			const anyOrderUserIds = (await this.prisma.order.findMany({
-				select: { userId: true },
-				distinct: ['userId']
-			})).map(o => o.userId).filter(Boolean) as string[]
+			const anyOrderUserIds = (
+				await this.prisma.order.findMany({
+					select: { userId: true },
+					distinct: ['userId']
+				})
+			)
+				.map(o => o.userId)
+				.filter(Boolean) as string[]
 
-			const inactiveIds = anyOrderUserIds.filter(id => !recentUserIds.includes(id))
+			const inactiveIds = anyOrderUserIds.filter(
+				id => !recentUserIds.includes(id)
+			)
 			targets = await this.prisma.user.findMany({
 				where: { id: { in: inactiveIds }, pushToken: { not: null } },
 				select: { id: true, pushToken: true }
 			})
 		} else if (segment === 'new_users') {
-			const withOrderIds = (await this.prisma.order.findMany({
-				select: { userId: true },
-				distinct: ['userId']
-			})).map(o => o.userId).filter(Boolean) as string[]
+			const withOrderIds = (
+				await this.prisma.order.findMany({
+					select: { userId: true },
+					distinct: ['userId']
+				})
+			)
+				.map(o => o.userId)
+				.filter(Boolean) as string[]
 
 			targets = await this.prisma.user.findMany({
 				where: { id: { notIn: withOrderIds }, pushToken: { not: null } },
@@ -380,11 +401,15 @@ export class NotificationsService {
 			})
 			const productIds = category?.products.map(p => p.id) ?? []
 
-			const orderUserIds = (await this.prisma.orderItem.findMany({
-				where: { productId: { in: productIds } },
-				select: { order: { select: { userId: true } } },
-				distinct: ['productId']
-			})).map(i => i.order?.userId).filter(Boolean) as string[]
+			const orderUserIds = (
+				await this.prisma.orderItem.findMany({
+					where: { productId: { in: productIds } },
+					select: { order: { select: { userId: true } } },
+					distinct: ['productId']
+				})
+			)
+				.map(i => i.order?.userId)
+				.filter(Boolean) as string[]
 
 			const uniqueIds = [...new Set(orderUserIds)]
 			targets = await this.prisma.user.findMany({
@@ -395,7 +420,9 @@ export class NotificationsService {
 
 		// Фильтр по частоте: пропускаем тех, кто уже получал broadcast за последние N дней
 		if (frequencyDays && frequencyDays > 0) {
-			const cutoffFreq = new Date(Date.now() - frequencyDays * 24 * 60 * 60 * 1000)
+			const cutoffFreq = new Date(
+				Date.now() - frequencyDays * 24 * 60 * 60 * 1000
+			)
 			const recentReceivers = await this.prisma.notification.findMany({
 				where: {
 					userId: { in: targets.map(t => t.id) },
@@ -412,18 +439,21 @@ export class NotificationsService {
 		const broadcastId = randomUUID()
 		let sent = 0
 		for (const user of targets) {
-			const notification = await this.saveNotification(
-				user.id, title, body,
-				{ ...(data ?? {}), adminBroadcast: true, broadcastId }
-			)
+			const notification = await this.saveNotification(user.id, title, body, {
+				...(data ?? {}),
+				adminBroadcast: true,
+				broadcastId
+			})
 			await this.prisma.notification.update({
 				where: { id: notification.id },
 				data: { broadcastId }
 			})
-			this.sendPushNotificationToUser(
-				user.id, title, body,
-				{ ...(data ?? {}), adminBroadcast: true, broadcastId, notificationId: notification.id }
-			).catch(() => {})
+			this.sendPushNotificationToUser(user.id, title, body, {
+				...(data ?? {}),
+				adminBroadcast: true,
+				broadcastId,
+				notificationId: notification.id
+			}).catch(() => {})
 			sent++
 		}
 		return { ok: true, sent, broadcastId }
@@ -461,10 +491,12 @@ export class NotificationsService {
 
 				const sentAt = sample.createdAt
 				const cutoff = new Date(sentAt.getTime() + 48 * 60 * 60 * 1000)
-				const userIds = (await this.prisma.notification.findMany({
-					where: { broadcastId },
-					select: { userId: true }
-				})).map(n => n.userId)
+				const userIds = (
+					await this.prisma.notification.findMany({
+						where: { broadcastId },
+						select: { userId: true }
+					})
+				).map(n => n.userId)
 
 				const conversions = await this.prisma.order.count({
 					where: {
@@ -498,7 +530,14 @@ export class NotificationsService {
 			where: { userId: adminUserId },
 			orderBy: { createdAt: 'desc' },
 			take: 30,
-			select: { id: true, title: true, body: true, data: true, createdAt: true, isRead: true }
+			select: {
+				id: true,
+				title: true,
+				body: true,
+				data: true,
+				createdAt: true,
+				isRead: true
+			}
 		})
 	}
 
@@ -535,5 +574,10 @@ export class NotificationsService {
 
 	async deleteScheduledBroadcast(id: string) {
 		return this.prisma.scheduledBroadcast.delete({ where: { id } })
+	}
+
+	async deleteBroadcast(broadcastId: string) {
+		await this.prisma.notification.deleteMany({ where: { broadcastId } })
+		return { ok: true }
 	}
 }
