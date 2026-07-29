@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { PrismaService } from 'src/prisma.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 
 const SALE_DEBOUNCE_MS = 2 * 60 * 1000
@@ -19,7 +20,10 @@ export class WebhookProductsService {
 	private pendingSaleProducts: PendingSaleProduct[] = []
 	private saleDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
-	constructor(private readonly notifications: NotificationsService) {}
+	constructor(
+		private readonly notifications: NotificationsService,
+		private readonly prisma: PrismaService
+	) {}
 
 	async handleProductCreated(payload: any) {
 		const name = payload?.name
@@ -85,6 +89,7 @@ export class WebhookProductsService {
 		const discountType: string = payload?.discount_type
 		const amount: string = payload?.amount
 		const description: string = payload?.description
+		const emailRestrictions: string[] = payload?.email_restrictions ?? []
 		if (!code || !amount) return { ok: true }
 
 		const cacheKey = `coupon:${code}`
@@ -98,10 +103,29 @@ export class WebhookProductsService {
 
 		const body = description
 			? `${description} Промокод: ${code.toUpperCase()}`
-			: `${
-					discountText ? discountText + ' ' : ''
-			  }по промокоду ${code.toUpperCase()} 🎁`
+			: `${discountText ? discountText + ' ' : ''}по промокоду ${code.toUpperCase()} 🎁`
 
+		// Персональный купон — отправляем только целевым пользователям
+		if (emailRestrictions.length > 0) {
+			const users = await this.prisma.user.findMany({
+				where: {
+					email: { in: emailRestrictions.map(e => e.toLowerCase()) },
+					pushToken: { not: null }
+				},
+				select: { id: true }
+			})
+			for (const user of users) {
+				await this.notifications.sendPushNotificationToUser(
+					user.id,
+					'🎁 Промокод для вас!',
+					body,
+					{ couponCode: code }
+				)
+			}
+			return { ok: true }
+		}
+
+		// Публичный купон — отправляем всем
 		await this.notifications.sendBroadcast('🎁 Промокод!', body, {
 			couponCode: code
 		})
