@@ -119,11 +119,17 @@ export class WebhookProductsService {
 				const personalBody = `${
 					discountText ? discountText + ' ' : ''
 				}по промокоду ${code.toUpperCase()} — для заказа на сайте. В приложении скидка считается автоматически 🎂`
-				await this.notifications.sendPushNotificationToUser(
+				const notification = await this.notifications.saveNotification(
 					user.id,
 					personalTitle,
 					personalBody,
 					{ couponCode: code }
+				)
+				await this.notifications.sendPushNotificationToUser(
+					user.id,
+					personalTitle,
+					personalBody,
+					{ couponCode: code, notificationId: notification.id }
 				)
 				return { ok: true }
 			}
