@@ -130,13 +130,6 @@ export class NotificationsScheduledService {
 	@Cron('0 6 * * *')
 	async handleBirthdayNotifications() {
 		const now = new Date()
-		const todayMonth = now.getUTCMonth() + 1
-		const todayDay = now.getUTCDate()
-
-		const in3 = new Date(now)
-		in3.setUTCDate(in3.getUTCDate() + 3)
-		const in3Month = in3.getUTCMonth() + 1
-		const in3Day = in3.getUTCDate()
 
 		const users = await this.prisma.user.findMany({
 			where: { dateOfBirth: { not: null }, pushToken: { not: null } },
@@ -145,41 +138,80 @@ export class NotificationsScheduledService {
 
 		for (const user of users) {
 			const birth = new Date(user.dateOfBirth!)
-			const bMonth = birth.getUTCMonth() + 1
-			const bDay = birth.getUTCDate()
+			const thisYear = new Date(
+				now.getUTCFullYear(),
+				birth.getUTCMonth(),
+				birth.getUTCDate()
+			)
+			const diffDays = Math.round(
+				(thisYear.getTime() - now.getTime()) / (1000 * 3600 * 24)
+			)
 			const firstName = user.name ? `, ${user.name}` : ''
 
-			if (bMonth === todayMonth && bDay === todayDay) {
-				const notification = await this.notifications.saveNotification(
-					user.id,
-					`🎉 С днём рождения${firstName}!`,
-					'Скидка 20% уже активна — заказывайте в течение 7 дней.',
-					{ birthdayDiscount: true }
-				)
-				this.notifications
-					.sendPushNotificationToUser(
-						user.id,
-						`🎉 С днём рождения${firstName}!`,
-						'Скидка 20% уже активна — заказывайте в течение 7 дней.',
-						{ birthdayDiscount: true, notificationId: notification.id }
-					)
-					.catch(() => {})
-			} else if (bMonth === in3Month && bDay === in3Day) {
-				const notification = await this.notifications.saveNotification(
-					user.id,
-					`🎂 Скоро день рождения${firstName}!`,
-					'Через 3 дня вас ждёт скидка 20% на все заказы — действует весь ДР и 7 дней после.',
-					{ birthdayReminder: true }
-				)
-				this.notifications
-					.sendPushNotificationToUser(
-						user.id,
-						`🎂 Скоро день рождения${firstName}!`,
-						'Через 3 дня вас ждёт скидка 20% на все заказы — действует весь ДР и 7 дней после.',
-						{ birthdayReminder: true, notificationId: notification.id }
-					)
-					.catch(() => {})
+			let title: string | null = null
+			let body: string | null = null
+			let data: object = {}
+
+			if (diffDays === 7) {
+				// Анонс за неделю
+				title = `🎂 Скоро день рождения${firstName}!`
+				body =
+					'Через 7 дней вас ждёт скидка 20% на все заказы. В приложении она применится автоматически.'
+				data = { birthdayReminder: true, daysLeft: 7 }
+			} else if (diffDays === 3) {
+				// Напоминание за 3 дня
+				title = `🎂 До дня рождения${firstName ? ',' + firstName : ''} 3 дня!`
+				body =
+					'Скидка 20% активируется в день рождения — в приложении автоматически, на сайте пришлём купон.'
+				data = { birthdayReminder: true, daysLeft: 3 }
+			} else if (diffDays === 0) {
+				// День рождения
+				title = `🎉 С днём рождения${firstName}!`
+				body =
+					'Ваша скидка 20% уже активна! В приложении считается автоматически, на сайте — ждите промокод.'
+				data = { birthdayDiscount: true, daysLeft: 0 }
+			} else if (diffDays === -3) {
+				// Напоминание на +3 после ДР
+				title = `🎁 Скидка на ДР ещё действует${
+					firstName ? ',' + firstName : ''
+				}!`
+				body =
+					'Ваши 20% скидки закончатся через 4 дня. Успейте заказать — в приложении автоматически!'
+				data = { birthdayDiscount: true, daysLeft: -3 }
+			} else if (diffDays === -6) {
+				// Последний шанс — завтра заканчивается
+				title = `⏰ Последний день скидки${firstName ? ',' + firstName : ''}!`
+				body =
+					'Завтра истекает ваша скидка 20% ко дню рождения. Не упустите момент!'
+				data = { birthdayDiscount: true, daysLeft: -6 }
 			}
+
+			if (!title || !body) continue
+
+			// Проверяем, не отправляли ли уже сегодня такое уведомление
+			const todayStart = new Date(now)
+			todayStart.setUTCHours(0, 0, 0, 0)
+			const alreadySent = await this.prisma.notification.findFirst({
+				where: {
+					userId: user.id,
+					title,
+					createdAt: { gte: todayStart }
+				}
+			})
+			if (alreadySent) continue
+
+			const notification = await this.notifications.saveNotification(
+				user.id,
+				title,
+				body,
+				data
+			)
+			this.notifications
+				.sendPushNotificationToUser(user.id, title, body, {
+					...data,
+					notificationId: notification.id
+				})
+				.catch(() => {})
 		}
 	}
 

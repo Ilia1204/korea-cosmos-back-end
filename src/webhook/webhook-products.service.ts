@@ -101,31 +101,39 @@ export class WebhookProductsService {
 		else if (discountType === 'fixed_cart' || discountType === 'fixed_product')
 			discountText = `−${amount}₽`
 
-		const body = description
-			? `${description} Промокод: ${code.toUpperCase()}`
-			: `${discountText ? discountText + ' ' : ''}по промокоду ${code.toUpperCase()} 🎁`
-
 		// Персональный купон: телефон в описании (напр. "79510995127 Ермилова Надежда")
 		const phoneMatch = description?.match(/[78]\d{10}/)
 		if (phoneMatch) {
 			let phone = phoneMatch[0]
-			// Нормализуем: 8... → 7...
 			if (phone.startsWith('8')) phone = '7' + phone.slice(1)
 
 			const user = await this.prisma.user.findFirst({
-				where: { phone: { in: [phone, '+' + phone] }, pushToken: { not: null } },
+				where: {
+					phone: { in: [phone, '+' + phone] },
+					pushToken: { not: null }
+				},
 				select: { id: true }
 			})
 			if (user) {
+				const personalTitle = '🎁 Ваш промокод ко дню рождения!'
+				const personalBody = `${
+					discountText ? discountText + ' ' : ''
+				}по промокоду ${code.toUpperCase()} — для заказа на сайте. В приложении скидка считается автоматически 🎂`
 				await this.notifications.sendPushNotificationToUser(
 					user.id,
-					'🎁 Промокод для вас!',
-					body,
+					personalTitle,
+					personalBody,
 					{ couponCode: code }
 				)
 				return { ok: true }
 			}
 		}
+
+		const body = description
+			? `${description} Промокод: ${code.toUpperCase()}`
+			: `${
+					discountText ? discountText + ' ' : ''
+			  }по промокоду ${code.toUpperCase()} 🎁`
 
 		// email_restrictions — запасной вариант
 		if (emailRestrictions.length > 0) {
