@@ -105,7 +105,29 @@ export class WebhookProductsService {
 			? `${description} Промокод: ${code.toUpperCase()}`
 			: `${discountText ? discountText + ' ' : ''}по промокоду ${code.toUpperCase()} 🎁`
 
-		// Персональный купон — отправляем только целевым пользователям
+		// Персональный купон: телефон в описании (напр. "79510995127 Ермилова Надежда")
+		const phoneMatch = description?.match(/[78]\d{10}/)
+		if (phoneMatch) {
+			let phone = phoneMatch[0]
+			// Нормализуем: 8... → 7...
+			if (phone.startsWith('8')) phone = '7' + phone.slice(1)
+
+			const user = await this.prisma.user.findFirst({
+				where: { phone: { in: [phone, '+' + phone] }, pushToken: { not: null } },
+				select: { id: true }
+			})
+			if (user) {
+				await this.notifications.sendPushNotificationToUser(
+					user.id,
+					'🎁 Промокод для вас!',
+					body,
+					{ couponCode: code }
+				)
+				return { ok: true }
+			}
+		}
+
+		// email_restrictions — запасной вариант
 		if (emailRestrictions.length > 0) {
 			const users = await this.prisma.user.findMany({
 				where: {
