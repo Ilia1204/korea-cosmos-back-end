@@ -131,8 +131,10 @@ export class WebhookProductsService {
 					personalBody,
 					{ couponCode: code, notificationId: notification.id }
 				)
-				return { ok: true }
 			}
+			// Личный купон для конкретного человека — не рассылать всем,
+			// даже если этот номер не зарегистрирован в приложении
+			return { ok: true }
 		}
 
 		const body = description
