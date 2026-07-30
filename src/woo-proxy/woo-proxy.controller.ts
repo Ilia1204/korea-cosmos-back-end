@@ -23,7 +23,45 @@ const PRODUCT_QUERY_KEYS = [
 export class WooProxyController {
 	constructor(private readonly service: WooProxyService) {}
 
-	// Must come before :id to avoid route collision
+	// ── products/categories ──────────────────────────────────────────────────
+	// Must come before products/:id to avoid route collision
+
+	@Get('products/categories')
+	categories(@Query() query: Record<string, string>) {
+		const params: Record<string, string> = { per_page: '100' }
+		if (query.parent !== undefined) params.parent = query.parent
+		if (query.slug) params.slug = query.slug
+		if (query.orderby) params.orderby = query.orderby
+		if (query.order) params.order = query.order
+		if (query._fields) params._fields = query._fields
+		return this.service.proxyList(
+			'products/categories',
+			params,
+			this.service.ttl.categories
+		)
+	}
+
+	@Get('products/categories/:id')
+	category(@Param('id') id: string) {
+		return this.service.proxyOne(
+			`products/categories/${id}`,
+			this.service.ttl.categories
+		)
+	}
+
+	// ── products/tags ────────────────────────────────────────────────────────
+
+	@Get('products/tags')
+	tags(@Query() query: Record<string, string>) {
+		return this.service.proxyList(
+			'products/tags',
+			{ per_page: query.per_page ?? '100' },
+			this.service.ttl.tags
+		)
+	}
+
+	// ── products/paginated (special endpoint, no WC equivalent) ─────────────
+
 	@Get('products/paginated')
 	productsPaginated(@Query() query: Record<string, string>) {
 		const params: Record<string, string> = {
@@ -38,14 +76,14 @@ export class WooProxyController {
 		return this.service.proxyPaginated(params)
 	}
 
-	@Get('products')
-	products(@Query() query: Record<string, string>) {
-		const params: Record<string, string> = {}
-		for (const key of PRODUCT_QUERY_KEYS) {
-			if (query[key] !== undefined) params[key] = query[key]
-		}
-		return this.service.proxyList('products', params, this.service.ttl.products)
+	// ── products/reviews (POST) ──────────────────────────────────────────────
+
+	@Post('products/reviews')
+	createReview(@Body() body: any) {
+		return this.service.postReview(body)
 	}
+
+	// ── products/:id/sub-resources ───────────────────────────────────────────
 
 	@Get('products/:id/variations')
 	variations(@Param('id') id: string) {
@@ -65,47 +103,25 @@ export class WooProxyController {
 		)
 	}
 
-	@Post('products/reviews')
-	createReview(@Body() body: any) {
-		return this.service.postReview(body)
-	}
+	// ── products/:id ─────────────────────────────────────────────────────────
 
 	@Get('products/:id')
 	product(@Param('id') id: string) {
 		return this.service.proxyOne(`products/${id}`, this.service.ttl.product)
 	}
 
-	@Get('categories')
-	categories(@Query() query: Record<string, string>) {
-		const params: Record<string, string> = { per_page: '100' }
-		if (query.parent !== undefined) params.parent = query.parent
-		if (query.slug) params.slug = query.slug
-		if (query.orderby) params.orderby = query.orderby
-		if (query.order) params.order = query.order
-		if (query._fields) params._fields = query._fields
-		return this.service.proxyList(
-			'products/categories',
-			params,
-			this.service.ttl.categories
-		)
+	// ── products list ────────────────────────────────────────────────────────
+
+	@Get('products')
+	products(@Query() query: Record<string, string>) {
+		const params: Record<string, string> = {}
+		for (const key of PRODUCT_QUERY_KEYS) {
+			if (query[key] !== undefined) params[key] = query[key]
+		}
+		return this.service.proxyList('products', params, this.service.ttl.products)
 	}
 
-	@Get('categories/:id')
-	category(@Param('id') id: string) {
-		return this.service.proxyOne(
-			`products/categories/${id}`,
-			this.service.ttl.categories
-		)
-	}
-
-	@Get('tags')
-	tags(@Query() query: Record<string, string>) {
-		return this.service.proxyList(
-			'products/tags',
-			{ per_page: query.per_page ?? '100' },
-			this.service.ttl.tags
-		)
-	}
+	// ── coupons ──────────────────────────────────────────────────────────────
 
 	@Get('coupons')
 	coupons() {
