@@ -28,55 +28,55 @@ export class StatisticsController {
 	) {}
 
 	@Get('main')
-	@Auth('admin')
+	@Auth('manager')
 	getMainStatistics() {
 		return this.statisticsService.getMain()
 	}
 
 	@Get('/numbers')
-	@Auth('admin')
+	@Auth('manager')
 	getNumbers() {
 		return this.statisticsService.getNumbers()
 	}
 
 	@Get('/retailcrm')
-	@Auth('admin')
+	@Auth('manager')
 	getRetailCRMStats(@Query('period') period: 'week' | 'month' | 'quarter') {
 		return this.statisticsService.getRetailCRMStats(period || 'month')
 	}
 
 	@Get('/orders-tab')
-	@Auth('admin')
+	@Auth('manager')
 	getOrdersTab() {
 		return this.tabsService.getOrdersTab()
 	}
 
 	@Get('/products-tab')
-	@Auth('admin')
+	@Auth('manager')
 	getProductsTab() {
 		return this.tabsService.getProductsTab()
 	}
 
 	@Get('/customers-tab')
-	@Auth('admin')
+	@Auth('manager')
 	getCustomersTab() {
 		return this.tabsService.getCustomersTab()
 	}
 
 	@Get('/registrations-by-month')
-	@Auth('admin')
+	@Auth('manager')
 	getRegistrationsByMonth() {
 		return this.tabsService.getUserRegistrationsByMonth()
 	}
 
 	@Get('/retail-order/:id')
-	@Auth('admin')
+	@Auth('manager')
 	getRetailOrder(@Param('id', ParseIntPipe) id: number) {
 		return this.adminOrdersService.getRetailOrder(id)
 	}
 
 	@Get('/admin-orders')
-	@Auth('admin')
+	@Auth('manager')
 	getAdminOrders(
 		@Query('search') search?: string,
 		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number
@@ -86,7 +86,7 @@ export class StatisticsController {
 
 	@Patch('/retail-order/:id/status')
 	@HttpCode(200)
-	@Auth('admin')
+	@Auth('manager')
 	async updateRetailOrderStatus(
 		@Param('id', ParseIntPipe) id: number,
 		@Body('status') status: string,
@@ -109,7 +109,7 @@ export class StatisticsController {
 
 	@Patch('/retail-orders/close-all')
 	@HttpCode(200)
-	@Auth('admin')
+	@Auth('manager')
 	async closeAllRetailOrders(@CurrentUser('id') actorId: string) {
 		const result = await this.adminOrdersService.closeAllRetailOrders()
 		for (const id of result.closedIds) {
@@ -128,7 +128,7 @@ export class StatisticsController {
 	}
 
 	@Get('/customers')
-	@Auth('admin')
+	@Auth('manager')
 	getCustomers(
 		@Query('source') source = 'all',
 		@Query('search') search?: string,
@@ -140,20 +140,20 @@ export class StatisticsController {
 	}
 
 	@Get('/customers/retail-orders/:customerId')
-	@Auth('admin')
+	@Auth('manager')
 	getRetailOrdersByCustomer(@Param('customerId', ParseIntPipe) customerId: number) {
 		return this.adminCustomersService.getRetailOrdersByCustomer(customerId)
 	}
 
 	@Get('/customers/wc-orders/:email')
-	@Auth('admin')
+	@Auth('manager')
 	getWcOrdersByEmail(@Param('email') email: string) {
 		return this.adminCustomersService.getWcOrdersByEmail(decodeURIComponent(email))
 	}
 
 	@Patch('/customers/wc/:id')
 	@HttpCode(200)
-	@Auth('admin')
+	@Auth('manager')
 	updateWcCustomer(
 		@Param('id', ParseIntPipe) id: number,
 		@Body() body: { firstName?: string; lastName?: string; phone?: string }
@@ -163,7 +163,7 @@ export class StatisticsController {
 
 	@Patch('/customers/retail/:id')
 	@HttpCode(200)
-	@Auth('admin')
+	@Auth('manager')
 	updateRetailCustomer(
 		@Param('id', ParseIntPipe) id: number,
 		@Body() body: { firstName?: string; lastName?: string; phone?: string }
@@ -172,13 +172,13 @@ export class StatisticsController {
 	}
 
 	@Get('/customers/wc-loyalty/:id')
-	@Auth('admin')
+	@Auth('manager')
 	getWcCustomerLoyalty(@Param('id', ParseIntPipe) id: number) {
 		return this.adminCustomersService.getWcCustomerLoyalty(id)
 	}
 
 	@Get('/customers/retail-loyalty/:id')
-	@Auth('admin')
+	@Auth('manager')
 	getRetailCustomerLoyalty(@Param('id', ParseIntPipe) id: number) {
 		return this.adminCustomersService.getRetailCustomerLoyalty(id)
 	}

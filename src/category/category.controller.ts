@@ -45,14 +45,14 @@ export class CategoryController {
 
 	@HttpCode(200)
 	@Post()
-	@Auth('admin')
+	@Auth('manager')
 	async create() {
 		return this.categoryService.create()
 	}
 
 	@HttpCode(200)
 	@Put(':id')
-	@Auth('admin')
+	@Auth('manager')
 	async update(@Param('id') id: string, @Body() dto: CategoryDto) {
 		return this.categoryService.update(id, dto)
 	}
@@ -66,7 +66,7 @@ export class CategoryController {
 
 	@HttpCode(200)
 	@Get(':id')
-	@Auth('admin')
+	@Auth('manager')
 	async getById(@Param('id') id: string) {
 		return this.categoryService.getById(id)
 	}

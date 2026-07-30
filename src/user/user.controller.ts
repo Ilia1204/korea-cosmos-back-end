@@ -63,13 +63,13 @@ export class UserController {
 	}
 
 	@Get()
-	@Auth('admin')
+	@Auth('manager')
 	async getAll(@Query('searchTerm') searchTerm?: string) {
 		return this.userService.getAll(searchTerm)
 	}
 
 	@Get('admin-list')
-	@Auth('admin')
+	@Auth('manager')
 	async getAdminList(
 		@Query('search') search?: string,
 		@Query('page') page?: string,
@@ -108,13 +108,13 @@ export class UserController {
 	}
 
 	@Get('by-email/:email')
-	@Auth('admin')
+	@Auth('manager')
 	async getByEmail(@Param('email') email: string) {
 		return this.userService.getByEmail(email)
 	}
 
 	@Get(':id')
-	@Auth('admin')
+	@Auth('manager')
 	async getById(@Param('id') id: string) {
 		return this.userService.getById(id)
 	}

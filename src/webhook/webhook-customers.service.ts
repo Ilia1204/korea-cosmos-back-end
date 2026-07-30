@@ -19,7 +19,7 @@ export class WebhookCustomersService {
 		await this.notifications.sendPushNotificationToAdmins(
 			'👤 Новый пользователь',
 			`Зарегистрировался на сайте: ${email}`,
-			{ isRead: true }
+			{ newUser: true }
 		)
 		return { ok: true }
 	}

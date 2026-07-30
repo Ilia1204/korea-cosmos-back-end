@@ -148,7 +148,11 @@ export class WebhookOrdersService {
 		const notifData: Record<string, any> = { newWcOrder: true, wcOrderId }
 		if (localOrder) notifData.orderId = localOrder.id
 
-		await this.notifications.sendPushNotificationToAdmins(title, body, notifData)
+		await this.notifications.sendPushNotificationToAdmins(
+			title,
+			body,
+			notifData
+		)
 		return { ok: true }
 	}
 
@@ -171,7 +175,10 @@ export class WebhookOrdersService {
 				const dedupKey = `wc:${wcOrderId}`
 				if (!this.notifiedWcOrders.has(dedupKey)) {
 					this.notifiedWcOrders.add(dedupKey)
-					setTimeout(() => this.notifiedWcOrders.delete(dedupKey), 5 * 60 * 1000)
+					setTimeout(
+						() => this.notifiedWcOrders.delete(dedupKey),
+						5 * 60 * 1000
+					)
 					const customerName = [billing?.first_name, billing?.last_name]
 						.filter(Boolean)
 						.join(' ')

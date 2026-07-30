@@ -45,7 +45,7 @@ export class OrderController {
 	}
 
 	@Get()
-	@Auth('admin')
+	@Auth('manager')
 	getAll() {
 		return this.orderService.getAll()
 	}
@@ -97,7 +97,7 @@ export class OrderController {
 
 	@Patch('woocommerce/:wcId/status')
 	@HttpCode(200)
-	@Auth('admin')
+	@Auth('manager')
 	async updateWooCommerceOrderStatus(
 		@Param('wcId', ParseIntPipe) wcId: number,
 		@Body('status') status: string,
@@ -119,7 +119,7 @@ export class OrderController {
 	}
 
 	@Get('admin/by-user/:userId')
-	@Auth('admin')
+	@Auth('manager')
 	async getByUserIdAdmin(@Param('userId') userId: string) {
 		return this.orderService.getByUserId(userId, 1, 1000)
 	}
@@ -132,7 +132,7 @@ export class OrderController {
 	@UsePipes(new ValidationPipe())
 	@HttpCode(200)
 	@Put(':id')
-	@Auth('admin')
+	@Auth('manager')
 	async update(
 		@Param('id') id: string,
 		@Body() dto: UpdateOrderDto,

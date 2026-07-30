@@ -42,14 +42,14 @@ export class ChatController {
 	}
 
 	@Get('unread-count')
-	@Auth('admin')
+	@Auth('manager')
 	async getUnreadCount() {
 		const count = await this.chat.getUnreadRoomsCount()
 		return { count }
 	}
 
 	@Get('rooms')
-	@Auth('admin')
+	@Auth('manager')
 	async getAllRooms() {
 		const rooms = await this.chat.getAllRooms()
 		return rooms.map(r => ({
@@ -62,7 +62,7 @@ export class ChatController {
 	}
 
 	@Get('rooms/:roomId/history')
-	@Auth('admin')
+	@Auth('manager')
 	async getRoomHistory(
 		@Param('roomId') roomId: string,
 		@Query('skip', new DefaultValuePipe(0), ParseIntPipe) skip: number
@@ -79,7 +79,7 @@ export class ChatController {
 	}
 
 	@Post('rooms/:roomId/mute')
-	@Auth('admin')
+	@Auth('manager')
 	async toggleMute(
 		@Param('roomId') roomId: string,
 		@CurrentUser('id') adminId: string
@@ -89,7 +89,7 @@ export class ChatController {
 	}
 
 	@Get('rooms/:roomId/mute')
-	@Auth('admin')
+	@Auth('manager')
 	async getMuteStatus(
 		@Param('roomId') roomId: string,
 		@CurrentUser('id') adminId: string
