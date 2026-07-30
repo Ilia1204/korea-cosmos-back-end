@@ -34,6 +34,7 @@ import { WooCouponModule } from './woo-coupon/woo-coupon.module'
 import { WooDiscountModule } from './woo-discount/woo-discount.module'
 import { AuditModule } from './audit/audit.module'
 import { ChatModule } from './chat/chat.module'
+import { WooProxyModule } from './woo-proxy/woo-proxy.module'
 
 @Module({
 	imports: [
@@ -74,7 +75,8 @@ import { ChatModule } from './chat/chat.module'
 		WooCouponModule,
 		WooDiscountModule,
 		AuditModule,
-		ChatModule
+		ChatModule,
+		WooProxyModule
 	],
 	providers: []
 })
