@@ -26,31 +26,31 @@ export class WooSyncController {
 	}
 
 	@Get('admin/products/categories')
-	@Auth('admin')
+	@Auth('manager')
 	getWcCategories() {
 		return this.wooProductAdmin.getWcCategories()
 	}
 
 	@Get('admin/products/tags')
-	@Auth('admin')
+	@Auth('manager')
 	getWcTags() {
 		return this.wooProductAdmin.getWcTags()
 	}
 
 	@Get('admin/products')
-	@Auth('admin')
+	@Auth('manager')
 	getProducts(@Query() query: WcProductQueryDto) {
 		return this.wooProductAdmin.getProducts(query)
 	}
 
 	@Get('admin/products/:id')
-	@Auth('admin')
+	@Auth('manager')
 	getProduct(@Param('id', ParseIntPipe) id: number) {
 		return this.wooProductAdmin.getProduct(id)
 	}
 
 	@Patch('admin/products/:id')
-	@Auth('admin')
+	@Auth('manager')
 	updateProduct(
 		@Param('id', ParseIntPipe) id: number,
 		@Body() dto: WcProductUpdateDto

@@ -15,7 +15,7 @@ export class WooCategoryController {
 	constructor(private readonly service: WooCategoryService) {}
 
 	@Get()
-	@Auth('admin')
+	@Auth('manager')
 	async getAll(
 		@Query('search') search?: string,
 		@Query('parent') parentStr?: string
@@ -29,14 +29,14 @@ export class WooCategoryController {
 
 	@HttpCode(200)
 	@Post('cache/invalidate')
-	@Auth('admin')
+	@Auth('manager')
 	async invalidateCache() {
 		this.service.invalidateCache()
 		return { ok: true }
 	}
 
 	@Get(':id')
-	@Auth('admin')
+	@Auth('manager')
 	async getById(@Param('id', ParseIntPipe) id: number) {
 		return this.service.getById(id)
 	}
