@@ -30,13 +30,17 @@ export class WooProductsService {
 			}
 			this.buildLabelProducts()
 				.then(data => {
-					this.labelProductsCache = { data, ts: Date.now() }
+					if (data.every(tab => tab.products.length > 0)) {
+						this.labelProductsCache = { data, ts: Date.now() }
+					}
 				})
 				.catch(() => {})
 			return this.labelProductsCache.data
 		}
 		const data = await this.buildLabelProducts()
-		this.labelProductsCache = { data, ts: Date.now() }
+		if (data.every(tab => tab.products.length > 0)) {
+			this.labelProductsCache = { data, ts: Date.now() }
+		}
 		return data
 	}
 
