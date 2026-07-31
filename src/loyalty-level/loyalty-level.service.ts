@@ -180,6 +180,19 @@ export class LoyaltyLevelService {
 		await this.applyLevelChange(userId, userLoyalty)
 	}
 
+	async subtractAmountAndUpdateLevel(userId: string, amount: number) {
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+		if (!userLoyalty) return
+
+		const newTotal = Math.max(0, userLoyalty.totalAmountSpent - amount)
+		const updated = await this.prisma.userLoyalty.update({
+			where: { userId },
+			data: { totalAmountSpent: newTotal }
+		})
+
+		await this.applyLevelChange(userId, updated)
+	}
+
 	private async applyLevelChange(userId: string, userLoyalty: any) {
 		const newLevel = await this.prisma.loyaltyLevel.findFirst({
 			where: { minAmount: { lte: userLoyalty.totalAmountSpent } },

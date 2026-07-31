@@ -10,6 +10,14 @@ import {
 import { WooSyncService } from 'src/woo-sync/woo-sync.service'
 import { WC_TO_LOCAL } from 'src/woo-sync/woo-status.constants'
 
+const STATUS_PRIORITY: Record<string, number> = {
+	pending: 0,
+	payed: 1,
+	shipped: 2,
+	ready_to_receive: 2,
+	delivered: 3
+}
+
 @Injectable()
 export class WebhookOrdersService {
 	// Дедупликация: не слать два уведомления об одном WC заказе (created + updated стреляют одновременно)
@@ -51,6 +59,13 @@ export class WebhookOrdersService {
 
 		if (existing.status === localStatus) return { ok: true }
 
+		// Не понижать статус через RetailCRM webhook
+		if (localStatus !== 'cancelled') {
+			const curPriority = STATUS_PRIORITY[existing.status] ?? -1
+			const newPriority = STATUS_PRIORITY[localStatus] ?? -1
+			if (newPriority < curPriority) return { ok: true }
+		}
+
 		const trackingNumber = order.delivery?.data?.trackNumber as
 			| string
 			| undefined
@@ -65,14 +80,8 @@ export class WebhookOrdersService {
 
 		if (updated.userId) {
 			await this.notifyOrderStatus(updated.userId, updated.id, localStatus)
-			const amountToAdd =
-				(existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
-			// Онлайн-оплата: засчитываем при оплате
-			// Наличные: засчитываем при доставке (статус до этого не был payed)
-			if (
-				localStatus === 'payed' ||
-				(localStatus === 'delivered' && existing.status !== 'payed')
-			) {
+			if (localStatus === 'delivered') {
+				const amountToAdd = (existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
 				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd)
 			}
 		}
@@ -197,6 +206,13 @@ export class WebhookOrdersService {
 
 		if (order.status === localStatus) return { ok: true }
 
+		// Не понижать статус (race condition: WC pending webhook приходит после оплаты)
+		if (localStatus !== 'cancelled') {
+			const curPriority = STATUS_PRIORITY[order.status] ?? -1
+			const newPriority = STATUS_PRIORITY[localStatus] ?? -1
+			if (newPriority < curPriority) return { ok: true }
+		}
+
 		const updated = await this.prisma.order.update({
 			where: { id: order.id },
 			data: { status: localStatus as any }
@@ -204,11 +220,8 @@ export class WebhookOrdersService {
 
 		if (updated.userId) {
 			await this.notifyOrderStatus(updated.userId, updated.id, localStatus)
-			const amountToAdd = (order.totalPrice ?? 0) - (order.deliveryPrice ?? 0)
-			if (
-				localStatus === 'payed' ||
-				(localStatus === 'delivered' && order.status !== 'payed')
-			) {
+			if (localStatus === 'delivered') {
+				const amountToAdd = (order.totalPrice ?? 0) - (order.deliveryPrice ?? 0)
 				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd)
 			}
 		}

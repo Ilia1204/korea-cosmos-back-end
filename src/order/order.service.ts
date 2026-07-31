@@ -371,6 +371,8 @@ export class OrderService {
 				)
 		}
 
+		const wasLoyaltyApplied = order.status === 'payed'
+
 		const cancelled = await this.prisma.order.update({
 			where: { id },
 			include: { user: true },
@@ -389,6 +391,13 @@ export class OrderService {
 		if (order.status === 'payed' && (order as any).invoiceId) {
 			this.robokassa
 				.refund((order as any).invoiceId, order.totalPrice)
+				.catch(() => null)
+		}
+
+		if (wasLoyaltyApplied && cancelled.userId) {
+			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)
+			this.loyaltyLevel
+				.subtractAmountAndUpdateLevel(cancelled.userId, amountToSubtract)
 				.catch(() => null)
 		}
 
