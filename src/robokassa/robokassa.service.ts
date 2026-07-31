@@ -27,6 +27,8 @@ export class RobokassaService {
 	): string {
 		const outSum = amount.toFixed(2)
 		const sig = this.md5(`${this.login}:${outSum}:${invoiceId}:${this.pass1}`)
+		const backendUrl =
+			process.env['APP_URL'] || 'https://korea-cosmos-back-xferpsixo.amvera.io'
 
 		const params = new URLSearchParams({
 			MrchLogin: this.login,
@@ -36,6 +38,8 @@ export class RobokassaService {
 			SignatureValue: sig,
 			Encoding: 'utf-8',
 			Culture: 'ru',
+			SuccessUrl: `${backendUrl}/robokassa/success`,
+			FailUrl: `${backendUrl}/robokassa/fail`,
 			...(this.isTest && { IsTest: '1' }),
 			...(incCurrLabel && { IncCurrLabel: incCurrLabel })
 		})
