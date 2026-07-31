@@ -49,6 +49,7 @@ export function buildOrderData(
 		recipientEmail: dto.recipientEmail,
 		discountApplied: discount,
 		invoiceId,
+		podeli: dto.podeli ?? false,
 		totalPrice,
 		items: {
 			create: dto.items.map(item => ({

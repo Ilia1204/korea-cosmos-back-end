@@ -256,7 +256,7 @@ export class OrderService {
 	async payOrder(orderId: string) {
 		const order = await this.prisma.order.findUnique({
 			where: { id: orderId },
-			select: { totalPrice: true, invoiceId: true }
+			select: { totalPrice: true, invoiceId: true, podeli: true }
 		})
 		if (!order) throw new NotFoundException('Заказ не найден')
 
@@ -272,7 +272,8 @@ export class OrderService {
 		const paymentUrl = this.robokassa.generatePaymentUrl(
 			invoiceId,
 			order.totalPrice,
-			`Заказ #${orderId.slice(0, 6).toUpperCase()}`
+			`Заказ #${orderId.slice(0, 6).toUpperCase()}`,
+			order.podeli ? 'Podeli' : undefined
 		)
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}

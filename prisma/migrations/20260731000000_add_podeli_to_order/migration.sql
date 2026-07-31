@@ -1,0 +1,1 @@
+ALTER TABLE "order" ADD COLUMN "podeli" BOOLEAN NOT NULL DEFAULT false;
