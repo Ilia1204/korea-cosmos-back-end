@@ -14,4 +14,4 @@ RUN yarn build
 ENV NODE_ENV=production
 EXPOSE 4200
 
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
