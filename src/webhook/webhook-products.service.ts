@@ -101,8 +101,8 @@ export class WebhookProductsService {
 		else if (discountType === 'fixed_cart' || discountType === 'fixed_product')
 			discountText = `−${amount}₽`
 
-		// Персональный купон: телефон в описании (напр. "79510995127 Ермилова Надежда")
-		const phoneMatch = description?.match(/[78]\d{10}/)
+		// Персональный купон: телефон в описании — любой формат (+7 (937) 75-70-876, 79..., 89...)
+		const phoneMatch = description?.replace(/[\s\-\(\)\+]/g, '').match(/[78]\d{10}/)
 		if (phoneMatch) {
 			let phone = phoneMatch[0]
 			if (phone.startsWith('8')) phone = '7' + phone.slice(1)
