@@ -9,9 +9,9 @@ interface DiscountGroup {
 	maxDiscount: number
 }
 
-// Расписание: пятница в 11:00 МСК
+// Расписание: вторник и пятница в 11:00 МСК
 // Чтобы изменить — поправь строку ниже (формат: секунда минута час день месяц деньНедели)
-const REMINDER_CRON = '0 0 11 * * 5'
+const REMINDER_CRON = '0 0 11 * * 2,5'
 
 @Injectable()
 export class WooDiscountReminderService {
