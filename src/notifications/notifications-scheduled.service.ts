@@ -43,10 +43,12 @@ export class NotificationsScheduledService {
 		}
 	}
 
-	@Cron('0 15 15 * *')
+	// Раз в квартал (1 янв, 1 апр, 1 июл, 1 окт) — максимум 3 раза за всё время
+	@Cron('0 12 1 1,4,7,10 *')
 	async handleProfileReminder() {
 		const users = await this.prisma.user.findMany({
 			where: {
+				pushToken: { not: null },
 				OR: [
 					{ name: '' },
 					{ surname: '' },
@@ -63,21 +65,38 @@ export class NotificationsScheduledService {
 						}
 					}
 				]
-			}
+			},
+			select: { id: true }
 		})
 
-		users.forEach(user => {
-			setTimeout(() => {
-				this.notifications
-					.sendPushNotificationToUser(
-						user.id,
-						'🙎🏻‍♂️ Заполните свой профиль',
-						'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
-						{ editProfileNavigate: 'EditProfile' }
-					)
-					.catch(() => {})
-			}, 2000)
-		})
+		for (const user of users) {
+			const sentCount = await this.prisma.notification.count({
+				where: {
+					userId: user.id,
+					data: { path: ['profileReminder'], equals: true }
+				}
+			})
+			if (sentCount >= 3) continue
+
+			const notification = await this.notifications.saveNotification(
+				user.id,
+				'🙎🏻‍♂️ Заполните свой профиль',
+				'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
+				{ profileReminder: true, editProfileNavigate: 'EditProfile' }
+			)
+			this.notifications
+				.sendPushNotificationToUser(
+					user.id,
+					'🙎🏻‍♂️ Заполните свой профиль',
+					'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
+					{
+						profileReminder: true,
+						editProfileNavigate: 'EditProfile',
+						notificationId: notification.id
+					}
+				)
+				.catch(() => {})
+		}
 	}
 
 	@Cron('0 17 * * *')
@@ -141,32 +160,16 @@ export class NotificationsScheduledService {
 			let body: string | null = null
 			let data: object = {}
 
-			if (diffDays === 7) {
-				// Анонс за неделю
-				title = `🎂 Скоро день рождения${firstName}!`
-				body =
-					'Через 7 дней вас ждёт скидка 20% на все заказы. В приложении она применится автоматически.'
-				data = { birthdayReminder: true, daysLeft: 7 }
-			} else if (diffDays === 3) {
-				// Напоминание за 3 дня
+			if (diffDays === 3) {
 				title = `🎂 До дня рождения${firstName ? ',' + firstName : ''} 3 дня!`
 				body =
 					'Скидка 20% активируется в день рождения — в приложении автоматически, на сайте пришлём купон.'
 				data = { birthdayReminder: true, daysLeft: 3 }
 			} else if (diffDays === 0) {
-				// День рождения
 				title = `🎉 С днём рождения${firstName}!`
 				body =
 					'Ваша скидка 20% уже активна! В приложении считается автоматически, на сайте — ждите промокод.'
 				data = { birthdayDiscount: true, daysLeft: 0 }
-			} else if (diffDays === -3) {
-				// Напоминание на +3 после ДР
-				title = `🎁 Скидка на ДР ещё действует${
-					firstName ? ',' + firstName : ''
-				}!`
-				body =
-					'Ваши 20% скидки закончатся через 4 дня. Успейте заказать — в приложении автоматически!'
-				data = { birthdayDiscount: true, daysLeft: -3 }
 			} else if (diffDays === -6) {
 				// Последний шанс — завтра заканчивается
 				title = `⏰ Последний день скидки${firstName ? ',' + firstName : ''}!`
@@ -261,18 +264,24 @@ export class NotificationsScheduledService {
 				where: {
 					userId: user.id,
 					createdAt: { gte: cartLastUpdated },
-					title: { contains: 'Забыли' }
+					data: { path: ['abandonedCart'], equals: true }
 				}
 			})
 			if (alreadyNotified) continue
 
 			const firstName = user.name ? `, ${user.name}` : ''
+			const notification = await this.notifications.saveNotification(
+				user.id,
+				`🛒 Забыли что-то${firstName}?`,
+				'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
+				{ abandonedCart: true, screen: 'Cart' }
+			)
 			this.notifications
 				.sendPushNotificationToUser(
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{ abandonedCart: true, screen: 'Cart' }
+					{ abandonedCart: true, screen: 'Cart', notificationId: notification.id }
 				)
 				.catch(() => {})
 		}

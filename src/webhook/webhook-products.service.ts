@@ -19,6 +19,7 @@ export class WebhookProductsService {
 	private notifiedCoupons = new Set<string>()
 	private pendingSaleProducts: PendingSaleProduct[] = []
 	private saleDebounceTimer: ReturnType<typeof setTimeout> | null = null
+	private lastSaleBroadcastAt: Date | null = null
 
 	constructor(
 		private readonly notifications: NotificationsService,
@@ -202,6 +203,15 @@ export class WebhookProductsService {
 		const products = this.pendingSaleProducts.splice(0)
 		this.saleDebounceTimer = null
 		if (products.length === 0) return
+
+		// Не слать авто-скидку чаще раза в сутки
+		const now = new Date()
+		if (
+			this.lastSaleBroadcastAt &&
+			now.getTime() - this.lastSaleBroadcastAt.getTime() < 24 * 60 * 60 * 1000
+		)
+			return
+		this.lastSaleBroadcastAt = now
 
 		if (products.length === 1) {
 			const p = products[0]
