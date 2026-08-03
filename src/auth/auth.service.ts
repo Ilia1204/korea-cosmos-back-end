@@ -140,7 +140,8 @@ export class AuthService {
 		const status = await this.smsService.getCallCheckStatus(checkId)
 
 		if (status === 'waiting') return { authorized: false }
-		if (status === 'error') throw new BadRequestException('Ошибка проверки статуса')
+		if (status === 'error')
+			throw new BadRequestException('Ошибка проверки статуса')
 
 		callCheckStore.delete(normalized)
 
@@ -203,7 +204,7 @@ export class AuthService {
 		const tokens = this.issueTokens(user.id)
 		this.addRefreshTokenToResponse(res, tokens.refreshToken)
 
-		return { user: safeUser, accessToken: tokens.accessToken }
+		return { authorized: true, user: safeUser, accessToken: tokens.accessToken }
 	}
 
 	private async findWpEmailByPhone(normalized: string): Promise<string | null> {
