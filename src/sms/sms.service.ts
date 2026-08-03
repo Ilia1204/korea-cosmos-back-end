@@ -4,42 +4,66 @@ import { ConfigService } from '@nestjs/config'
 @Injectable()
 export class SmsService {
 	private readonly logger = new Logger(SmsService.name)
-	private readonly login: string
-	private readonly password: string
+	private readonly apiId: string
 
 	constructor(private configService: ConfigService) {
-		this.login = this.configService.get('SMSC_LOGIN') || ''
-		this.password = this.configService.get('SMSC_PASSWORD') || ''
+		this.apiId = this.configService.get('SMS_RU_API_ID') || ''
 	}
 
-	async sendSms(phone: string, message: string): Promise<boolean> {
-		if (!this.login || !this.password) {
-			this.logger.warn(`SMSC не настроен — SMS не отправлен. Код: ${message}`)
-			return true // dev-режим
+	async initiateCallCheck(
+		phone: string
+	): Promise<{ checkId: string; callPhone: string } | null> {
+		if (!this.apiId) {
+			this.logger.warn('SMS.ru не настроен — dev-режим callcheck')
+			return { checkId: 'dev-check-id', callPhone: '+7 (000) 000-00-00' }
 		}
 
 		try {
 			const params = new URLSearchParams({
-				login: this.login,
-				psw: this.password,
-				phones: phone,
-				mes: message,
-				fmt: '3',
-				charset: 'utf-8',
-				sender: 'num'
+				api_id: this.apiId,
+				phone,
+				json: '1'
 			})
 			const res = await fetch(
-				`https://smsc.ru/sys/send.php?${params.toString()}`
+				`https://sms.ru/callcheck/add?${params.toString()}`
 			)
 			const data = await res.json()
-			if (data.error_code) {
-				this.logger.error(`SMSC error ${data.error_code}: ${data.error}`)
-				return false
+			if (data.status !== 'OK') {
+				this.logger.error(`SMS.ru callcheck/add error: ${JSON.stringify(data)}`)
+				return null
 			}
-			return true
+			return {
+				checkId: data.check_id,
+				callPhone: data.call_phone_pretty || data.call_phone
+			}
 		} catch (e) {
-			this.logger.error('SMSC send failed', e)
-			return false
+			this.logger.error('SMS.ru callcheck/add failed', e)
+			return null
+		}
+	}
+
+	async getCallCheckStatus(
+		checkId: string
+	): Promise<'authorized' | 'waiting' | 'error'> {
+		if (!this.apiId) return 'authorized' // dev-режим
+
+		try {
+			const params = new URLSearchParams({
+				api_id: this.apiId,
+				check_id: checkId,
+				json: '1'
+			})
+			const res = await fetch(
+				`https://sms.ru/callcheck/status?${params.toString()}`
+			)
+			const data = await res.json()
+			if (data.status !== 'OK') return 'error'
+			// check_status 104 = авторизован
+			if (data.check_status === 104) return 'authorized'
+			return 'waiting'
+		} catch (e) {
+			this.logger.error('SMS.ru callcheck/status failed', e)
+			return 'error'
 		}
 	}
 }

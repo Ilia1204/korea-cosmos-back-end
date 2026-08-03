@@ -13,7 +13,7 @@ import { Throttle } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { AuthDto } from './dto/auth.dto'
-import { PhoneSendOtpDto, PhoneVerifyDto } from './dto/phone-auth.dto'
+import { PhonePollDto, PhoneSendOtpDto } from './dto/phone-auth.dto'
 
 @Controller('auth')
 @UsePipes(new ValidationPipe())
@@ -55,7 +55,9 @@ export class AuthController {
 			throw new UnauthorizedException('Refresh token not passed')
 		}
 
-		const { refreshToken, ...response } = await this.authService.getNewTokens(token)
+		const { refreshToken, ...response } = await this.authService.getNewTokens(
+			token
+		)
 
 		this.authService.addRefreshTokenToResponse(res, refreshToken)
 
@@ -82,11 +84,11 @@ export class AuthController {
 	}
 
 	@HttpCode(200)
-	@Post('phone/verify')
-	async verifyPhoneOtp(
-		@Body() dto: PhoneVerifyDto,
+	@Post('phone/poll-call')
+	async pollCallStatus(
+		@Body() dto: PhonePollDto,
 		@Res({ passthrough: true }) res: Response
 	) {
-		return this.authService.verifyPhoneOtp(dto, res)
+		return this.authService.pollCallStatus(dto, res)
 	}
 }

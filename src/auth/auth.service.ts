@@ -15,8 +15,8 @@ import { PrismaService } from 'src/prisma.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
-import { PhoneSendOtpDto, PhoneVerifyDto } from './dto/phone-auth.dto'
-import { otpStore } from './otp.store'
+import { PhonePollDto, PhoneSendOtpDto } from './dto/phone-auth.dto'
+import { callCheckStore } from './callCheck.store'
 
 @Injectable()
 export class AuthService {
@@ -54,11 +54,13 @@ export class AuthService {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...user } = await this.userService.create(dto)
 		this.createWordPressAccount(dto.email, dto.password).catch(() => null)
-		this.notificationsService.sendPushNotificationToAdmins(
-			'👤 Новый пользователь',
-			`Зарегистрировался: ${dto.email}`,
-			{ newUser: true, newUserId: user.id }
-		).catch(() => null)
+		this.notificationsService
+			.sendPushNotificationToAdmins(
+				'👤 Новый пользователь',
+				`Зарегистрировался: ${dto.email}`,
+				{ newUser: true, newUserId: user.id }
+			)
+			.catch(() => null)
 
 		return { user, ...this.issueTokens(user.id) }
 	}
@@ -111,35 +113,36 @@ export class AuthService {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
-		const code = String(Math.floor(100000 + Math.random() * 900000))
-		const stored = otpStore.set(normalized, code)
-
-		if (!stored) {
-			return { message: 'Код уже отправлен', alreadySent: true }
+		if (!callCheckStore.canSet(normalized)) {
+			return { message: 'Звонок уже был инициирован', alreadySent: true }
 		}
 
-		const sent = await this.smsService.sendSms(
-			normalized,
-			`Ваш код для входа в Korea Cosmos: ${code}`
-		)
+		const result = await this.smsService.initiateCallCheck(normalized)
 
-		if (!sent) {
-			throw new BadRequestException('Не удалось отправить SMS. Попробуйте позже.')
+		if (!result) {
+			throw new BadRequestException(
+				'Не удалось инициировать звонок. Попробуйте позже.'
+			)
 		}
 
-		return { message: 'Код отправлен' }
+		callCheckStore.set(normalized, result.checkId)
+
+		return { message: 'Звонок инициирован', callPhone: result.callPhone }
 	}
 
-	async verifyPhoneOtp(dto: PhoneVerifyDto, res: Response) {
+	async pollCallStatus(dto: PhonePollDto, res: Response) {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
-		const result = otpStore.verify(normalized, dto.code)
+		const checkId = callCheckStore.getCheckId(normalized)
+		if (!checkId) throw new UnauthorizedException('Сессия истекла, запросите звонок повторно')
 
-		if (result === 'expired') throw new UnauthorizedException('Код истёк')
-		if (result === 'exceeded')
-			throw new UnauthorizedException('Превышено количество попыток')
-		if (result === 'invalid') throw new UnauthorizedException('Неверный код')
+		const status = await this.smsService.getCallCheckStatus(checkId)
+
+		if (status === 'waiting') return { authorized: false }
+		if (status === 'error') throw new BadRequestException('Ошибка проверки статуса')
+
+		callCheckStore.delete(normalized)
 
 		// Ищем пользователя в локальной БД по номеру
 		let user = await this.prisma.user.findFirst({
@@ -175,20 +178,25 @@ export class AuthService {
 							phone: '+' + normalized
 						}
 					})
-					this.createWordPressAccount(email, this.generateRandomPassword()).catch(
-						() => null
-					)
-					this.notificationsService.sendPushNotificationToAdmins(
-						'👤 Новый пользователь',
-						`Зарегистрировался по номеру: +${normalized}`,
-						{ newUser: true, newUserId: user.id }
+					this.createWordPressAccount(
+						email,
+						this.generateRandomPassword()
 					).catch(() => null)
+					this.notificationsService
+						.sendPushNotificationToAdmins(
+							'👤 Новый пользователь',
+							`Зарегистрировался по номеру: +${normalized}`,
+							{ newUser: true, newUserId: user.id }
+						)
+						.catch(() => null)
 				}
 			}
 		}
 
 		if (user.phone)
-			this.userService.syncLoyaltyFromRetailCRM(user.id, user.phone).catch(() => null)
+			this.userService
+				.syncLoyaltyFromRetailCRM(user.id, user.phone)
+				.catch(() => null)
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safeUser } = user
