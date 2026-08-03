@@ -54,6 +54,35 @@ export class NotificationsService {
 		})
 	}
 
+	async sendBroadcastPushOnly(title: string, body: string, data?: object) {
+		const users = await this.prisma.user.findMany({
+			where: { pushToken: { not: null } },
+			select: { id: true, pushToken: true }
+		})
+
+		const messages: ExpoPushMessage[] = users
+			.filter(u => Expo.isExpoPushToken(u.pushToken!))
+			.map(u => ({ to: u.pushToken!, sound: 'default', title, body, data }))
+
+		const chunks = this.expo.chunkPushNotifications(messages)
+		for (const chunk of chunks) {
+			try {
+				const tickets = await this.expo.sendPushNotificationsAsync(chunk)
+				for (let i = 0; i < tickets.length; i++) {
+					if (
+						tickets[i].status === 'error' &&
+						(tickets[i] as any).details?.error === 'DeviceNotRegistered'
+					) {
+						await this.prisma.user.update({
+							where: { id: users[i].id },
+							data: { pushToken: null }
+						})
+					}
+				}
+			} catch {}
+		}
+	}
+
 	async sendPushNotificationToAdmins(
 		title: string,
 		message: string,

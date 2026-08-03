@@ -40,12 +40,11 @@ export class WooDiscountReminderService {
 			if (!available.length) this.recentlyUsed.clear()
 			const pool = available.length ? available : groups
 
-			// Взвешенный случайный выбор: группы с большим числом товаров чаще попадают
 			const group = this.weightedPick(pool)
 			this.recentlyUsed.add(group.name)
 
 			const { title, message } = this.buildNotification(group)
-			await this.notifications.sendBroadcast(title, message, {
+			await this.notifications.sendBroadcastPushOnly(title, message, {
 				categorySlug: 'sale'
 			})
 

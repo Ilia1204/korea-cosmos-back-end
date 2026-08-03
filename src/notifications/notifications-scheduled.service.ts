@@ -69,22 +69,11 @@ export class NotificationsScheduledService {
 		users.forEach(user => {
 			setTimeout(() => {
 				this.notifications
-					.saveNotification(
+					.sendPushNotificationToUser(
 						user.id,
 						'🙎🏻‍♂️ Заполните свой профиль',
 						'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
 						{ editProfileNavigate: 'EditProfile' }
-					)
-					.then(notification =>
-						this.notifications.sendPushNotificationToUser(
-							user.id,
-							'🙎🏻‍♂️ Заполните свой профиль',
-							'Некоторые поля в вашем профиле не заполнены. Пожалуйста, обновите информацию.',
-							{
-								editProfileNavigate: 'EditProfile',
-								notificationId: notification.id
-							}
-						)
 					)
 					.catch(() => {})
 			}, 2000)
@@ -278,22 +267,12 @@ export class NotificationsScheduledService {
 			if (alreadyNotified) continue
 
 			const firstName = user.name ? `, ${user.name}` : ''
-			const notification = await this.notifications.saveNotification(
-				user.id,
-				`🛒 Забыли что-то${firstName}?`,
-				'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-				{ abandonedCart: true, screen: 'Cart' }
-			)
 			this.notifications
 				.sendPushNotificationToUser(
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{
-						abandonedCart: true,
-						screen: 'Cart',
-						notificationId: notification.id
-					}
+					{ abandonedCart: true, screen: 'Cart' }
 				)
 				.catch(() => {})
 		}

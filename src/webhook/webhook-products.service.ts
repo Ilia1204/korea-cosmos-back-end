@@ -36,7 +36,7 @@ export class WebhookProductsService {
 			? `${name} уже в разделе «${categoryName}» — посмотрите первыми! 👀`
 			: `${name} уже в магазине — посмотрите первыми! 👀`
 
-		await this.notifications.sendBroadcast('🌸 Новинка!', body, {
+		await this.notifications.sendBroadcastPushOnly('🌸 Новинка!', body, {
 			productSlug: slug
 		})
 		return { ok: true }
@@ -164,7 +164,7 @@ export class WebhookProductsService {
 		}
 
 		// Публичный купон — отправляем всем
-		await this.notifications.sendBroadcast('🎁 Промокод!', body, {
+		await this.notifications.sendBroadcastPushOnly('🎁 Промокод!', body, {
 			couponCode: code
 		})
 		return { ok: true }
@@ -181,7 +181,7 @@ export class WebhookProductsService {
 			? `«${name}» теперь у нас — загляните, пока не разобрали!`
 			: `Новый раздел «${name}» уже открыт — что там? 🛍️`
 
-		await this.notifications.sendBroadcast(title, body, { categorySlug: slug })
+		await this.notifications.sendBroadcastPushOnly(title, body, { categorySlug: slug })
 		return { ok: true }
 	}
 
@@ -190,7 +190,7 @@ export class WebhookProductsService {
 		const slug = payload?.slug
 		if (!title || !slug) return { ok: true }
 
-		await this.notifications.sendBroadcast(
+		await this.notifications.sendBroadcastPushOnly(
 			'📖 Новая статья',
 			`${title} — читайте в блоге Korea Cosmos`,
 			{ postSlug: slug }
@@ -205,7 +205,7 @@ export class WebhookProductsService {
 
 		if (products.length === 1) {
 			const p = products[0]
-			await this.notifications.sendBroadcast(
+			await this.notifications.sendBroadcastPushOnly(
 				'🏷️ Скидка!',
 				`Успейте! ${p.name} — было ${p.regularPrice}₽, теперь ${p.salePrice}₽ 🔥`,
 				{ productSlug: p.slug }
@@ -235,6 +235,6 @@ export class WebhookProductsService {
 			navData = {}
 		}
 
-		await this.notifications.sendBroadcast('🏷️ Скидки!', body, navData)
+		await this.notifications.sendBroadcastPushOnly('🏷️ Скидки!', body, navData)
 	}
 }
