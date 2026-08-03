@@ -15,7 +15,7 @@ import { PrismaService } from 'src/prisma.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
-import { PhonePollDto, PhoneSendOtpDto } from './dto/phone-auth.dto'
+import { PhoneDto } from './dto/phone-auth.dto'
 import { callCheckStore } from './callCheck.store'
 
 @Injectable()
@@ -109,7 +109,7 @@ export class AuthService {
 		return { message: 'Письмо с новым паролем было отправлено на ваш email!' }
 	}
 
-	async sendPhoneOtp(dto: PhoneSendOtpDto) {
+	async sendPhoneOtp(dto: PhoneDto) {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
@@ -130,7 +130,7 @@ export class AuthService {
 		return { message: 'Звонок инициирован', callPhone: result.callPhone }
 	}
 
-	async pollCallStatus(dto: PhonePollDto, res: Response) {
+	async pollCallStatus(dto: PhoneDto, res: Response) {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 

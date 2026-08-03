@@ -57,9 +57,10 @@ export class SmsService {
 				`https://sms.ru/callcheck/status?${params.toString()}`
 			)
 			const data = await res.json()
+			this.logger.log(`callcheck/status response: ${JSON.stringify(data)}`)
 			if (data.status !== 'OK') return 'error'
 			// check_status 104 = авторизован
-			if (data.check_status === 104) return 'authorized'
+			if (Number(data.check_status) === 104) return 'authorized'
 			return 'waiting'
 		} catch (e) {
 			this.logger.error('SMS.ru callcheck/status failed', e)

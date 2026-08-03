@@ -13,7 +13,7 @@ import { Throttle } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { AuthDto } from './dto/auth.dto'
-import { PhonePollDto, PhoneSendOtpDto } from './dto/phone-auth.dto'
+import { PhoneDto } from './dto/phone-auth.dto'
 
 @Controller('auth')
 @UsePipes(new ValidationPipe())
@@ -79,14 +79,14 @@ export class AuthController {
 
 	@HttpCode(200)
 	@Post('phone/send-otp')
-	async sendPhoneOtp(@Body() dto: PhoneSendOtpDto) {
+	async sendPhoneOtp(@Body() dto: PhoneDto) {
 		return this.authService.sendPhoneOtp(dto)
 	}
 
 	@HttpCode(200)
 	@Post('phone/poll-call')
 	async pollCallStatus(
-		@Body() dto: PhonePollDto,
+		@Body() dto: PhoneDto,
 		@Res({ passthrough: true }) res: Response
 	) {
 		return this.authService.pollCallStatus(dto, res)
