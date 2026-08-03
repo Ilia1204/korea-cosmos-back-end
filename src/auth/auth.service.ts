@@ -135,7 +135,7 @@ export class AuthService {
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
 		const checkId = callCheckStore.getCheckId(normalized)
-		if (!checkId) throw new UnauthorizedException('Сессия истекла, запросите звонок повторно')
+		if (!checkId) return { authorized: false, expired: true }
 
 		const status = await this.smsService.getCallCheckStatus(checkId)
 
