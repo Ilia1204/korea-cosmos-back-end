@@ -76,13 +76,13 @@ export class RobokassaController {
 			select: { id: true }
 		})
 
-		if (!order) return res.redirect('koreacosmos://payment-success')
+		if (!order) return res.redirect('koreacosmos:///payment-success')
 
-		return res.redirect(`koreacosmos://payment-success?orderId=${order.id}`)
+		return res.redirect(`koreacosmos:///payment-success?orderId=${order.id}`)
 	}
 
 	@Get('fail')
 	fail(@Res() res: Response) {
-		return res.redirect('koreacosmos://payment-fail')
+		return res.redirect('koreacosmos:///payment-fail')
 	}
 }
