@@ -1,6 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
 
+export interface IReceiptItem {
+	name: string
+	quantity: number
+	sum: number
+	payment_method: 'full_payment'
+	payment_object: 'commodity' | 'service'
+	tax: 'none' | 'vat0' | 'vat10' | 'vat20'
+}
+
 @Injectable()
 export class RobokassaService {
 	private readonly logger = new Logger(RobokassaService.name)
@@ -23,10 +32,15 @@ export class RobokassaService {
 		invoiceId: number,
 		amount: number,
 		description: string,
+		receiptItems: IReceiptItem[],
 		incCurrLabel?: string
 	): string {
 		const outSum = amount.toFixed(2)
-		const sig = this.md5(`${this.login}:${outSum}:${invoiceId}:${this.pass1}`)
+		const receipt = JSON.stringify({ sno: 'usn_income', items: receiptItems })
+		const encodedReceipt = encodeURIComponent(receipt)
+		const sig = this.md5(
+			`${this.login}:${outSum}:${invoiceId}:${encodedReceipt}:${this.pass1}`
+		)
 		const backendUrl =
 			process.env['APP_URL'] || 'https://korea-cosmos-back-xferpsixo.amvera.io'
 
@@ -35,6 +49,7 @@ export class RobokassaService {
 			OutSum: outSum,
 			InvId: String(invoiceId),
 			Description: description,
+			Receipt: receipt,
 			SignatureValue: sig,
 			Encoding: 'utf-8',
 			Culture: 'ru',

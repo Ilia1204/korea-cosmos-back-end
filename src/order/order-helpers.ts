@@ -1,3 +1,4 @@
+import { IReceiptItem } from 'src/robokassa/robokassa.service'
 import { OrderDto } from './dto/order.dto'
 
 export function calculateTotal(
@@ -27,6 +28,49 @@ export function calculateTotal(
 		afterCoupon = Math.max(0, subtotal - couponData.amount)
 	}
 	return afterCoupon + deliveryPrice
+}
+
+// Собирает позиции для фискального чека Робокассы (54-ФЗ). Сумма позиций
+// должна сойтись ровно с totalPrice — поэтому скидка распределяется
+// пропорционально по товарам, а остаток копеек от округления уходит
+// в последнюю позицию.
+export function buildReceiptItems(
+	items: { name: string; quantity: number; price: number }[],
+	deliveryPrice: number,
+	totalPrice: number
+): IReceiptItem[] {
+	const rawSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+	const targetGoodsTotal = Math.max(0, totalPrice - deliveryPrice)
+	const scale = rawSubtotal > 0 ? targetGoodsTotal / rawSubtotal : 1
+
+	const receiptItems: IReceiptItem[] = items.map(item => ({
+		name: item.name,
+		quantity: item.quantity,
+		sum: Math.round(item.price * item.quantity * scale * 100) / 100,
+		payment_method: 'full_payment',
+		payment_object: 'commodity',
+		tax: 'none'
+	}))
+
+	if (deliveryPrice > 0) {
+		receiptItems.push({
+			name: 'Доставка',
+			quantity: 1,
+			sum: deliveryPrice,
+			payment_method: 'full_payment',
+			payment_object: 'service',
+			tax: 'none'
+		})
+	}
+
+	const currentSum = receiptItems.reduce((s, i) => s + i.sum, 0)
+	const diff = Math.round((totalPrice - currentSum) * 100) / 100
+	if (diff !== 0 && receiptItems.length > 0) {
+		const last = receiptItems[receiptItems.length - 1]
+		last.sum = Math.round((last.sum + diff) * 100) / 100
+	}
+
+	return receiptItems
 }
 
 export function buildOrderData(

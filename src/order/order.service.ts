@@ -23,7 +23,11 @@ import {
 	getApplicableDiscount
 } from './order-discount.utils'
 import { AuditService } from 'src/audit/audit.service'
-import { buildOrderData, calculateTotal } from './order-helpers'
+import {
+	buildOrderData,
+	buildReceiptItems,
+	calculateTotal
+} from './order-helpers'
 
 @Injectable()
 export class OrderService {
@@ -257,10 +261,20 @@ export class OrderService {
 			2000
 		)
 
+		const receiptItems = buildReceiptItems(
+			dto.items.map(i => ({
+				name: i.productName || 'Товар',
+				quantity: i.quantity,
+				price: i.price
+			})),
+			dto.deliveryPrice || 0,
+			totalPrice
+		)
 		const paymentUrl = this.robokassa.generatePaymentUrl(
 			invoiceId,
 			totalPrice,
 			`Заказ #${order.id.slice(0, 6).toUpperCase()}`,
+			receiptItems,
 			dto.podeli ? 'Podeli' : undefined
 		)
 		return { confirmation: { confirmation_url: paymentUrl }, orderId: order.id }
@@ -269,7 +283,13 @@ export class OrderService {
 	async payOrder(orderId: string) {
 		const order = await this.prisma.order.findUnique({
 			where: { id: orderId },
-			select: { totalPrice: true, invoiceId: true, podeli: true }
+			select: {
+				totalPrice: true,
+				invoiceId: true,
+				podeli: true,
+				deliveryPrice: true,
+				items: true
+			}
 		})
 		if (!order) throw new NotFoundException('Заказ не найден')
 
@@ -282,10 +302,20 @@ export class OrderService {
 			})
 		}
 
+		const receiptItems = buildReceiptItems(
+			order.items.map(i => ({
+				name: i.productName || 'Товар',
+				quantity: i.quantity,
+				price: i.price
+			})),
+			order.deliveryPrice || 0,
+			order.totalPrice
+		)
 		const paymentUrl = this.robokassa.generatePaymentUrl(
 			invoiceId,
 			order.totalPrice,
 			`Заказ #${orderId.slice(0, 6).toUpperCase()}`,
+			receiptItems,
 			order.podeli ? 'Podeli' : undefined
 		)
 		return { confirmation: { confirmation_url: paymentUrl } }
