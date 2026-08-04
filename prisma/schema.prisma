@@ -54,12 +54,13 @@ model CartItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  productId    String  @map("product_id")
-  variationId  Int?    @map("variation_id")
-  quantity     Int     @default(1)
-  price        Float
-  productName  String? @map("product_name")
-  productImage String? @map("product_image")
+  productId     String  @map("product_id")
+  variationId   Int?    @map("variation_id")
+  variationLabel String? @map("variation_label")
+  quantity      Int     @default(1)
+  price         Float
+  productName   String? @map("product_name")
+  productImage  String? @map("product_image")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @map("user_id")
@@ -315,12 +316,13 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  quantity     Int
-  price        Int
-  productId    String? @map("product_id")
-  variationId  Int?    @map("variation_id")
-  productName  String? @map("product_name")
-  productImage String? @map("product_image")
+  quantity      Int
+  price         Int
+  productId     String? @map("product_id")
+  variationId   Int?    @map("variation_id")
+  variationLabel String? @map("variation_label")
+  productName   String? @map("product_name")
+  productImage  String? @map("product_image")
 
   order   Order?  @relation(fields: [orderId], references: [id])
   orderId String? @map("order_id")

@@ -263,7 +263,9 @@ export class OrderService {
 
 		const receiptItems = buildReceiptItems(
 			dto.items.map(i => ({
-				name: i.productName || 'Товар',
+				name: `${i.productName || 'Товар'}${
+					i.variationLabel ? ` (${i.variationLabel})` : ''
+				}`,
 				quantity: i.quantity,
 				price: i.price
 			})),
@@ -304,7 +306,9 @@ export class OrderService {
 
 		const receiptItems = buildReceiptItems(
 			order.items.map(i => ({
-				name: i.productName || 'Товар',
+				name: `${i.productName || 'Товар'}${
+					(i as any).variationLabel ? ` (${(i as any).variationLabel})` : ''
+				}`,
 				quantity: i.quantity,
 				price: i.price
 			})),
@@ -469,6 +473,16 @@ export class OrderService {
 				{ orderUserId: id, status: 'cancelled', notification: notification.id }
 			)
 		}, 1000)
+
+		this.notifications
+			.sendPushNotificationToAdmins(
+				'❌ Заказ отменён клиентом',
+				`Заказ #${id.slice(0, 6).toUpperCase()} отменён пользователем${
+					reason ? `. Причина: ${reason}` : ''
+				}`,
+				{ orderId: id, isRead: true }
+			)
+			.catch(() => null)
 
 		return cancelled
 	}

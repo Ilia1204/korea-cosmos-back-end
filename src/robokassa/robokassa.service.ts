@@ -1,14 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
-
-export interface IReceiptItem {
-	name: string
-	quantity: number
-	sum: number
-	payment_method: 'full_payment'
-	payment_object: 'commodity' | 'service'
-	tax: 'none' | 'vat0' | 'vat10' | 'vat20'
-}
+import { IReceiptItem } from './robokassa.interface'
 
 @Injectable()
 export class RobokassaService {

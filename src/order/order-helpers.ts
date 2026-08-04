@@ -1,4 +1,4 @@
-import { IReceiptItem } from 'src/robokassa/robokassa.service'
+import { IReceiptItem } from 'src/robokassa/robokassa.interface'
 import { OrderDto } from './dto/order.dto'
 
 export function calculateTotal(
@@ -7,7 +7,6 @@ export function calculateTotal(
 	couponData: any,
 	deliveryPrice = 0
 ): number {
-	// Если купон процентный — берём наибольшее из автоскидки и купона (не суммируем)
 	const percentCoupon =
 		couponData?.valid && couponData.discountType === 'percent'
 			? couponData.amount
@@ -30,10 +29,6 @@ export function calculateTotal(
 	return afterCoupon + deliveryPrice
 }
 
-// Собирает позиции для фискального чека Робокассы (54-ФЗ). Сумма позиций
-// должна сойтись ровно с totalPrice — поэтому скидка распределяется
-// пропорционально по товарам, а остаток копеек от округления уходит
-// в последнюю позицию.
 export function buildReceiptItems(
 	items: { name: string; quantity: number; price: number }[],
 	deliveryPrice: number,
@@ -101,6 +96,7 @@ export function buildOrderData(
 				price: item.price,
 				productId: item.productId,
 				variationId: item.variationId ?? null,
+				variationLabel: item.variationLabel || null,
 				productName: item.productName || null,
 				productImage: item.productImage || null
 			}))

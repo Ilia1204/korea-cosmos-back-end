@@ -8,6 +8,10 @@ export class CartItemDto {
 	@IsOptional()
 	variationId?: number
 
+	@IsString()
+	@IsOptional()
+	variationLabel?: string
+
 	@IsNumber()
 	quantity: number
 

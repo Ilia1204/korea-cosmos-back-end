@@ -91,6 +91,10 @@ export class OrderItemDto {
 
 	@IsString()
 	@IsOptional()
+	variationLabel?: string
+
+	@IsString()
+	@IsOptional()
 	productName?: string
 
 	@IsString()

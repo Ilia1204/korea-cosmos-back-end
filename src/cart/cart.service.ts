@@ -23,6 +23,7 @@ export class CartService {
 				userId,
 				productId: item.productId,
 				variationId: item.variationId,
+				variationLabel: item.variationLabel,
 				quantity: item.quantity,
 				price: item.price,
 				productName: item.productName,
