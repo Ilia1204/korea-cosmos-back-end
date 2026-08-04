@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Res } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common'
 import { Response } from 'express'
 import { OrderService } from 'src/order/order.service'
 import { PrismaService } from 'src/prisma.service'
@@ -69,12 +69,20 @@ export class RobokassaController {
 	}
 
 	@Get('success')
-	success(@Res() res: Response) {
-		return res.redirect('https://koreacosmos.ru?payment=success')
+	async success(@Query('InvId') invId: string, @Res() res: Response) {
+		const invoiceId = parseInt(invId)
+		const order = await this.prisma.order.findUnique({
+			where: { invoiceId },
+			select: { id: true }
+		})
+
+		if (!order) return res.redirect('koreacosmos://payment-success')
+
+		return res.redirect(`koreacosmos://payment-success?orderId=${order.id}`)
 	}
 
 	@Get('fail')
 	fail(@Res() res: Response) {
-		return res.redirect('https://koreacosmos.ru?payment=fail')
+		return res.redirect('koreacosmos://payment-fail')
 	}
 }
