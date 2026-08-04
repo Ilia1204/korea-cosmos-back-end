@@ -40,12 +40,8 @@ export class RobokassaService {
 		const backendUrl =
 			process.env['APP_URL'] || 'https://korea-cosmos-back-xferpsixo.amvera.io'
 
-		const [, receiptEncoded] = new URLSearchParams({ Receipt: receipt })
-			.toString()
-			.split('=')
-
 		const sig = this.md5(
-			`${this.login}:${outSum}:${invoiceId}:${receiptEncoded}:${this.pass1}`
+			`${this.login}:${outSum}:${invoiceId}:${receipt}:${this.pass1}`
 		)
 
 		const params = new URLSearchParams({
