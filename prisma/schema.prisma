@@ -54,14 +54,17 @@ model CartItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  productId String @map("product_id")
-  quantity  Int    @default(1)
-  price     Float
+  productId    String  @map("product_id")
+  variationId  Int?    @map("variation_id")
+  quantity     Int     @default(1)
+  price        Float
+  productName  String? @map("product_name")
+  productImage String? @map("product_image")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @map("user_id")
 
-  @@unique([userId, productId])
+  @@unique([userId, productId, variationId])
   @@map("cart_item")
 }
 
@@ -315,6 +318,7 @@ model OrderItem {
   quantity     Int
   price        Int
   productId    String? @map("product_id")
+  variationId  Int?    @map("variation_id")
   productName  String? @map("product_name")
   productImage String? @map("product_image")
 

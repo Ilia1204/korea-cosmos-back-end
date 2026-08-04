@@ -85,6 +85,10 @@ export class OrderItemDto {
 	@IsString()
 	productId: string
 
+	@IsNumber()
+	@IsOptional()
+	variationId?: number
+
 	@IsString()
 	@IsOptional()
 	productName?: string

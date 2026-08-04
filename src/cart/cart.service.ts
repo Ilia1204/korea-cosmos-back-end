@@ -22,8 +22,11 @@ export class CartService {
 			data: items.map(item => ({
 				userId,
 				productId: item.productId,
+				variationId: item.variationId,
 				quantity: item.quantity,
-				price: item.price
+				price: item.price,
+				productName: item.productName,
+				productImage: item.productImage
 			}))
 		})
 

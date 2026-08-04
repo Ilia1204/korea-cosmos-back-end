@@ -56,6 +56,7 @@ export function buildOrderData(
 				quantity: item.quantity,
 				price: item.price,
 				productId: item.productId,
+				variationId: item.variationId ?? null,
 				productName: item.productName || null,
 				productImage: item.productImage || null
 			}))

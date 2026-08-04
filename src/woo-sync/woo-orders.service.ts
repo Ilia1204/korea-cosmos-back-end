@@ -195,6 +195,7 @@ export class WooOrdersService {
 		address: any | null,
 		items: Array<{
 			productId?: string | null
+			variationId?: number
 			quantity: number
 			price: number
 			productName?: string
@@ -237,7 +238,11 @@ export class WooOrdersService {
 						? wcProductIdMap[item.productId]
 						: undefined
 					return wcProductId
-						? { product_id: wcProductId, quantity: item.quantity }
+						? {
+								product_id: wcProductId,
+								quantity: item.quantity,
+								...(item.variationId && { variation_id: item.variationId })
+						  }
 						: null
 				})
 				.filter(Boolean)
