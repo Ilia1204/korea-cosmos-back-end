@@ -2,6 +2,7 @@ import {
 	BadRequestException,
 	ForbiddenException,
 	Injectable,
+	Logger,
 	NotFoundException
 } from '@nestjs/common'
 import { DeliveryService } from 'src/delivery/delivery.service'
@@ -26,6 +27,8 @@ import { buildOrderData, calculateTotal } from './order-helpers'
 
 @Injectable()
 export class OrderService {
+	private readonly logger = new Logger(OrderService.name)
+
 	constructor(
 		private prisma: PrismaService,
 		private notifications: NotificationsService,
@@ -177,16 +180,22 @@ export class OrderService {
 						recipientName,
 						recipientPhone,
 						orderTotal: totalPrice,
-						items: dto.items.map(i => ({ name: i.productName || 'Косметика', quantity: i.quantity, price: i.price }))
+						items: dto.items.map(i => ({
+							name: i.productName || 'Косметика',
+							quantity: i.quantity,
+							price: i.price
+						}))
 					})
 					.then(result => {
 						if (!result) return
 						const data: any = { cdekUuid: result.uuid }
-						if (result.trackingNumber) data.trackingNumber = result.trackingNumber
+						if (result.trackingNumber)
+							data.trackingNumber = result.trackingNumber
 						this.prisma.order
 							.update({ where: { id: order.id }, data })
 							.catch(() => null)
-						if (!result.trackingNumber) this.quickPollCdekTracking(order.id, result.uuid)
+						if (!result.trackingNumber)
+							this.quickPollCdekTracking(order.id, result.uuid)
 					})
 					.catch(() => null)
 			}
@@ -220,7 +229,11 @@ export class OrderService {
 						recipientSurname,
 						recipientPhone,
 						orderTotal: totalPrice,
-						items: dto.items.map(i => ({ name: i.productName || 'Косметика', quantity: i.quantity, price: i.price }))
+						items: dto.items.map(i => ({
+							name: i.productName || 'Косметика',
+							quantity: i.quantity,
+							price: i.price
+						}))
 					})
 					.then(result => {
 						if (!result) return
@@ -288,16 +301,18 @@ export class OrderService {
 			data: { status: dto.status }
 		})
 
-		this.audit.log({
-			action: 'order.status',
-			entity: 'Order',
-			entityId: id,
-			entityName: `#${id.slice(0, 6).toUpperCase()}`,
-			actorId,
-			before: { status: order.status },
-			after: { status: dto.status },
-			revertible: false
-		}).catch(() => null)
+		this.audit
+			.log({
+				action: 'order.status',
+				entity: 'Order',
+				entityId: id,
+				entityName: `#${id.slice(0, 6).toUpperCase()}`,
+				actorId,
+				before: { status: order.status },
+				after: { status: dto.status },
+				revertible: false
+			})
+			.catch(() => null)
 
 		this.wooSync.updateOrderStatus(id, dto.status).catch(() => null)
 		this.retailCRM.updateOrderStatus(id, dto.status).catch(() => null)
@@ -385,13 +400,22 @@ export class OrderService {
 			this.delivery.cancelCdekOrder((order as any).cdekUuid).catch(() => null)
 		}
 		if ((order as any).russianPostId) {
-			this.delivery.cancelRussianPostOrder(Number((order as any).russianPostId)).catch(() => null)
+			this.delivery
+				.cancelRussianPostOrder(Number((order as any).russianPostId))
+				.catch(() => null)
 		}
 
-		if (order.status === 'payed' && (order as any).invoiceId) {
+		if ((order as any).invoiceId) {
 			this.robokassa
 				.refund((order as any).invoiceId, order.totalPrice)
-				.catch(() => null)
+				.then(ok =>
+					this.logger.log(
+						`Refund for order ${id} (invId=${(order as any).invoiceId}): ${
+							ok ? 'succeeded' : 'failed'
+						}`
+					)
+				)
+				.catch(e => this.logger.error(`Refund for order ${id} threw: ${e}`))
 		}
 
 		if (wasLoyaltyApplied && cancelled.userId) {
@@ -427,7 +451,9 @@ export class OrderService {
 
 	private quickPollCdekTracking(orderId: string, cdekUuid: string) {
 		const tryFetch = async () => {
-			const tn = await this.delivery.getCdekTrackingNumber(cdekUuid).catch(() => null)
+			const tn = await this.delivery
+				.getCdekTrackingNumber(cdekUuid)
+				.catch(() => null)
 			if (!tn) return false
 			await this.prisma.order
 				.update({ where: { id: orderId }, data: { trackingNumber: tn } })
