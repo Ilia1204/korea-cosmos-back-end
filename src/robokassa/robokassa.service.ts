@@ -37,12 +37,16 @@ export class RobokassaService {
 	): string {
 		const outSum = amount.toFixed(2)
 		const receipt = JSON.stringify({ sno: 'usn_income', items: receiptItems })
-		const encodedReceipt = encodeURIComponent(receipt)
-		const sig = this.md5(
-			`${this.login}:${outSum}:${invoiceId}:${encodedReceipt}:${this.pass1}`
-		)
 		const backendUrl =
 			process.env['APP_URL'] || 'https://korea-cosmos-back-xferpsixo.amvera.io'
+
+		const [, receiptEncoded] = new URLSearchParams({ Receipt: receipt })
+			.toString()
+			.split('=')
+
+		const sig = this.md5(
+			`${this.login}:${outSum}:${invoiceId}:${receiptEncoded}:${this.pass1}`
+		)
 
 		const params = new URLSearchParams({
 			MrchLogin: this.login,
