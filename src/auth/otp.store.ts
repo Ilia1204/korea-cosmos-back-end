@@ -25,7 +25,10 @@ class OtpStore {
 		return true
 	}
 
-	verify(phone: string, code: string): 'ok' | 'expired' | 'invalid' | 'exceeded' {
+	verify(
+		phone: string,
+		code: string
+	): 'ok' | 'expired' | 'invalid' | 'exceeded' {
 		const entry = this.store.get(phone)
 		if (!entry) return 'expired'
 		if (Date.now() > entry.expiresAt) {
@@ -41,6 +44,12 @@ class OtpStore {
 
 		this.store.delete(phone)
 		return 'ok'
+	}
+
+	canSet(phone: string): boolean {
+		const existing = this.store.get(phone)
+		if (existing && Date.now() - existing.sentAt < this.COOLDOWN) return false
+		return true
 	}
 
 	has(phone: string): boolean {

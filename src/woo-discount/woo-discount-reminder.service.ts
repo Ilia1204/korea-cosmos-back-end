@@ -9,14 +9,11 @@ interface DiscountGroup {
 	maxDiscount: number
 }
 
-// Расписание: вторник и пятница в 11:00 МСК
-// Чтобы изменить — поправь строку ниже (формат: секунда минута час день месяц деньНедели)
 const REMINDER_CRON = '0 0 11 * * 2,5'
 
 @Injectable()
 export class WooDiscountReminderService {
 	private readonly logger = new Logger(WooDiscountReminderService.name)
-	// Группы, отправленные в текущем цикле — чтобы не повторяться
 	private recentlyUsed = new Set<string>()
 
 	constructor(
@@ -34,9 +31,8 @@ export class WooDiscountReminderService {
 				return
 			}
 
-			// Фильтруем недавно отправленные для разнообразия
 			const available = groups.filter(g => !this.recentlyUsed.has(g.name))
-			// Если все уже были — сбрасываем и берём снова
+
 			if (!available.length) this.recentlyUsed.clear()
 			const pool = available.length ? available : groups
 
