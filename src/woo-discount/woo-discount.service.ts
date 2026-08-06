@@ -75,25 +75,27 @@ export class WooDiscountService {
 			}))
 			await this.batchUpdateWc(parentUpdates)
 
-			for (const product of variableProducts) {
-				const variations = await this.fetchWcVariations(product.id)
-				const variationUpdates = variations
-					.filter(v => parseFloat(v.regular_price) > 0)
-					.map(v => {
-						const regular = parseFloat(v.regular_price)
-						const salePrice =
-							Math.round(regular * (1 - dto.discount / 100) * 100) / 100
-						return {
-							id: v.id,
-							sale_price: String(salePrice),
-							...(saleFrom ? { date_on_sale_from: saleFrom } : {}),
-							...(saleTo ? { date_on_sale_to: saleTo } : {})
-						}
-					})
-				if (variationUpdates.length) {
-					await this.batchUpdateWcVariations(product.id, variationUpdates)
-				}
-			}
+			await Promise.all(
+				variableProducts.map(async product => {
+					const variations = await this.fetchWcVariations(product.id)
+					const variationUpdates = variations
+						.filter(v => parseFloat(v.regular_price) > 0)
+						.map(v => {
+							const regular = parseFloat(v.regular_price)
+							const salePrice =
+								Math.round(regular * (1 - dto.discount / 100) * 100) / 100
+							return {
+								id: v.id,
+								sale_price: String(salePrice),
+								...(saleFrom ? { date_on_sale_from: saleFrom } : {}),
+								...(saleTo ? { date_on_sale_to: saleTo } : {})
+							}
+						})
+					if (variationUpdates.length) {
+						await this.batchUpdateWcVariations(product.id, variationUpdates)
+					}
+				})
+			)
 		}
 
 		// МойСклад — только простые товары (у вариативных маппинг по вариациям)
@@ -158,18 +160,20 @@ export class WooDiscountService {
 			}))
 			await this.batchUpdateWc(parentUpdates)
 
-			for (const product of variableProducts) {
-				const variations = await this.fetchWcVariations(product.id)
-				const variationUpdates = variations.map(v => ({
-					id: v.id,
-					sale_price: '',
-					date_on_sale_from: null,
-					date_on_sale_to: null
-				}))
-				if (variationUpdates.length) {
-					await this.batchUpdateWcVariations(product.id, variationUpdates)
-				}
-			}
+			await Promise.all(
+				variableProducts.map(async product => {
+					const variations = await this.fetchWcVariations(product.id)
+					const variationUpdates = variations.map(v => ({
+						id: v.id,
+						sale_price: '',
+						date_on_sale_from: null,
+						date_on_sale_to: null
+					}))
+					if (variationUpdates.length) {
+						await this.batchUpdateWcVariations(product.id, variationUpdates)
+					}
+				})
+			)
 		}
 
 		const priceRestores = simpleProducts
@@ -246,95 +250,98 @@ export class WooDiscountService {
 	}
 
 	private async getWcCategoryIds(slugs: string[]): Promise<number[]> {
-		const ids: number[] = []
-		for (const slug of slugs) {
-			try {
-				const res = await this.woo.get('products/categories', {
-					slug,
-					per_page: '1'
-				})
-				const data = await res.json()
-				if (data[0]?.id) ids.push(data[0].id)
-			} catch (e) {
-				this.logger.warn(`WC: не найдена категория slug=${slug}`)
-			}
-		}
-		return ids
+		const results = await Promise.all(
+			slugs.map(async slug => {
+				try {
+					const res = await this.woo.get('products/categories', {
+						slug,
+						per_page: '1'
+					})
+					const data = await res.json()
+					return data[0]?.id as number | undefined
+				} catch (e) {
+					this.logger.warn(`WC: не найдена категория slug=${slug}`)
+					return undefined
+				}
+			})
+		)
+		return results.filter(Boolean) as number[]
 	}
 
 	private async getWcProductIdsByCategories(
 		categoryIds: number[]
 	): Promise<number[]> {
 		if (!categoryIds.length) return []
-		const allIds = new Set<number>()
-		for (const catId of categoryIds) {
-			let page = 1
-			while (true) {
-				const res = await this.woo.get('products', {
-					category: String(catId),
-					per_page: '100',
-					page: String(page),
-					fields: 'id'
-				})
-				const data = await res.json()
-				if (!Array.isArray(data) || !data.length) break
-				data.forEach((p: { id: number }) => allIds.add(p.id))
-				if (data.length < 100) break
-				page++
-			}
-		}
-		return Array.from(allIds)
+		const perCategory = await Promise.all(
+			categoryIds.map(catId => this.fetchAllWcProductIds('category', catId))
+		)
+		return Array.from(new Set(perCategory.flat()))
 	}
 
 	private async getWcTagIds(slugs: string[]): Promise<number[]> {
-		const ids: number[] = []
-		for (const slug of slugs) {
-			try {
-				const res = await this.woo.get('products/tags', { slug, per_page: '1' })
-				const data = await res.json()
-				if (data[0]?.id) ids.push(data[0].id)
-			} catch (e) {
-				this.logger.warn(`WC: не найден тег slug=${slug}`)
-			}
-		}
-		return ids
+		const results = await Promise.all(
+			slugs.map(async slug => {
+				try {
+					const res = await this.woo.get('products/tags', {
+						slug,
+						per_page: '1'
+					})
+					const data = await res.json()
+					return data[0]?.id as number | undefined
+				} catch (e) {
+					this.logger.warn(`WC: не найден тег slug=${slug}`)
+					return undefined
+				}
+			})
+		)
+		return results.filter(Boolean) as number[]
 	}
 
 	private async getWcProductIdsByTags(tagIds: number[]): Promise<number[]> {
 		if (!tagIds.length) return []
-		const allIds = new Set<number>()
-		for (const tagId of tagIds) {
-			let page = 1
-			while (true) {
-				const res = await this.woo.get('products', {
-					tag: String(tagId),
-					per_page: '100',
-					page: String(page),
-					fields: 'id'
-				})
-				const data = await res.json()
-				if (!Array.isArray(data) || !data.length) break
-				data.forEach((p: { id: number }) => allIds.add(p.id))
-				if (data.length < 100) break
-				page++
-			}
+		const perTag = await Promise.all(
+			tagIds.map(tagId => this.fetchAllWcProductIds('tag', tagId))
+		)
+		return Array.from(new Set(perTag.flat()))
+	}
+
+	private async fetchAllWcProductIds(
+		filterKey: 'category' | 'tag',
+		filterId: number
+	): Promise<number[]> {
+		const ids: number[] = []
+		let page = 1
+		while (true) {
+			const res = await this.woo.get('products', {
+				[filterKey]: String(filterId),
+				per_page: '100',
+				page: String(page),
+				fields: 'id'
+			})
+			const data = await res.json()
+			if (!Array.isArray(data) || !data.length) break
+			data.forEach((p: { id: number }) => ids.push(p.id))
+			if (data.length < 100) break
+			page++
 		}
-		return Array.from(allIds)
+		return ids
 	}
 
 	private async fetchWcProducts(ids: number[]): Promise<WcProduct[]> {
-		const products: WcProduct[] = []
-		// Запрашиваем по 50 штук
-		for (let i = 0; i < ids.length; i += 50) {
-			const chunk = ids.slice(i, i + 50)
-			const res = await this.woo.get('products', {
-				include: chunk.join(','),
-				per_page: '50'
+		const chunks: number[][] = []
+		for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50))
+
+		const results = await Promise.all(
+			chunks.map(async chunk => {
+				const res = await this.woo.get('products', {
+					include: chunk.join(','),
+					per_page: '50'
+				})
+				const data = await res.json()
+				return Array.isArray(data) ? data : []
 			})
-			const data = await res.json()
-			if (Array.isArray(data)) products.push(...data)
-		}
-		return products
+		)
+		return results.flat()
 	}
 
 	private async fetchWcVariations(productId: number): Promise<WcVariation[]> {
