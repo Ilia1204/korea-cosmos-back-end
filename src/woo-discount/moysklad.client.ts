@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 
 const MS_BASE = 'https://api.moysklad.ru/api/remap/1.2'
-const MS_SALE_PRICE_TYPE_ID = '772bd51c-fd0b-11ec-0a80-0fd1000943d6'
+const MS_BASE_PRICE_TYPE_ID = '65360bbb-4d16-11eb-0a80-03f0002b86f5' // Цена продажи
+
+interface MsSalePrice {
+	value: number
+	priceType: { meta: { href: string } }
+}
 
 @Injectable()
 export class MoyskladClient {
@@ -15,9 +20,9 @@ export class MoyskladClient {
 		}
 	}
 
-	private async findProductByExternalCode(
+	private async findProduct(
 		externalCode: string
-	): Promise<{ id: string; href: string } | null> {
+	): Promise<{ id: string; salePrices: MsSalePrice[] } | null> {
 		try {
 			const res = await fetch(
 				`${MS_BASE}/entity/product?filter=externalCode=${externalCode}&limit=1`,
@@ -26,66 +31,81 @@ export class MoyskladClient {
 			const data = await res.json()
 			const product = data?.rows?.[0]
 			if (!product) return null
-			return { id: product.id, href: product.meta.href }
+			return { id: product.id, salePrices: product.salePrices || [] }
 		} catch (e) {
 			this.logger.warn(`MS: не найден товар externalCode=${externalCode}`)
 			return null
 		}
 	}
 
-	async updateSalePrices(
-		externalCodes: string[],
-		salePriceRubles: number
-	): Promise<number> {
-		if (!process.env.MOYSKLAD_TOKEN || !externalCodes.length) return 0
+	// Заменяет только "Цена продажи", остальные типы цен (в т.ч. "Цена со скидкой") не трогает
+	private mergeSalePrices(
+		existing: MsSalePrice[],
+		valueKopecks: number
+	): MsSalePrice[] {
+		const priceTypeHref = `${MS_BASE}/context/companysettings/pricetype/${MS_BASE_PRICE_TYPE_ID}`
+		const kept = existing.filter(p => p.priceType?.meta?.href !== priceTypeHref)
+		return [
+			...kept,
+			{
+				value: valueKopecks,
+				priceType: {
+					meta: {
+						href: priceTypeHref,
+						type: 'pricetype',
+						mediaType: 'application/json'
+					} as any
+				}
+			}
+		]
+	}
 
-		const saleValueKopecks = Math.round(salePriceRubles * 100)
+	async updatePrices(
+		items: {
+			code: string
+			priceRubles: number
+			discountProhibited: boolean
+		}[]
+	): Promise<number> {
+		if (!process.env.MOYSKLAD_TOKEN || !items.length) return 0
 		let updated = 0
 
-		// Ищем и обновляем батчами по 10
-		const chunks = []
-		for (let i = 0; i < externalCodes.length; i += 10)
-			chunks.push(externalCodes.slice(i, i + 10))
+		const chunks: (typeof items)[] = []
+		for (let i = 0; i < items.length; i += 10)
+			chunks.push(items.slice(i, i + 10))
 
 		for (const chunk of chunks) {
 			const found = await Promise.all(
-				chunk.map(code => this.findProductByExternalCode(code))
+				chunk.map(async item => ({
+					item,
+					product: await this.findProduct(item.code)
+				}))
 			)
 
 			await Promise.all(
-				found.filter(Boolean).map(async product => {
-					try {
-						await fetch(`${MS_BASE}/entity/product/${product.id}`, {
-							method: 'PUT',
-							headers: this.headers,
-							body: JSON.stringify({
-								salePrices: [
-									{
-										value: saleValueKopecks,
-										priceType: {
-											meta: {
-												href: `${MS_BASE}/context/companysettings/pricetype/${MS_SALE_PRICE_TYPE_ID}`,
-												type: 'pricetype',
-												mediaType: 'application/json'
-											}
-										}
-									}
-								]
+				found
+					.filter(x => x.product)
+					.map(async ({ item, product }) => {
+						try {
+							await fetch(`${MS_BASE}/entity/product/${product!.id}`, {
+								method: 'PUT',
+								headers: this.headers,
+								body: JSON.stringify({
+									salePrices: this.mergeSalePrices(
+										product!.salePrices,
+										Math.round(item.priceRubles * 100)
+									),
+									discountProhibited: item.discountProhibited
+								})
 							})
-						})
-						updated++
-					} catch (e) {
-						this.logger.warn(`MS: ошибка обновления ${product.id}`)
-					}
-				})
+							updated++
+						} catch (e) {
+							this.logger.warn(`MS: ошибка обновления ${product!.id}`)
+						}
+					})
 			)
 		}
 
 		return updated
-	}
-
-	async resetSalePrices(externalCodes: string[]): Promise<void> {
-		if (!process.env.MOYSKLAD_TOKEN || !externalCodes.length) return
-		await this.updateSalePrices(externalCodes, 0)
 	}
 }

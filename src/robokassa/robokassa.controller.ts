@@ -39,6 +39,10 @@ export class RobokassaController {
 			data: { status: 'payed' }
 		})
 
+		this.prisma.cartItem
+			.deleteMany({ where: { userId: updated.userId } })
+			.catch(() => null)
+
 		this.orderService.markAsPaid(updated.id)
 
 		setTimeout(async () => {

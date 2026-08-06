@@ -238,6 +238,9 @@ export class AuthService {
 				this.userService
 					.syncProfileFromWordPress(user.id, dto.email)
 					.catch(() => null)
+				this.addressService
+					.importFromWooCommerce(user.id, dto.email)
+					.catch(() => null)
 				if (user.phone)
 					this.userService
 						.syncLoyaltyFromRetailCRM(user.id, user.phone)
@@ -251,6 +254,9 @@ export class AuthService {
 		if (wpData) {
 			if (user) {
 				await this.userService.updatePassword(user.id, await hash(dto.password))
+				this.addressService
+					.importFromWooCommerce(user.id, dto.email)
+					.catch(() => null)
 				return user
 			}
 			const newUser = await this.userService.createFromWordPress(

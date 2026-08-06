@@ -6,3 +6,10 @@ export interface IReceiptItem {
 	payment_object: 'commodity' | 'service'
 	tax: 'none' | 'vat0' | 'vat10' | 'vat20'
 }
+
+export interface IReceipt {
+	sno: 'usn_income'
+	items: IReceiptItem[]
+	email?: string
+	phone?: string
+}

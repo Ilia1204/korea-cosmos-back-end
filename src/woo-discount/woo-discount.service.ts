@@ -107,12 +107,12 @@ export class WooDiscountService {
 					const regular = parseFloat(p.regular_price) || 0
 					return {
 						code: p.meta_data.find(m => m.key === '_ms_xmlid')?.value as string,
-						salePrice:
+						priceRubles:
 							Math.round(regular * (1 - dto.discount / 100) * 100) / 100
 					}
 				})
 				.filter(x => x.code)
-			await this.updateMsProductPrices(productPrices)
+			await this.updateMsProductPrices(productPrices, true)
 		}
 
 		if (dto.isSentNotification && dto.title && dto.message) {
@@ -172,12 +172,15 @@ export class WooDiscountService {
 			}
 		}
 
-		const externalCodes = simpleProducts
-			.map(p => p.meta_data.find(m => m.key === '_ms_xmlid')?.value)
-			.filter(Boolean) as string[]
+		const priceRestores = simpleProducts
+			.map(p => ({
+				code: p.meta_data.find(m => m.key === '_ms_xmlid')?.value as string,
+				priceRubles: parseFloat(p.regular_price) || 0
+			}))
+			.filter(x => x.code)
 
-		if (externalCodes.length) {
-			await this.ms.resetSalePrices(externalCodes)
+		if (priceRestores.length) {
+			await this.updateMsProductPrices(priceRestores, false)
 		}
 
 		return { updated: simpleUpdates.length + variableProducts.length }
@@ -381,14 +384,15 @@ export class WooDiscountService {
 	}
 
 	private async updateMsProductPrices(
-		items: { code: string; salePrice: number }[]
+		items: { code: string; priceRubles: number }[],
+		discountProhibited: boolean
 	) {
-		for (const item of items) {
-			try {
-				await this.ms.updateSalePrices([item.code], item.salePrice)
-			} catch (e) {
-				this.logger.warn(`MS update failed for ${item.code}`)
-			}
+		try {
+			await this.ms.updatePrices(
+				items.map(i => ({ ...i, discountProhibited }))
+			)
+		} catch (e) {
+			this.logger.warn(`MS update failed: ${e}`)
 		}
 	}
 }

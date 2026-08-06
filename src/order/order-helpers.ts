@@ -29,6 +29,18 @@ export function calculateTotal(
 	return afterCoupon + deliveryPrice
 }
 
+export function normalizeReceiptPhone(
+	phone?: string | null
+): string | undefined {
+	if (!phone) return undefined
+	const digits = phone.replace(/\D/g, '')
+	if (digits.length === 11 && digits.startsWith('8'))
+		return `7${digits.slice(1)}`
+	if (digits.length === 11 && digits.startsWith('7')) return digits
+	if (digits.length === 10) return `7${digits}`
+	return undefined
+}
+
 export function buildReceiptItems(
 	items: { name: string; quantity: number; price: number }[],
 	deliveryPrice: number,

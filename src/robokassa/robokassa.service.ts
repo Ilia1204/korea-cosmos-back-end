@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
-import { IReceiptItem } from './robokassa.interface'
+import { IReceipt, IReceiptItem } from './robokassa.interface'
 
 @Injectable()
 export class RobokassaService {
@@ -25,10 +25,15 @@ export class RobokassaService {
 		amount: number,
 		description: string,
 		receiptItems: IReceiptItem[],
-		incCurrLabel?: string
+		incCurrLabel?: string,
+		email?: string,
+		phone?: string
 	): string {
 		const outSum = amount.toFixed(2)
-		const receipt = JSON.stringify({ sno: 'usn_income', items: receiptItems })
+		const receiptData: IReceipt = { sno: 'usn_income', items: receiptItems }
+		if (email) receiptData.email = email
+		else if (phone) receiptData.phone = phone
+		const receipt = JSON.stringify(receiptData)
 		const backendUrl =
 			process.env['APP_URL'] || 'https://korea-cosmos-back-xferpsixo.amvera.io'
 

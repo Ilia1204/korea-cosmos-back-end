@@ -26,7 +26,8 @@ import { AuditService } from 'src/audit/audit.service'
 import {
 	buildOrderData,
 	buildReceiptItems,
-	calculateTotal
+	calculateTotal,
+	normalizeReceiptPhone
 } from './order-helpers'
 
 @Injectable()
@@ -277,7 +278,9 @@ export class OrderService {
 			totalPrice,
 			`Заказ #${order.id.slice(0, 6).toUpperCase()}`,
 			receiptItems,
-			dto.podeli ? 'Podeli' : undefined
+			dto.podeli ? 'Podeli' : undefined,
+			user.email,
+			normalizeReceiptPhone(user.phone)
 		)
 		return { confirmation: { confirmation_url: paymentUrl }, orderId: order.id }
 	}
@@ -290,7 +293,8 @@ export class OrderService {
 				invoiceId: true,
 				podeli: true,
 				deliveryPrice: true,
-				items: true
+				items: true,
+				user: { select: { email: true, phone: true } }
 			}
 		})
 		if (!order) throw new NotFoundException('Заказ не найден')
@@ -320,7 +324,9 @@ export class OrderService {
 			order.totalPrice,
 			`Заказ #${orderId.slice(0, 6).toUpperCase()}`,
 			receiptItems,
-			order.podeli ? 'Podeli' : undefined
+			order.podeli ? 'Podeli' : undefined,
+			order.user?.email,
+			normalizeReceiptPhone(order.user?.phone)
 		)
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}
@@ -439,6 +445,8 @@ export class OrderService {
 				.catch(() => null)
 		}
 
+		const needsManualRefund =
+			order.status === 'payed' && !!(order as any).invoiceId
 		if ((order as any).invoiceId) {
 			this.robokassa
 				.refund((order as any).invoiceId, order.totalPrice)
@@ -479,6 +487,10 @@ export class OrderService {
 				'❌ Заказ отменён клиентом',
 				`Заказ #${id.slice(0, 6).toUpperCase()} отменён пользователем${
 					reason ? `. Причина: ${reason}` : ''
+				}${
+					needsManualRefund
+						? `. ⚠️ Требуется вернуть ${order.totalPrice} ₽ вручную в личном кабинете Robokassa`
+						: ''
 				}`,
 				{ orderId: id, isRead: true }
 			)
