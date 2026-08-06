@@ -87,7 +87,12 @@ export class UserService {
 		})
 	}
 
-	async getAdminUsers(search?: string, page = 1, role?: string, hasOrders?: string) {
+	async getAdminUsers(
+		search?: string,
+		page = 1,
+		role?: string,
+		hasOrders?: string
+	) {
 		const limit = 50
 		const skip = (page - 1) * limit
 		const where: Prisma.UserWhereInput = {}
@@ -231,11 +236,34 @@ export class UserService {
 				displayName: displayName || '',
 				name: wcCustomer?.first_name || '',
 				surname: wcCustomer?.last_name || '',
-				phone: wcCustomer?.billing?.phone || ''
+				phone: wcCustomer?.billing?.phone || '',
+				source: 'site'
 			}
 		})
 
 		const phone = wcCustomer?.billing?.phone
+		this.syncLoyaltyFromRetailCRM(user.id, phone).catch(() => null)
+
+		return user
+	}
+
+	async createFromRetailCrm(
+		email: string,
+		password: string,
+		phone: string,
+		retailCustomer: any
+	) {
+		const user = await this.prisma.user.create({
+			data: {
+				email,
+				password: await hash(password),
+				name: retailCustomer?.firstName || '',
+				surname: retailCustomer?.lastName || '',
+				phone,
+				source: 'retail'
+			}
+		})
+
 		this.syncLoyaltyFromRetailCRM(user.id, phone).catch(() => null)
 
 		return user

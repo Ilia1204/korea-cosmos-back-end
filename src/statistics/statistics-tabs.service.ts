@@ -195,7 +195,7 @@ export class StatisticsTabsService {
 		const startOf30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 		const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-		const [appUsers, newLast30App, activeLast7App, wcTotalRaw, retailOrders, registrationsByMonth] = await Promise.all([
+		const [appUsers, newLast30App, activeLast7App, wcTotalRaw, retailOrders, registrationsByMonth, sourceCounts, sourceCountsLast30] = await Promise.all([
 			this.prisma.user.count({ where: { role: 'user' } }),
 			this.prisma.user.count({ where: { createdAt: { gte: startOf30Days }, role: 'user' } }),
 			this.prisma.user.count({ where: { updatedAt: { gte: startOf7Days }, role: 'user' } }),
@@ -205,7 +205,14 @@ export class StatisticsTabsService {
 				dayjs().format('YYYY-MM-DD HH:mm:ss'),
 			),
 			this.getUserRegistrationsByMonth(),
+			this.prisma.user.groupBy({ by: ['source'], _count: true, where: { role: 'user' } }),
+			this.prisma.user.groupBy({ by: ['source'], _count: true, where: { role: 'user', createdAt: { gte: startOf30Days } } }),
 		])
+
+		const bySource = { app: 0, site: 0, retail: 0 }
+		for (const row of sourceCounts) bySource[row.source] = row._count
+		const bySourceLast30 = { app: 0, site: 0, retail: 0 }
+		for (const row of sourceCountsLast30) bySourceLast30[row.source] = row._count
 
 		const customerMap = new Map<string, { name: string; totalSpent: number; ordersCount: number; phone: string | null; email: string | null }>()
 		for (const o of retailOrders) {
@@ -227,7 +234,22 @@ export class StatisticsTabsService {
 			.slice(0, 5)
 			.map(([id, c]) => ({ userId: id, name: c.name, ordersCount: c.ordersCount, totalSpent: c.totalSpent, phone: c.phone, email: c.email }))
 
-		return { total: appUsers + wcTotalRaw.total, newLast30: newLast30App, activeLast7: activeLast7App, topCustomers, registrationsByMonth }
+		return {
+			// linkedFromSite уже входят в appUsers, но остаются клиентами WooCommerce — не считаем их дважды
+			total: appUsers + wcTotalRaw.total - bySource.site,
+			newLast30: newLast30App,
+			activeLast7: activeLast7App,
+			topCustomers,
+			registrationsByMonth,
+			appAcquisition: {
+				newInApp: bySource.app,
+				linkedFromSite: bySource.site,
+				linkedFromRetail: bySource.retail,
+				newInAppLast30: bySourceLast30.app,
+				linkedFromSiteLast30: bySourceLast30.site,
+				linkedFromRetailLast30: bySourceLast30.retail
+			}
+		}
 	}
 
 	async getUserRegistrationsByMonth() {

@@ -13,14 +13,21 @@ enum Role {
   admin
 }
 
+enum EnumUserSource {
+  app
+  site
+  retail
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  email    String @unique
+  email    String         @unique
   password String
-  role     Role   @default(user)
+  role     Role           @default(user)
+  source   EnumUserSource @default(app)
 
   pushToken  String?   @default("") @map("push_token")
   lastSeenAt DateTime? @map("last_seen_at")
@@ -54,13 +61,13 @@ model CartItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  productId     String  @map("product_id")
-  variationId   Int?    @map("variation_id")
+  productId      String  @map("product_id")
+  variationId    Int?    @map("variation_id")
   variationLabel String? @map("variation_label")
-  quantity      Int     @default(1)
-  price         Float
-  productName   String? @map("product_name")
-  productImage  String? @map("product_image")
+  quantity       Int     @default(1)
+  price          Float
+  productName    String? @map("product_name")
+  productImage   String? @map("product_image")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String @map("user_id")
@@ -298,8 +305,8 @@ model Order {
   address   Address? @relation(fields: [addressId], references: [id])
   addressId String?  @map("address_id")
 
-  invoiceId      Int?     @unique @map("invoice_id")
-  podeli         Boolean  @default(false)
+  invoiceId      Int?    @unique @map("invoice_id")
+  podeli         Boolean @default(false)
   wcOrderId      Int?    @map("wc_order_id")
   trackingNumber String? @default("") @map("tracking_number")
   cdekUuid       String? @map("cdek_uuid")
@@ -316,13 +323,13 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  quantity      Int
-  price         Int
-  productId     String? @map("product_id")
-  variationId   Int?    @map("variation_id")
+  quantity       Int
+  price          Int
+  productId      String? @map("product_id")
+  variationId    Int?    @map("variation_id")
   variationLabel String? @map("variation_label")
-  productName   String? @map("product_name")
-  productImage  String? @map("product_image")
+  productName    String? @map("product_name")
+  productImage   String? @map("product_image")
 
   order   Order?  @relation(fields: [orderId], references: [id])
   orderId String? @map("order_id")
@@ -502,17 +509,17 @@ model ChatMessage {
   roomId String   @map("room_id")
   room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
-  senderId String? @map("sender_id")
-  sender   User?   @relation("ChatMessageSender", fields: [senderId], references: [id])
-  isAdmin  Boolean @default(false) @map("is_admin")
-  text     String  @default("")
-  audioUrl String? @map("audio_url")
+  senderId  String?  @map("sender_id")
+  sender    User?    @relation("ChatMessageSender", fields: [senderId], references: [id])
+  isAdmin   Boolean  @default(false) @map("is_admin")
+  text      String   @default("")
+  audioUrl  String?  @map("audio_url")
   fileUrl   String?  @map("file_url")
   fileName  String?  @map("file_name")
   fileType  String?  @map("file_type")
   fileSize  Int?     @map("file_size")
   imageUrls String[] @default([]) @map("image_urls")
-  isRead   Boolean @default(false) @map("is_read")
+  isRead    Boolean  @default(false) @map("is_read")
 
   editedAt  DateTime? @map("edited_at")
   deletedAt DateTime? @map("deleted_at")
@@ -521,7 +528,7 @@ model ChatMessage {
   replyTo   ChatMessage?  @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("MessageReply")
 
-  pinnedInRooms ChatRoom[] @relation("PinnedMessage")
+  pinnedInRooms ChatRoom[]            @relation("PinnedMessage")
   reactions     ChatMessageReaction[]
 
   @@map("chat_message")

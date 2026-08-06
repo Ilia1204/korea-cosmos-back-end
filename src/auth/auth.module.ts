@@ -6,6 +6,7 @@ import { getJwtConfig } from 'src/config/jwt.config'
 import { EmailModule } from 'src/email/email.module'
 import { NotificationsModule } from 'src/notifications/notifications.module'
 import { PrismaService } from 'src/prisma.service'
+import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { SmsModule } from 'src/sms/sms.module'
 import { UserModule } from 'src/user/user.module'
 import { UserService } from 'src/user/user.service'
@@ -32,7 +33,8 @@ import { JwtStrategy } from './strategies/jwt.strategy'
 		JwtStrategy,
 		UserService,
 		PrismaService,
-		AddressService
-	],
+		AddressService,
+		RetailCrmService
+	]
 })
 export class AuthModule {}

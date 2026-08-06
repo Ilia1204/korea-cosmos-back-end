@@ -12,6 +12,7 @@ import { AddressService } from 'src/address/address.service'
 import { EmailService } from 'src/email/email.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
+import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
@@ -31,7 +32,8 @@ export class AuthService {
 		private addressService: AddressService,
 		private smsService: SmsService,
 		private configService: ConfigService,
-		private notificationsService: NotificationsService
+		private notificationsService: NotificationsService,
+		private retailCrm: RetailCrmService
 	) {}
 
 	async login(dto: AuthDto) {
@@ -168,17 +170,29 @@ export class AuthService {
 						.catch(() => null)
 				}
 			} else {
-				// Нет нигде — создаём нового
-				const email = `${normalized}@phone.koreacosmos.ru`
+				// Нет на сайте — проверяем розницу (RetailCRM) по номеру
+				const retailCustomer = await this.retailCrm.findCustomerByPhone(
+					'+' + normalized
+				)
+				const retailEmail = retailCustomer?.email || null
+
+				const email = retailEmail || `${normalized}@phone.koreacosmos.ru`
 				user = await this.prisma.user.findUnique({ where: { email } })
 				if (!user) {
-					user = await this.prisma.user.create({
-						data: {
-							email,
-							password: await hash(this.generateRandomPassword()),
-							phone: '+' + normalized
-						}
-					})
+					user = retailCustomer
+						? await this.userService.createFromRetailCrm(
+								email,
+								this.generateRandomPassword(),
+								'+' + normalized,
+								retailCustomer
+						  )
+						: await this.prisma.user.create({
+								data: {
+									email,
+									password: await hash(this.generateRandomPassword()),
+									phone: '+' + normalized
+								}
+						  })
 					this.createWordPressAccount(
 						email,
 						this.generateRandomPassword()

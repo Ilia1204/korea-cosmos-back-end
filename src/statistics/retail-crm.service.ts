@@ -175,6 +175,21 @@ export class RetailCrmService {
 		}
 	}
 
+	async findCustomerByPhone(phone: string): Promise<any | null> {
+		if (!this.key) return null
+		try {
+			const params = new URLSearchParams({ limit: '1' })
+			params.set('filter[phone]', phone)
+			const res = await fetch(`${this.url}/api/v5/customers?${params}`, {
+				headers: this.headers
+			})
+			const data = await res.json()
+			return data?.customers?.[0] || null
+		} catch {
+			return null
+		}
+	}
+
 	async getCustomerById(id: number): Promise<any | null> {
 		if (!this.key) return null
 		try {
@@ -205,7 +220,10 @@ export class RetailCrmService {
 			})
 			const res = await fetch(`${this.url}/api/v5/customers/${id}/edit`, {
 				method: 'POST',
-				headers: { ...this.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+				headers: {
+					...this.headers,
+					'Content-Type': 'application/x-www-form-urlencoded'
+				},
 				body: body.toString()
 			})
 			const result = await res.json()
@@ -229,7 +247,10 @@ export class RetailCrmService {
 		}
 	}
 
-	async updateOrderStatus(retailId: number, retailStatus: string): Promise<boolean> {
+	async updateOrderStatus(
+		retailId: number,
+		retailStatus: string
+	): Promise<boolean> {
 		if (!this.key) return false
 		try {
 			const body = new URLSearchParams({
@@ -238,7 +259,10 @@ export class RetailCrmService {
 			})
 			const res = await fetch(`${this.url}/api/v5/orders/${retailId}/edit`, {
 				method: 'POST',
-				headers: { ...this.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+				headers: {
+					...this.headers,
+					'Content-Type': 'application/x-www-form-urlencoded'
+				},
 				body: body.toString()
 			})
 			const data = await res.json()
@@ -258,7 +282,11 @@ export class RetailCrmService {
 			headers: this.headers
 		})
 		const data = await res.json().catch(() => null)
-		this.logger.log(`[RetailCRM] markPaymentsAsPaid retailId=${retailId} payments=${JSON.stringify(data?.order?.payments)}`)
+		this.logger.log(
+			`[RetailCRM] markPaymentsAsPaid retailId=${retailId} payments=${JSON.stringify(
+				data?.order?.payments
+			)}`
+		)
 		if (!data?.success || !data.order) return
 
 		const paymentsRaw = data.order.payments
@@ -278,14 +306,21 @@ export class RetailCrmService {
 				`${this.url}/api/v5/orders/payments/${payment.id}/edit`,
 				{
 					method: 'POST',
-					headers: { ...this.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+					headers: {
+						...this.headers,
+						'Content-Type': 'application/x-www-form-urlencoded'
+					},
 					body: new URLSearchParams({
 						payment: JSON.stringify({ status: 'paid' })
 					}).toString()
 				}
 			)
 			const editData = await editRes.json().catch(() => null)
-			this.logger.log(`[RetailCRM] Payment ${payment.id} edit result: ${JSON.stringify(editData)}`)
+			this.logger.log(
+				`[RetailCRM] Payment ${payment.id} edit result: ${JSON.stringify(
+					editData
+				)}`
+			)
 		}
 	}
 }
