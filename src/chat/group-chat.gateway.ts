@@ -53,6 +53,7 @@ export class GroupChatGateway
 		if (!meta) return
 		this.roomSockets.get(meta.roomId)?.delete(socket.id)
 		this.socketMeta.delete(socket.id)
+		this.chat.updateLastSeen(meta.userId).catch(() => null)
 		this.broadcastToRoom(meta.roomId, 'presence:left', {
 			userId: meta.userId
 		})

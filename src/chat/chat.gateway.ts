@@ -105,16 +105,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			isBackground: false
 		})
 
-		const readIds = await this.chat.markAsReadAndGetIds(
-			roomId,
-			!!socket.isAdmin
-		)
-		if (readIds.length > 0) {
-			this.emitToPartner(roomId, !!socket.isAdmin, 'messages:read', {
-				ids: readIds
-			})
-		}
-
 		if (!socket.isAdmin) {
 			const count = await this.chat.getMessageCount(roomId)
 			if (count === 0) {
@@ -134,6 +124,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			roomId,
 			roomStatus: roomStatus ?? 'open'
 		})
+
+		const readIds = await this.chat.markAsReadAndGetIds(
+			roomId,
+			!!socket.isAdmin
+		)
+		if (readIds.length > 0) {
+			this.emitToPartner(roomId, !!socket.isAdmin, 'messages:read', {
+				ids: readIds
+			})
+		}
 
 		// Tell partner we joined
 		this.emitToPartner(roomId, !!socket.isAdmin, 'presence:joined', {

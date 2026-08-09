@@ -14,7 +14,8 @@ export class GroupChatService {
 		name: true,
 		displayName: true,
 		avatarPath: true,
-		role: true
+		role: true,
+		lastSeenAt: true
 	}
 
 	private messageInclude = {
@@ -228,6 +229,13 @@ export class GroupChatService {
 			data: { isMuted: !p.isMuted }
 		})
 		return updated.isMuted
+	}
+
+	async updateLastSeen(userId: string) {
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: { lastSeenAt: new Date() }
+		})
 	}
 
 	async touchRoom(roomId: string) {
