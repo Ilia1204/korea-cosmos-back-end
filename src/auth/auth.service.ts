@@ -151,6 +151,7 @@ export class AuthService {
 		let user = await this.prisma.user.findFirst({
 			where: { phone: { contains: normalized.slice(-10) } }
 		})
+		const isNewUser = !user
 
 		if (!user) {
 			// Ищем в WooCommerce по номеру
@@ -218,7 +219,12 @@ export class AuthService {
 		const tokens = this.issueTokens(user.id)
 		this.addRefreshTokenToResponse(res, tokens.refreshToken)
 
-		return { authorized: true, user: safeUser, accessToken: tokens.accessToken }
+		return {
+			authorized: true,
+			user: safeUser,
+			accessToken: tokens.accessToken,
+			isNewUser
+		}
 	}
 
 	private async findWpEmailByPhone(normalized: string): Promise<string | null> {

@@ -173,11 +173,128 @@ export class GroupChatService {
 		})
 	}
 
+	async searchMessages(roomId: string, query: string) {
+		return this.prisma.groupChatMessage.findMany({
+			where: {
+				roomId,
+				deletedAt: null,
+				text: { contains: query, mode: 'insensitive' }
+			},
+			orderBy: { createdAt: 'desc' },
+			take: 50,
+			include: this.messageInclude
+		})
+	}
+
+	async getLastMessage(roomId: string) {
+		return this.prisma.groupChatMessage.findFirst({
+			where: { roomId },
+			orderBy: { createdAt: 'desc' },
+			select: {
+				text: true,
+				imageUrls: true,
+				createdAt: true,
+				senderId: true,
+				sender: { select: { name: true, displayName: true } }
+			}
+		})
+	}
+
+	async getUnreadCount(roomId: string, userId: string) {
+		return this.prisma.groupChatMessage.count({
+			where: {
+				roomId,
+				senderId: { not: userId },
+				NOT: { readByIds: { has: userId } }
+			}
+		})
+	}
+
 	async touchRoom(roomId: string) {
 		await this.prisma.groupChatRoom.update({
 			where: { id: roomId },
 			data: { updatedAt: new Date() }
 		})
+	}
+
+	async sendAddedToChatPush(userId: string, addedByUserId: string) {
+		const addedBy = await this.prisma.user.findUnique({
+			where: { id: addedByUserId },
+			select: { name: true, displayName: true }
+		})
+		const addedByName = addedBy?.name || addedBy?.displayName || 'Администратор'
+		const title = '💬 Командный чат'
+		const body = `${addedByName} добавил(а) вас в командный чат`
+		const data = { screen: 'TeamChat' }
+
+		const notification = await this.notifications.saveNotification(
+			userId,
+			title,
+			body,
+			data
+		)
+		await this.notifications
+			.sendPushNotificationToUser(userId, title, body, {
+				...data,
+				notificationId: notification.id
+			})
+			.catch(() => {})
+	}
+
+	async sendRemovedFromChatPush(userId: string, removedByUserId: string) {
+		const removedBy = await this.prisma.user.findUnique({
+			where: { id: removedByUserId },
+			select: { name: true, displayName: true }
+		})
+		const removedByName =
+			removedBy?.name || removedBy?.displayName || 'Администратор'
+		const title = '💬 Командный чат'
+		const body = `${removedByName} удалил(а) вас из командного чата`
+		const data = { screen: 'TeamChat' }
+
+		const notification = await this.notifications.saveNotification(
+			userId,
+			title,
+			body,
+			data
+		)
+		await this.notifications
+			.sendPushNotificationToUser(userId, title, body, {
+				...data,
+				notificationId: notification.id
+			})
+			.catch(() => {})
+	}
+
+	async sendJoinedPushToParticipants(
+		roomId: string,
+		userId: string,
+		actorUserId: string
+	) {
+		const joined = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { name: true, displayName: true, role: true }
+		})
+		if (!joined) return
+		const joinedName = joined.name || joined.displayName || 'Менеджер'
+		const roleLabel = joined.role === 'admin' ? 'администратора' : 'менеджера'
+
+		const participants = await this.listParticipants(roomId)
+		const targets = participants.filter(
+			p => p.id !== userId && p.id !== actorUserId
+		)
+		await Promise.all(
+			targets.map(p =>
+				this.notifications
+					.sendPushNotificationToUser(
+						p.id,
+						'👋 Новый участник',
+						`${joinedName} присоединился(-ась) к командному чату в качестве ${roleLabel}`,
+						{ screen: 'TeamChat' }
+					)
+					.catch(() => {})
+			)
+		)
 	}
 
 	async sendPushToParticipants(

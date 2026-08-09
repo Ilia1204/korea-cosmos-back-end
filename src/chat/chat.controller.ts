@@ -16,12 +16,14 @@ import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { FileService } from 'src/file/file.service'
 import { ChatService } from './chat.service'
+import { GroupChatService } from './group-chat.service'
 
 @Controller('chat')
 export class ChatController {
 	constructor(
 		private chat: ChatService,
-		private file: FileService
+		private file: FileService,
+		private groupChat: GroupChatService
 	) {}
 
 	@Post('upload-file')
@@ -43,9 +45,19 @@ export class ChatController {
 
 	@Get('unread-count')
 	@Auth('manager')
-	async getUnreadCount() {
-		const count = await this.chat.getUnreadRoomsCount()
-		return { count }
+	async getUnreadCount(@CurrentUser('id') userId: string) {
+		const [supportCount, teamRoom] = await Promise.all([
+			this.chat.getUnreadRoomsCount(),
+			this.groupChat.getOrCreateDefaultRoom()
+		])
+		const isParticipant = await this.groupChat.isParticipant(
+			teamRoom.id,
+			userId
+		)
+		const teamUnread = isParticipant
+			? await this.groupChat.getUnreadCount(teamRoom.id, userId)
+			: 0
+		return { count: supportCount + (teamUnread > 0 ? 1 : 0) }
 	}
 
 	@Get('rooms')
@@ -55,6 +67,8 @@ export class ChatController {
 		return rooms.map(r => ({
 			id: r.id,
 			updatedAt: r.updatedAt,
+			status: r.status,
+			pinned: r.pinned,
 			user: r.user,
 			lastMessage: r.messages[0] ?? null,
 			unreadCount: r.unreadCount
@@ -76,6 +90,13 @@ export class ChatController {
 	async deleteRoom(@Param('roomId') roomId: string) {
 		await this.chat.deleteRoom(roomId)
 		return { ok: true }
+	}
+
+	@Post('rooms/:roomId/pin')
+	@Auth('manager')
+	async togglePin(@Param('roomId') roomId: string) {
+		const pinned = await this.chat.togglePin(roomId)
+		return { pinned }
 	}
 
 	@Post('rooms/:roomId/mute')

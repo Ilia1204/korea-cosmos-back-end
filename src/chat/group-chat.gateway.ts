@@ -134,12 +134,14 @@ export class GroupChatGateway
 
 		this.broadcastToRoom(meta.roomId, 'message', msg)
 
-		const senderName = msg.sender.displayName || msg.sender.name || 'Кто-то'
-		const pushBody = imageUrls?.length ? `📷 ${imageUrls.length} фото` : text
+		const senderName = msg.sender.name || msg.sender.displayName || 'Кто-то'
+		const messageText = imageUrls?.length
+			? `📷 ${imageUrls.length > 1 ? `${imageUrls.length} фото` : 'Фото'}`
+			: text
 		await this.chat.sendPushToParticipants(
 			meta.roomId,
-			senderName,
-			pushBody,
+			'💬 Командный чат',
+			`${senderName}: ${messageText}`,
 			meta.userId,
 			onlineOthers
 		)
@@ -224,6 +226,20 @@ export class GroupChatGateway
 			messageId: data.messageId,
 			reactions
 		})
+	}
+
+	kickParticipant(userId: string) {
+		for (const [socketId, meta] of this.socketMeta.entries()) {
+			if (meta.userId !== userId) continue
+			this.roomSockets.get(meta.roomId)?.delete(socketId)
+			this.socketMeta.delete(socketId)
+			this.broadcastToRoom(meta.roomId, 'presence:left', { userId })
+			const socket = this.server.sockets.sockets.get(socketId)
+			if (socket) {
+				socket.emit('kicked')
+				socket.disconnect(true)
+			}
+		}
 	}
 
 	private broadcastToRoom(

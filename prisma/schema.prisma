@@ -500,6 +500,7 @@ model ChatRoom {
   pinnedMessage   ChatMessage?  @relation("PinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
   mutedByIds      String[]      @default([]) @map("muted_by_ids")
   status          String        @default("open") @map("status")
+  pinned          Boolean       @default(false) @map("pinned")
 
   @@map("chat_room")
 }

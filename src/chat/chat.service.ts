@@ -158,7 +158,7 @@ export class ChatService {
 	async getAllRooms() {
 		const rooms = await this.prisma.chatRoom.findMany({
 			where: { user: { role: 'user' } },
-			orderBy: { updatedAt: 'desc' },
+			orderBy: [{ pinned: 'desc' }, { updatedAt: 'desc' }],
 			include: {
 				user: {
 					select: {
@@ -350,5 +350,18 @@ export class ChatService {
 			select: { mutedByIds: true }
 		})
 		return room?.mutedByIds ?? []
+	}
+
+	async togglePin(roomId: string): Promise<boolean> {
+		const room = await this.prisma.chatRoom.findUnique({
+			where: { id: roomId },
+			select: { pinned: true }
+		})
+		if (!room) return false
+		const updated = await this.prisma.chatRoom.update({
+			where: { id: roomId },
+			data: { pinned: !room.pinned }
+		})
+		return updated.pinned
 	}
 }

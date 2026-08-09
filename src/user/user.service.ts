@@ -213,14 +213,25 @@ export class UserService {
 	}
 
 	async create(dto: AuthDto) {
-		const user = {
-			email: dto.email,
-			password: await hash(dto.password)
-		}
+		const wcCustomer = await this.getWooCommerceCustomer(dto.email)
 
-		return this.prisma.user.create({
-			data: user
+		const user = await this.prisma.user.create({
+			data: {
+				email: dto.email,
+				password: await hash(dto.password),
+				name: wcCustomer?.first_name || '',
+				surname: wcCustomer?.last_name || '',
+				phone: wcCustomer?.billing?.phone || '',
+				source: wcCustomer ? 'site' : 'app'
+			}
 		})
+
+		if (wcCustomer?.billing?.phone)
+			this.syncLoyaltyFromRetailCRM(user.id, wcCustomer.billing.phone).catch(
+				() => null
+			)
+
+		return user
 	}
 
 	async createFromWordPress(
@@ -352,6 +363,35 @@ export class UserService {
 		}
 	}
 
+	private async fillProfileFromRetailCrm(userId: string, phone: string) {
+		try {
+			const retailUrl =
+				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
+			const apiKey = process.env.RETAILCRM_API_KEY
+			if (!apiKey || !phone) return
+
+			const params = new URLSearchParams({ limit: '1' })
+			params.append('filter[phone]', phone.replace(/\D/g, ''))
+
+			const res = await fetch(`${retailUrl}/api/v5/customers?${params}`, {
+				headers: { 'X-API-KEY': apiKey }
+			})
+			const data = await res.json()
+			const customer = data?.customers?.[0]
+			if (!customer) return
+
+			await this.prisma.user.update({
+				where: { id: userId },
+				data: {
+					name: customer.firstName || '',
+					surname: customer.lastName || ''
+				}
+			})
+		} catch {
+			// silent fail
+		}
+	}
+
 	async recalculateLoyaltyLevel(userId: string) {
 		const userLoyalty = await this.prisma.userLoyalty.findUnique({
 			where: { userId }
@@ -460,14 +500,52 @@ export class UserService {
 		if (isSameUser && id !== isSameUser.id)
 			throw new BadRequestException('Данный email уже занят')
 
+		const currentUser = await this.prisma.user.findUnique({
+			where: { id },
+			select: { phone: true, name: true, surname: true }
+		})
+
+		if (dto.phone) {
+			const phoneOwner = await this.prisma.user.findFirst({
+				where: { phone: dto.phone, NOT: { id } }
+			})
+			if (phoneOwner)
+				throw new BadRequestException(
+					'Этот номер телефона уже используется другим аккаунтом'
+				)
+		}
+
 		let data = dto
 		if (dto.password) data = { ...dto, password: await hash(dto.password) }
+
+		const currentRole = await this.prisma.user.findUnique({
+			where: { id },
+			select: { role: true }
+		})
 
 		const updatedUser = await this.prisma.user.update({
 			where: { id },
 			data: { ...data },
 			select: { ...returnUserObject }
 		})
+
+		if (
+			dto.role &&
+			dto.role === 'user' &&
+			currentRole &&
+			currentRole.role !== 'user'
+		) {
+			await this.prisma.groupChatParticipant.deleteMany({
+				where: { userId: id }
+			})
+		}
+
+		// Если телефон только что добавили/сменили — подтягиваем лояльность и (если профиль пустой) имя из розницы
+		if (dto.phone && dto.phone !== currentUser?.phone) {
+			this.syncLoyaltyFromRetailCRM(id, dto.phone).catch(() => null)
+			if (!currentUser?.name && !currentUser?.surname)
+				this.fillProfileFromRetailCrm(id, dto.phone).catch(() => null)
+		}
 
 		return updatedUser
 	}
