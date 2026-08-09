@@ -54,7 +54,9 @@ export class NotificationsService {
 			sound: 'default',
 			title,
 			body,
-			data
+			data,
+			priority: 'high',
+			channelId: 'default'
 		}))
 
 		const chunks = this.expo.chunkPushNotifications(messages)
