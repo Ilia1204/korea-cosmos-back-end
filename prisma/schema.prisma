@@ -52,6 +52,8 @@ model User {
   cartItems            CartItem[]
   chatRoom             ChatRoom?
   chatMessages         ChatMessage[]          @relation("ChatMessageSender")
+  groupChatParticipant GroupChatParticipant[]
+  groupChatMessages    GroupChatMessage[]     @relation("GroupChatMessageSender")
 
   @@map("user")
 }
@@ -546,4 +548,81 @@ model ChatMessageReaction {
 
   @@unique([messageId, userId, emoji])
   @@map("chat_message_reaction")
+}
+
+model GroupChatRoom {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  title String @default("Командный чат")
+
+  participants    GroupChatParticipant[]
+  messages        GroupChatMessage[]
+  pinnedMessageId String?                @map("pinned_message_id")
+  pinnedMessage   GroupChatMessage?      @relation("GroupChatPinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
+
+  @@map("group_chat_room")
+}
+
+model GroupChatParticipant {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  roomId String        @map("room_id")
+  room   GroupChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isMuted Boolean @default(false) @map("is_muted")
+
+  @@unique([roomId, userId])
+  @@map("group_chat_participant")
+}
+
+model GroupChatMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  roomId String        @map("room_id")
+  room   GroupChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  senderId String @map("sender_id")
+  sender   User   @relation("GroupChatMessageSender", fields: [senderId], references: [id])
+
+  text      String   @default("")
+  audioUrl  String?  @map("audio_url")
+  fileUrl   String?  @map("file_url")
+  fileName  String?  @map("file_name")
+  fileType  String?  @map("file_type")
+  fileSize  Int?     @map("file_size")
+  imageUrls String[] @default([]) @map("image_urls")
+  readByIds String[] @default([]) @map("read_by_ids")
+
+  editedAt  DateTime? @map("edited_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  replyToId String?            @map("reply_to_id")
+  replyTo   GroupChatMessage?  @relation("GroupChatMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   GroupChatMessage[] @relation("GroupChatMessageReply")
+
+  pinnedInRooms GroupChatRoom[]            @relation("GroupChatPinnedMessage")
+  reactions     GroupChatMessageReaction[]
+
+  @@map("group_chat_message")
+}
+
+model GroupChatMessageReaction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  messageId String           @map("message_id")
+  message   GroupChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  emoji  String
+
+  @@unique([messageId, userId, emoji])
+  @@map("group_chat_message_reaction")
 }

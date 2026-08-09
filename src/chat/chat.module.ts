@@ -6,6 +6,9 @@ import { getJwtConfig } from 'src/config/jwt.config'
 import { ChatController } from './chat.controller'
 import { ChatGateway } from './chat.gateway'
 import { ChatService } from './chat.service'
+import { GroupChatController } from './group-chat.controller'
+import { GroupChatGateway } from './group-chat.gateway'
+import { GroupChatService } from './group-chat.service'
 import { FileService } from 'src/file/file.service'
 import { NotificationsModule } from 'src/notifications/notifications.module'
 
@@ -19,7 +22,14 @@ import { NotificationsModule } from 'src/notifications/notifications.module'
 		}),
 		NotificationsModule
 	],
-	controllers: [ChatController],
-	providers: [ChatGateway, ChatService, PrismaService, FileService]
+	controllers: [ChatController, GroupChatController],
+	providers: [
+		ChatGateway,
+		ChatService,
+		GroupChatGateway,
+		GroupChatService,
+		PrismaService,
+		FileService
+	]
 })
 export class ChatModule {}
