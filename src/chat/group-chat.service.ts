@@ -195,6 +195,7 @@ export class GroupChatService {
 				imageUrls: true,
 				createdAt: true,
 				senderId: true,
+				deletedAt: true,
 				sender: { select: { name: true, displayName: true } }
 			}
 		})
