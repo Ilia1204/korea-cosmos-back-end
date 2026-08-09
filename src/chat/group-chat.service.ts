@@ -210,6 +210,25 @@ export class GroupChatService {
 		})
 	}
 
+	async getMuteStatus(roomId: string, userId: string): Promise<boolean> {
+		const p = await this.prisma.groupChatParticipant.findUnique({
+			where: { roomId_userId: { roomId, userId } }
+		})
+		return p?.isMuted ?? false
+	}
+
+	async toggleMute(roomId: string, userId: string): Promise<boolean> {
+		const p = await this.prisma.groupChatParticipant.findUnique({
+			where: { roomId_userId: { roomId, userId } }
+		})
+		if (!p) return false
+		const updated = await this.prisma.groupChatParticipant.update({
+			where: { roomId_userId: { roomId, userId } },
+			data: { isMuted: !p.isMuted }
+		})
+		return updated.isMuted
+	}
+
 	async touchRoom(roomId: string) {
 		await this.prisma.groupChatRoom.update({
 			where: { id: roomId },
@@ -304,14 +323,20 @@ export class GroupChatService {
 		excludeUserId: string,
 		onlineUserIds: string[]
 	) {
-		const participants = await this.listParticipants(roomId)
+		const participants = await this.prisma.groupChatParticipant.findMany({
+			where: { roomId },
+			select: { userId: true, isMuted: true }
+		})
 		const targets = participants.filter(
-			p => p.id !== excludeUserId && !onlineUserIds.includes(p.id)
+			p =>
+				p.userId !== excludeUserId &&
+				!onlineUserIds.includes(p.userId) &&
+				!p.isMuted
 		)
 		await Promise.all(
 			targets.map(p =>
 				this.notifications
-					.sendPushNotificationToUser(p.id, title, body, {
+					.sendPushNotificationToUser(p.userId, title, body, {
 						screen: 'TeamChat'
 					})
 					.catch(() => {})

@@ -22,49 +22,43 @@ export class NotificationsService {
 	}
 
 	async sendBroadcast(title: string, body: string, data?: object) {
-		const users = await this.prisma.user.findMany({
-			where: { pushToken: { not: null } },
-			select: { id: true, pushToken: true }
+		const tokens = await this.prisma.pushToken.findMany({
+			select: { id: true, token: true, userId: true }
 		})
 
-		const messages: ExpoPushMessage[] = users
-			.filter(u => Expo.isExpoPushToken(u.pushToken!))
-			.map(u => ({ to: u.pushToken!, sound: 'default', title, body, data }))
+		await this.sendToTokens(tokens, title, body, data)
 
-		const chunks = this.expo.chunkPushNotifications(messages)
-		for (const chunk of chunks) {
-			try {
-				const tickets = await this.expo.sendPushNotificationsAsync(chunk)
-				for (let i = 0; i < tickets.length; i++) {
-					if (
-						tickets[i].status === 'error' &&
-						(tickets[i] as any).details?.error === 'DeviceNotRegistered'
-					) {
-						await this.prisma.user.update({
-							where: { id: users[i].id },
-							data: { pushToken: null }
-						})
-					}
-				}
-			} catch {}
-		}
-
+		const userIds = [...new Set(tokens.map(t => t.userId))]
 		await this.prisma.notification.createMany({
-			data: users.map(u => ({ userId: u.id, title, body, data: data ?? {} }))
+			data: userIds.map(userId => ({ userId, title, body, data: data ?? {} }))
 		})
 	}
 
 	async sendBroadcastPushOnly(title: string, body: string, data?: object) {
-		const users = await this.prisma.user.findMany({
-			where: { pushToken: { not: null } },
-			select: { id: true, pushToken: true }
+		const tokens = await this.prisma.pushToken.findMany({
+			select: { id: true, token: true, userId: true }
 		})
 
-		const messages: ExpoPushMessage[] = users
-			.filter(u => Expo.isExpoPushToken(u.pushToken!))
-			.map(u => ({ to: u.pushToken!, sound: 'default', title, body, data }))
+		await this.sendToTokens(tokens, title, body, data)
+	}
+
+	private async sendToTokens(
+		tokens: { id: string; token: string }[],
+		title: string,
+		body: string,
+		data?: object
+	) {
+		const valid = tokens.filter(t => Expo.isExpoPushToken(t.token))
+		const messages: ExpoPushMessage[] = valid.map(t => ({
+			to: t.token,
+			sound: 'default',
+			title,
+			body,
+			data
+		}))
 
 		const chunks = this.expo.chunkPushNotifications(messages)
+		let offset = 0
 		for (const chunk of chunks) {
 			try {
 				const tickets = await this.expo.sendPushNotificationsAsync(chunk)
@@ -73,13 +67,26 @@ export class NotificationsService {
 						tickets[i].status === 'error' &&
 						(tickets[i] as any).details?.error === 'DeviceNotRegistered'
 					) {
-						await this.prisma.user.update({
-							where: { id: users[i].id },
-							data: { pushToken: null }
-						})
+						await this.removePushToken(valid[offset + i].token)
 					}
 				}
 			} catch {}
+			offset += chunk.length
+		}
+	}
+
+	private async removePushToken(token: string) {
+		const removed = await this.prisma.pushToken
+			.delete({ where: { token } })
+			.catch(() => null)
+		if (!removed) return
+		const remaining = await this.prisma.pushToken.count({
+			where: { userId: removed.userId }
+		})
+		if (remaining === 0) {
+			await this.prisma.user
+				.update({ where: { id: removed.userId }, data: { pushToken: null } })
+				.catch(() => {})
 		}
 	}
 
@@ -94,13 +101,16 @@ export class NotificationsService {
 
 		await Promise.all(
 			admins.map(async admin => {
-				const notification = await this.saveNotification(admin.id, title, message, data)
-				if (admin.pushToken) {
-					return this.sendPushNotificationToUser(admin.id, title, message, {
-						...data,
-						notificationId: notification.id
-					})
-				}
+				const notification = await this.saveNotification(
+					admin.id,
+					title,
+					message,
+					data
+				)
+				return this.sendPushNotificationToUser(admin.id, title, message, {
+					...data,
+					notificationId: notification.id
+				})
 			})
 		)
 	}
@@ -111,35 +121,13 @@ export class NotificationsService {
 		message: string,
 		data: any
 	) {
-		const user = await this.prisma.user.findUnique({ where: { id: userId } })
+		const tokens = await this.prisma.pushToken.findMany({
+			where: { userId },
+			select: { id: true, token: true, userId: true }
+		})
+		if (!tokens.length) return
 
-		if (user?.pushToken) {
-			const messages: ExpoPushMessage = {
-				to: user.pushToken,
-				sound: 'default',
-				title,
-				body: message,
-				data
-			}
-
-			try {
-				const ticketChunk = await this.expo.sendPushNotificationsAsync([
-					messages
-				])
-
-				if (
-					ticketChunk[0].status === 'error' &&
-					ticketChunk[0].details?.error === 'DeviceNotRegistered'
-				) {
-					await this.prisma.user.update({
-						where: { id: userId },
-						data: { pushToken: null }
-					})
-				}
-			} catch (error) {
-				console.error(error)
-			}
-		}
+		await this.sendToTokens(tokens, title, message, data)
 	}
 
 	async getNotificationsForUser(userId: string) {
@@ -344,16 +332,33 @@ export class NotificationsService {
 		const user = await this.user.getById(id)
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
+		await this.prisma.pushToken.upsert({
+			where: { token },
+			create: { token, userId: user.id },
+			update: { userId: user.id }
+		})
+
 		return this.prisma.user.update({
 			where: { id: user.id },
 			data: { pushToken: token }
 		})
 	}
 
-	async clearPushToken(id: string) {
+	async clearPushToken(id: string, token?: string) {
+		if (token) {
+			await this.prisma.pushToken
+				.deleteMany({ where: { userId: id, token } })
+				.catch(() => {})
+		} else {
+			await this.prisma.pushToken.deleteMany({ where: { userId: id } })
+		}
+
+		const remaining = await this.prisma.pushToken.count({
+			where: { userId: id }
+		})
 		return this.prisma.user.update({
 			where: { id },
-			data: { pushToken: null }
+			data: { pushToken: remaining === 0 ? null : undefined }
 		})
 	}
 

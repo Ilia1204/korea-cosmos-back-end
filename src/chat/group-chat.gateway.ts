@@ -78,6 +78,9 @@ export class GroupChatGateway
 		const history = await this.chat.getHistory(room.id)
 		socket.emit('history', history)
 		socket.emit('joined', { roomId: room.id })
+		socket.emit('presence:list', {
+			userIds: this.getOnlineUserIds(room.id)
+		})
 		this.broadcastToRoom(
 			room.id,
 			'presence:joined',

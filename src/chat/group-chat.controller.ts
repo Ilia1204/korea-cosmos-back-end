@@ -58,6 +58,22 @@ export class GroupChatController {
 		return this.chat.searchMessages(room.id, q.trim())
 	}
 
+	@Get('mute')
+	@Auth('manager')
+	async getMuteStatus(@CurrentUser('id') userId: string) {
+		const room = await this.chat.getOrCreateDefaultRoom()
+		const isMuted = await this.chat.getMuteStatus(room.id, userId)
+		return { isMuted }
+	}
+
+	@Post('mute')
+	@Auth('manager')
+	async toggleMute(@CurrentUser('id') userId: string) {
+		const room = await this.chat.getOrCreateDefaultRoom()
+		const isMuted = await this.chat.toggleMute(room.id, userId)
+		return { isMuted }
+	}
+
 	@Get('participants')
 	@Auth('manager')
 	async getParticipants() {

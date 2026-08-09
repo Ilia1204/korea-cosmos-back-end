@@ -71,8 +71,11 @@ export class NotificationsController {
 	@HttpCode(200)
 	@Delete('token')
 	@Auth()
-	async clearToken(@CurrentUser('id') id: string) {
-		return this.notificationsService.clearPushToken(id)
+	async clearToken(
+		@CurrentUser('id') id: string,
+		@Body() body: { token?: string }
+	) {
+		return this.notificationsService.clearPushToken(id, body?.token)
 	}
 
 	@HttpCode(200)

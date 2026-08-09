@@ -54,8 +54,21 @@ model User {
   chatMessages         ChatMessage[]          @relation("ChatMessageSender")
   groupChatParticipant GroupChatParticipant[]
   groupChatMessages    GroupChatMessage[]     @relation("GroupChatMessageSender")
+  pushTokens           PushToken[]
 
   @@map("user")
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  token  String @unique
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_token")
 }
 
 model CartItem {
