@@ -18,6 +18,7 @@ interface AuthSocket extends Socket {
 interface SocketMeta {
 	userId: string
 	roomId: string
+	isBackground: boolean
 }
 
 @WebSocketGateway({ cors: { origin: '*' }, namespace: '/group-chat' })
@@ -73,7 +74,11 @@ export class GroupChatGateway
 
 		if (!this.roomSockets.has(room.id)) this.roomSockets.set(room.id, new Set())
 		this.roomSockets.get(room.id)!.add(socket.id)
-		this.socketMeta.set(socket.id, { userId: socket.userId, roomId: room.id })
+		this.socketMeta.set(socket.id, {
+			userId: socket.userId,
+			roomId: room.id,
+			isBackground: false
+		})
 
 		const history = await this.chat.getHistory(room.id)
 		socket.emit('history', history)
@@ -148,6 +153,18 @@ export class GroupChatGateway
 			meta.userId,
 			onlineOthers
 		)
+	}
+
+	@SubscribeMessage('app:background')
+	handleBackground(@ConnectedSocket() socket: AuthSocket) {
+		const meta = this.socketMeta.get(socket.id)
+		if (meta) meta.isBackground = true
+	}
+
+	@SubscribeMessage('app:foreground')
+	handleForeground(@ConnectedSocket() socket: AuthSocket) {
+		const meta = this.socketMeta.get(socket.id)
+		if (meta) meta.isBackground = false
 	}
 
 	@SubscribeMessage('typing:start')
@@ -261,7 +278,8 @@ export class GroupChatGateway
 	private getOnlineUserIds(roomId: string): string[] {
 		const sockets = this.roomSockets.get(roomId) ?? new Set()
 		return [...sockets]
-			.map(sid => this.socketMeta.get(sid)?.userId)
-			.filter((id): id is string => !!id)
+			.map(sid => this.socketMeta.get(sid))
+			.filter((m): m is SocketMeta => !!m && !m.isBackground)
+			.map(m => m.userId)
 	}
 }
