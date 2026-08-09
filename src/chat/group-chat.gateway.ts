@@ -94,11 +94,15 @@ export class GroupChatGateway
 			socket.id
 		)
 
-		const readIds = await this.chat.markRoomAsRead(room.id, socket.userId)
+		const { ids: readIds, readAt } = await this.chat.markRoomAsRead(
+			room.id,
+			socket.userId
+		)
 		if (readIds.length > 0) {
 			this.broadcastToRoom(room.id, 'messages:read', {
 				ids: readIds,
-				userId: socket.userId
+				userId: socket.userId,
+				readAt
 			})
 		}
 	}

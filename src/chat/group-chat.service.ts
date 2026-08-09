@@ -89,38 +89,52 @@ export class GroupChatService {
 		imageUrls?: string[],
 		alsoReadByIds: string[] = []
 	) {
+		const readByIds = [...new Set([senderId, ...alsoReadByIds])]
+		const now = new Date().toISOString()
+		const readReceipts = Object.fromEntries(readByIds.map(id => [id, now]))
 		return this.prisma.groupChatMessage.create({
 			data: {
 				roomId,
 				senderId,
 				text,
 				replyToId,
-				readByIds: [...new Set([senderId, ...alsoReadByIds])],
+				readByIds,
+				readReceipts,
 				...(imageUrls?.length ? { imageUrls } : {})
 			},
 			include: this.messageInclude
 		})
 	}
 
-	async markRoomAsRead(roomId: string, userId: string): Promise<string[]> {
+	async markRoomAsRead(
+		roomId: string,
+		userId: string
+	): Promise<{ ids: string[]; readAt: string }> {
 		const unread = await this.prisma.groupChatMessage.findMany({
 			where: {
 				roomId,
 				senderId: { not: userId },
 				NOT: { readByIds: { has: userId } }
 			},
-			select: { id: true }
+			select: { id: true, readReceipts: true }
 		})
-		if (unread.length === 0) return []
+		if (unread.length === 0) return { ids: [], readAt: new Date().toISOString() }
+		const readAt = new Date().toISOString()
 		await this.prisma.$transaction(
 			unread.map(m =>
 				this.prisma.groupChatMessage.update({
 					where: { id: m.id },
-					data: { readByIds: { push: userId } }
+					data: {
+						readByIds: { push: userId },
+						readReceipts: {
+							...((m.readReceipts as Record<string, string>) ?? {}),
+							[userId]: readAt
+						}
+					}
 				})
 			)
 		)
-		return unread.map(m => m.id)
+		return { ids: unread.map(m => m.id), readAt }
 	}
 
 	async toggleReaction(messageId: string, userId: string, emoji: string) {
