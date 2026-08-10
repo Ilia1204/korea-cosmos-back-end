@@ -101,16 +101,9 @@ export class NotificationsScheduledService {
 
 	@Cron('0 17 * * *')
 	async handleAdminOrdersReminder() {
-		const todayStart = new Date()
-		todayStart.setHours(0, 0, 0, 0)
-
 		const [payedCount, readyCount] = await Promise.all([
-			this.prisma.order.count({
-				where: { status: 'payed', createdAt: { gte: todayStart } }
-			}),
-			this.prisma.order.count({
-				where: { status: 'ready_to_receive', createdAt: { gte: todayStart } }
-			})
+			this.prisma.order.count({ where: { status: 'payed' } }),
+			this.prisma.order.count({ where: { status: 'ready_to_receive' } })
 		])
 
 		const total = payedCount + readyCount
@@ -122,14 +115,12 @@ export class NotificationsScheduledService {
 		if (readyCount > 0)
 			parts.push(`${readyCount} готов${readyCount === 1 ? 'о' : 'о'} к выдаче`)
 
-		const body = `За сегодня: ${parts.join(
-			', '
-		)} — не забудьте обновить статусы.`
+		const body = `${parts.join(', ')} — не забудьте обновить статусы.`
 
 		await this.notifications.sendPushNotificationToAdmins(
 			`📋 ${total} заказ${
 				total === 1 ? '' : total < 5 ? 'а' : 'ов'
-			} за сегодня`,
+			} ждут обработки`,
 			body,
 			{ adminOrdersReminder: true }
 		)
@@ -215,26 +206,25 @@ export class NotificationsScheduledService {
 		})
 	}
 
-	// Брошенная корзина: ровно одно уведомление на каждое изменение корзины,
-	// через 4+ часа после последнего обновления, только с 9:00 до 21:00
 	@Cron('0 * * * *')
 	async handleAbandonedCart() {
-		const nowHour = new Date().getUTCHours() + 4 // UTC+4 Samara
+		const nowHour = new Date().getUTCHours() + 4
 		if (nowHour < 9 || nowHour >= 21) return
 
 		const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
 
-		// Корзины, которые не трогали 4+ часов
-		const staleCarts = await this.prisma.cartItem.groupBy({
+		const allCarts = await this.prisma.cartItem.groupBy({
 			by: ['userId'],
-			where: { updatedAt: { lt: fourHoursAgo } },
 			_max: { updatedAt: true }
 		})
+
+		const staleCarts = allCarts.filter(
+			c => c._max.updatedAt && c._max.updatedAt < fourHoursAgo
+		)
 		if (!staleCarts.length) return
 
 		const userIds = staleCarts.map(c => c.userId)
 
-		// Исключаем тех, кто оформил заказ за последние 4 часа
 		const recentOrders = await this.prisma.order.findMany({
 			where: { userId: { in: userIds }, createdAt: { gte: fourHoursAgo } },
 			select: { userId: true }
@@ -259,7 +249,6 @@ export class NotificationsScheduledService {
 				.updatedAt
 			if (!cartLastUpdated) continue
 
-			// Уже отправляли уведомление после последнего изменения корзины — пропускаем
 			const alreadyNotified = await this.prisma.notification.findFirst({
 				where: {
 					userId: user.id,
@@ -281,7 +270,11 @@ export class NotificationsScheduledService {
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{ abandonedCart: true, screen: 'Cart', notificationId: notification.id }
+					{
+						abandonedCart: true,
+						screen: 'Cart',
+						notificationId: notification.id
+					}
 				)
 				.catch(() => {})
 		}

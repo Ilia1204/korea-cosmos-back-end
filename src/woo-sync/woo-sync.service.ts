@@ -134,7 +134,7 @@ export class WooSyncService {
 					})
 					if (wcInStock && !localProduct.inStock) {
 						this.notifications
-							.notifyUsersAboutProductInStock(localProduct.id)
+							.notifyUsersAboutProductInStock(String(wcProduct.id), slug)
 							.catch(() => null)
 						this.notifications
 							.notifySubscribedUsersAboutStock(slug)

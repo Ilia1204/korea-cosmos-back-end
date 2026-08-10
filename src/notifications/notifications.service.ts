@@ -153,18 +153,15 @@ export class NotificationsService {
 		return notification
 	}
 
+	// favoriteIds хранит id товара из WooCommerce (см. IProduct.id во фронте),
+	// поэтому матчим по wcProductId, а не по id локальной таблицы Product
 	async notifyFavoriteUsersAboutPriceDrop(
+		wcProductId: string,
 		slug: string,
 		name: string,
 		newPrice: string,
 		oldPrice: string
 	) {
-		const product = await this.prisma.product.findUnique({
-			where: { slug },
-			select: { id: true, newPrice: true }
-		})
-		if (!product) return
-
 		const parsedNew = parseFloat(newPrice)
 		const parsedOld = parseFloat(oldPrice)
 		if (isNaN(parsedNew) || isNaN(parsedOld) || parsedNew >= parsedOld) return
@@ -172,7 +169,7 @@ export class NotificationsService {
 		// Уже уведомляли об этой скидке?
 		const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 		const users = await this.prisma.user.findMany({
-			where: { favoriteIds: { has: product.id }, pushToken: { not: null } },
+			where: { favoriteIds: { has: wcProductId }, pushToken: { not: null } },
 			select: { id: true }
 		})
 		if (!users.length) return
@@ -209,16 +206,9 @@ export class NotificationsService {
 		}
 	}
 
-	async notifyUsersAboutProductInStock(productId: string) {
-		const product = await this.prisma.product.findUnique({
-			where: { id: productId }
-		})
-
-		if (!product || !product.inStock)
-			throw new NotFoundException('Товар не найден')
-
+	async notifyUsersAboutProductInStock(wcProductId: string, slug: string) {
 		const users = await this.prisma.user.findMany({
-			where: { favoriteIds: { has: productId } }
+			where: { favoriteIds: { has: wcProductId }, pushToken: { not: null } }
 		})
 
 		users.forEach(user => {
@@ -227,13 +217,13 @@ export class NotificationsService {
 					user.id,
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
-					{ productSlug: product.slug, isRead: true }
+					{ productSlug: slug, isRead: true }
 				).catch(() => {})
 				this.saveNotification(
 					user.id,
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
-					{ productSlug: product.slug }
+					{ productSlug: slug }
 				).catch(() => {})
 			}, 2000)
 		})
@@ -617,6 +607,13 @@ export class NotificationsService {
 
 	async deleteBroadcast(broadcastId: string) {
 		await this.prisma.notification.deleteMany({ where: { broadcastId } })
+		return { ok: true }
+	}
+
+	async deleteAllBroadcasts() {
+		await this.prisma.notification.deleteMany({
+			where: { broadcastId: { not: null } }
+		})
 		return { ok: true }
 	}
 }

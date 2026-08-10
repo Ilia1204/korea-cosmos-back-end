@@ -1,14 +1,20 @@
 import { Injectable } from '@nestjs/common'
+import { Cron } from '@nestjs/schedule'
 import { PrismaService } from 'src/prisma.service'
+import { AuditService } from 'src/audit/audit.service'
 import { RetailCrmService } from './retail-crm.service'
 import { RETAIL_STATUS_MAP } from './constants'
-import { LOCAL_TO_RETAILCRM, RETAILCRM_TO_LOCAL } from 'src/retailcrm-sync/retailcrm-status.constants'
+import {
+	LOCAL_TO_RETAILCRM,
+	RETAILCRM_TO_LOCAL
+} from 'src/retailcrm-sync/retailcrm-status.constants'
 
 @Injectable()
 export class AdminOrdersService {
 	constructor(
 		private prisma: PrismaService,
-		private retailCrm: RetailCrmService
+		private retailCrm: RetailCrmService,
+		private auditService: AuditService
 	) {}
 
 	async getAdminOrders(search?: string, page = 1) {
@@ -82,19 +88,25 @@ export class AdminOrdersService {
 		const orders = retailOrders.map((o: any) => {
 			const wcId = o.externalId ? parseInt(o.externalId) : null
 			// appLocal: externalId matches a CUID in local DB (app orders without wcOrderId)
-			const appLocal = o.externalId && isNaN(Number(o.externalId))
-				? localMap.byId.get(o.externalId)
-				: undefined
+			const appLocal =
+				o.externalId && isNaN(Number(o.externalId))
+					? localMap.byId.get(o.externalId)
+					: undefined
 			// wcLocal: numeric externalId matches a WooCommerce order AND dates are close
 			const wcLocalCandidate = wcId ? localMap.byWc.get(wcId) : undefined
-			const dateDiffMs = wcLocalCandidate && o.createdAt
-				? Math.abs(new Date(o.createdAt).getTime() - new Date(wcLocalCandidate.createdAt).getTime())
-				: Infinity
-			const wcLocal = dateDiffMs < 7 * 24 * 60 * 60 * 1000 ? wcLocalCandidate : undefined
+			const dateDiffMs =
+				wcLocalCandidate && o.createdAt
+					? Math.abs(
+							new Date(o.createdAt).getTime() -
+								new Date(wcLocalCandidate.createdAt).getTime()
+					  )
+					: Infinity
+			const wcLocal =
+				dateDiffMs < 7 * 24 * 60 * 60 * 1000 ? wcLocalCandidate : undefined
 
 			// App orders go through Robokassa and always have invoiceId set.
 			// Site orders created via WC webhook do not have invoiceId.
-			const isAppOrder = !!appLocal || !!(wcLocal?.invoiceId)
+			const isAppOrder = !!appLocal || !!wcLocal?.invoiceId
 			const localData = appLocal || (isAppOrder ? wcLocal : undefined)
 
 			const source: 'app' | 'site' | 'manual' = isAppOrder
@@ -109,7 +121,10 @@ export class AdminOrdersService {
 				? `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim()
 				: `${o.firstName || ''} ${o.lastName || ''}`.trim()
 			const phone =
-				o.customer?.phones?.[0]?.number || o.phone || localData?.user?.phone || null
+				o.customer?.phones?.[0]?.number ||
+				o.phone ||
+				localData?.user?.phone ||
+				null
 			const items =
 				localData?.items?.map((i: any) => ({
 					name: i.productName || 'Товар',
@@ -136,7 +151,10 @@ export class AdminOrdersService {
 				totalPrice: localData?.totalPrice || o.totalSumm || 0,
 				createdAt: o.createdAt,
 				customerName:
-					customerName || localData?.user?.displayName || localData?.user?.name || '—',
+					customerName ||
+					localData?.user?.displayName ||
+					localData?.user?.name ||
+					'—',
 				phone,
 				itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
 				items,
@@ -151,7 +169,6 @@ export class AdminOrdersService {
 	async getRetailOrder(retailId: number) {
 		const o = await this.retailCrm.getOrder(retailId)
 		if (!o) return null
-
 
 		const phone = o.customer?.phones?.[0]?.number || o.phone || null
 		const delivery = o.delivery || {}
@@ -231,5 +248,24 @@ export class AdminOrdersService {
 		const closedIds = results.filter((id): id is number => id !== null)
 
 		return { closed: closedIds.length, total: retailPayed.length, closedIds }
+	}
+
+	@Cron('0 16 * * *')
+	async handleAutoCloseRetailOrders() {
+		const result = await this.closeAllRetailOrders()
+		for (const id of result.closedIds) {
+			this.auditService
+				.log({
+					action: 'order.status',
+					entity: 'Order',
+					entityId: String(id),
+					entityName: `RetailCRM #${id}`,
+					before: { status: 'payed' },
+					after: { status: 'received' },
+					revertible: false
+				})
+				.catch(() => null)
+		}
+		return result
 	}
 }

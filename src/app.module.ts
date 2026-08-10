@@ -13,9 +13,7 @@ import { LabelProductModule } from './label-product/label-product.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { OrderModule } from './order/order.module'
 import { PostModule } from './post/post.module'
-import { ProductModule } from './product/product.module'
 import { PromoCodeModule } from './promocode/promocode.module'
-import { ReviewModule } from './review/review.module'
 import { SectionModule } from './section/section.module'
 import { StatisticsModule } from './statistics/statistics.module'
 import { UserModule } from './user/user.module'
@@ -48,9 +46,7 @@ import { WooProxyModule } from './woo-proxy/woo-proxy.module'
 		ConfigModule.forRoot(),
 		AuthModule,
 		UserModule,
-		ProductModule,
 		PostModule,
-		ReviewModule,
 		SectionModule,
 		CategoryModule,
 		OrderModule,

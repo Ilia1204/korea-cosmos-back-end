@@ -56,9 +56,18 @@ export class WebhookProductsService {
 		this.notifiedSales.add(cacheKey)
 
 		// Личные уведомления пользователям, у которых товар в избранном
-		this.notifications
-			.notifyFavoriteUsersAboutPriceDrop(slug, name, salePrice, regularPrice)
-			.catch(() => {})
+		const wcProductId = payload?.id !== undefined ? String(payload.id) : null
+		if (wcProductId) {
+			this.notifications
+				.notifyFavoriteUsersAboutPriceDrop(
+					wcProductId,
+					slug,
+					name,
+					salePrice,
+					regularPrice
+				)
+				.catch(() => {})
+		}
 
 		const brands: string[] = (payload?.brands ?? payload?.tags ?? [])
 			.map((b: any) => b.name)

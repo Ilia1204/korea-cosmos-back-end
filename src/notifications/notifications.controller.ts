@@ -52,6 +52,13 @@ export class NotificationsController {
 	}
 
 	@HttpCode(200)
+	@Delete('admin/broadcasts')
+	@Auth('admin')
+	async deleteAllBroadcasts() {
+		return this.notificationsService.deleteAllBroadcasts()
+	}
+
+	@HttpCode(200)
 	@Auth()
 	@Patch('mark-all-as-read')
 	async markAllAsRead(@CurrentUser('id') id: string) {
