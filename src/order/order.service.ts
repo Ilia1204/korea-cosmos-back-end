@@ -5,6 +5,7 @@ import {
 	Logger,
 	NotFoundException
 } from '@nestjs/common'
+import { EnumOrderStatus } from '@prisma/client'
 import { DeliveryService } from 'src/delivery/delivery.service'
 import { LoyaltyLevelService } from 'src/loyalty-level/loyalty-level.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
@@ -84,6 +85,29 @@ export class OrderService {
 			this.prisma.order.count({ where: { userId } })
 		])
 		return { orders, total, hasMore: skip + orders.length < total }
+	}
+
+	async getActiveOrdersSummary(userId: string) {
+		const ACTIVE_STATUSES: EnumOrderStatus[] = [
+			'pending',
+			'payed',
+			'shipped',
+			'ready_to_receive'
+		]
+		const where = { userId, status: { in: ACTIVE_STATUSES } }
+
+		const count = await this.prisma.order.count({ where })
+		if (count !== 1) return { count, order: null }
+
+		const order = await this.prisma.order.findFirst({
+			where,
+			include: {
+				user: { select: { ...returnUserObject } },
+				address: true,
+				items: true
+			}
+		})
+		return { count, order }
 	}
 
 	async getPopularProductIds(days = 30, minPrice = 1000, take = 8) {

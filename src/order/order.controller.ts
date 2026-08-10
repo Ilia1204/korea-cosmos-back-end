@@ -69,6 +69,12 @@ export class OrderController {
 		)
 	}
 
+	@Get('active-summary')
+	@Auth()
+	async getActiveOrdersSummary(@CurrentUser('id') userId: string) {
+		return this.orderService.getActiveOrdersSummary(userId)
+	}
+
 	@Get('by-user')
 	@Auth()
 	async getByUserId(
