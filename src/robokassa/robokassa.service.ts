@@ -133,19 +133,43 @@ export class RobokassaService {
 				}
 			)
 			const text = await res.text()
-			const ok = res.ok && !/error/i.test(text)
-			if (!ok)
+			let parsed: { success?: boolean; message?: string; requestId?: string }
+			try {
+				parsed = JSON.parse(text)
+			} catch {
 				this.logger.warn(
-					`Robokassa refund (v2) failed: status=${
+					`Robokassa refund (v2): non-JSON response status=${
 						res.status
 					} body=${JSON.stringify(text)}`
 				)
-			else this.logger.log(`Robokassa refund (v2) response: ${text}`)
-			return ok
+				return false
+			}
+
+			if (!parsed.success) {
+				this.logger.warn(`Robokassa refund (v2) failed: ${parsed.message}`)
+				return false
+			}
+
+			this.logger.log(`Robokassa refund (v2) requestId=${parsed.requestId}`)
+			return true
 		} catch (e) {
 			this.logger.error(`Robokassa refund (v2) error: ${e}`)
 			return false
 		}
+	}
+
+	async getRefundState(requestId: string) {
+		const res = await fetch(
+			`https://services.robokassa.ru/RefundService/Refund/GetState?id=${encodeURIComponent(
+				requestId
+			)}`
+		)
+		return res.json() as Promise<{
+			requestId?: string
+			amount?: number
+			label?: string
+			message?: string
+		}>
 	}
 
 	async refundByInvoiceId(invoiceId: number, amount: number): Promise<boolean> {
