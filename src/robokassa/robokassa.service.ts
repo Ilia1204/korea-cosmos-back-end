@@ -111,6 +111,7 @@ export class RobokassaService {
 				this.logger.warn(`Robokassa OpStateExt: OpKey not found: ${text}`)
 				return null
 			}
+			this.logger.log(`Robokassa OpStateExt: OpKey=${match[1]}`)
 			return match[1]
 		} catch (e) {
 			this.logger.error(`Robokassa OpStateExt error: ${e}`)
@@ -133,7 +134,12 @@ export class RobokassaService {
 			)
 			const text = await res.text()
 			const ok = res.ok && !/error/i.test(text)
-			if (!ok) this.logger.warn(`Robokassa refund (v2) failed: ${text}`)
+			if (!ok)
+				this.logger.warn(
+					`Robokassa refund (v2) failed: status=${
+						res.status
+					} body=${JSON.stringify(text)}`
+				)
 			else this.logger.log(`Robokassa refund (v2) response: ${text}`)
 			return ok
 		} catch (e) {
