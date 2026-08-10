@@ -89,17 +89,33 @@ export class StatisticsService {
 	}
 
 	private calcPeriodMetrics(orders: any[]) {
-		const paidStatuses = ['prepayed', 'client-confirmed', 'complete', 'assembling-complete', 'send-to-delivery', 'delivering']
+		const paidStatuses = [
+			'prepayed',
+			'client-confirmed',
+			'complete',
+			'assembling-complete',
+			'send-to-delivery',
+			'delivering'
+		]
 		const cancelStatuses = ['cancel-other', 'no-call', 'no-product']
 		const revenue = orders.reduce((s, o) => s + (o.totalSumm || 0), 0)
-		const cancelledCount = orders.filter(o => cancelStatuses.includes(o.status)).length
+		const cancelledCount = orders.filter(o =>
+			cancelStatuses.includes(o.status)
+		).length
 		return {
 			revenue: Math.round(revenue),
 			ordersCount: orders.length,
 			cancelledCount,
 			avgCheck: orders.length > 0 ? Math.round(revenue / orders.length) : 0,
-			cancelRate: orders.length > 0 ? Math.round((cancelledCount / orders.length) * 100) : 0,
-			paidRevenue: Math.round(orders.filter(o => paidStatuses.includes(o.status)).reduce((s, o) => s + (o.totalSumm || 0), 0))
+			cancelRate:
+				orders.length > 0
+					? Math.round((cancelledCount / orders.length) * 100)
+					: 0,
+			paidRevenue: Math.round(
+				orders
+					.filter(o => paidStatuses.includes(o.status))
+					.reduce((s, o) => s + (o.totalSumm || 0), 0)
+			)
 		}
 	}
 
@@ -115,8 +131,14 @@ export class StatisticsService {
 		const prevFrom = now.subtract(days * 2, 'day')
 
 		const [orders, prevOrders] = await Promise.all([
-			this.retailCrm.fetchAllOrders(from.format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss')),
-			this.retailCrm.fetchAllOrders(prevFrom.format('YYYY-MM-DD HH:mm:ss'), from.format('YYYY-MM-DD HH:mm:ss'))
+			this.retailCrm.fetchAllOrders(
+				from.format('YYYY-MM-DD HH:mm:ss'),
+				now.format('YYYY-MM-DD HH:mm:ss')
+			),
+			this.retailCrm.fetchAllOrders(
+				prevFrom.format('YYYY-MM-DD HH:mm:ss'),
+				from.format('YYYY-MM-DD HH:mm:ss')
+			)
 		])
 
 		const cur = this.calcPeriodMetrics(orders)
@@ -173,7 +195,12 @@ export class StatisticsService {
 			},
 			statusCounts,
 			topProducts: resolved.filter(Boolean).slice(0, 5),
-			chartData: this.buildChartData(orders, from.toDate(), now.toDate(), period)
+			chartData: this.buildChartData(
+				orders,
+				from.toDate(),
+				now.toDate(),
+				period
+			)
 		}
 	}
 

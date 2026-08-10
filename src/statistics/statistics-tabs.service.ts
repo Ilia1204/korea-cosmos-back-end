@@ -139,7 +139,7 @@ export class StatisticsTabsService {
 	private async buildProductsTab() {
 		try {
 			const [topByOrdersRaw, topByRatingRaw, reviewsRaw, outOfStockRaw, totalRaw] = await Promise.all([
-				this.wcFetch('/products', { status: 'publish', orderby: 'popularity', order: 'desc', per_page: '5', _fields: 'id,name,slug,images,average_rating,total_sales,rating_count' }),
+				this.wcFetch('/products', { status: 'publish', orderby: 'popularity', order: 'desc', per_page: '5', min_price: '500', _fields: 'id,name,slug,images,average_rating,total_sales,rating_count' }),
 				this.wcFetch('/products', { status: 'publish', orderby: 'rating', order: 'desc', per_page: '5', min_rating: '1', _fields: 'id,name,slug,images,average_rating,rating_count' }),
 				this.wcFetch('/products/reviews', { status: 'approved', per_page: '5', orderby: 'date', order: 'desc' }),
 				this.wcFetchWithTotal('/products', { status: 'publish', stock_status: 'outofstock', per_page: '1' }),
