@@ -469,20 +469,23 @@ export class OrderService {
 				.catch(() => null)
 		}
 
-		const needsManualRefund =
-			order.status === 'payed' && !!(order as any).invoiceId
-		if ((order as any).invoiceId) {
-			this.robokassa
-				.refund((order as any).invoiceId, order.totalPrice)
-				.then(ok =>
-					this.logger.log(
-						`Refund for order ${id} (invId=${(order as any).invoiceId}): ${
-							ok ? 'succeeded' : 'failed'
-						}`
-					)
+		let refundSucceeded = false
+		if (order.status === 'payed' && (order as any).invoiceId) {
+			try {
+				refundSucceeded = await this.robokassa.refundByInvoiceId(
+					(order as any).invoiceId,
+					order.totalPrice
 				)
-				.catch(e => this.logger.error(`Refund for order ${id} threw: ${e}`))
+				this.logger.log(
+					`Refund for order ${id} (invId=${(order as any).invoiceId}): ${
+						refundSucceeded ? 'succeeded' : 'failed'
+					}`
+				)
+			} catch (e) {
+				this.logger.error(`Refund for order ${id} threw: ${e}`)
+			}
 		}
+		const needsManualRefund = order.status === 'payed' && !refundSucceeded
 
 		if (wasLoyaltyApplied && cancelled.userId) {
 			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)

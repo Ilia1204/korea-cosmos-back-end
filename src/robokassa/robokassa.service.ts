@@ -20,6 +20,12 @@ export class RobokassaService {
 			: process.env['ROBOKASSA_PASSWORD2']
 	}
 
+	private get pass3() {
+		return this.isTest
+			? process.env['ROBOKASSA_TEST_PASSWORD3']
+			: process.env['ROBOKASSA_PASSWORD3']
+	}
+
 	generatePaymentUrl(
 		invoiceId: number,
 		amount: number,
@@ -91,11 +97,83 @@ export class RobokassaService {
 		}
 	}
 
+	async getOpKey(invoiceId: number): Promise<string | null> {
+		const sig = this.md5(`${this.login}:${invoiceId}:${this.pass2}`)
+		const url = `https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt?MerchantLogin=${encodeURIComponent(
+			this.login
+		)}&InvoiceID=${invoiceId}&Signature=${sig}`
+
+		try {
+			const res = await fetch(url)
+			const text = await res.text()
+			const match = text.match(/<OpKey>([^<]+)<\/OpKey>/)
+			if (!match) {
+				this.logger.warn(`Robokassa OpStateExt: OpKey not found: ${text}`)
+				return null
+			}
+			return match[1]
+		} catch (e) {
+			this.logger.error(`Robokassa OpStateExt error: ${e}`)
+			return null
+		}
+	}
+
+	async refundByOpKey(opKey: string, amount: number): Promise<boolean> {
+		const payload = { OpKey: opKey, RefundSum: Number(amount.toFixed(2)) }
+		const jwt = this.signJwt(payload, this.pass3)
+
+		try {
+			const res = await fetch(
+				'https://services.robokassa.ru/RefundService/Refund/Create',
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'text/plain' },
+					body: jwt
+				}
+			)
+			const text = await res.text()
+			const ok = res.ok && !/error/i.test(text)
+			if (!ok) this.logger.warn(`Robokassa refund (v2) failed: ${text}`)
+			else this.logger.log(`Robokassa refund (v2) response: ${text}`)
+			return ok
+		} catch (e) {
+			this.logger.error(`Robokassa refund (v2) error: ${e}`)
+			return false
+		}
+	}
+
+	async refundByInvoiceId(invoiceId: number, amount: number): Promise<boolean> {
+		const opKey = await this.getOpKey(invoiceId)
+		if (!opKey) return false
+		return this.refundByOpKey(opKey, amount)
+	}
+
 	generateInvoiceId(): number {
 		return Math.floor(Math.random() * 2_000_000_000) + 1
 	}
 
 	private md5(str: string): string {
 		return crypto.createHash('md5').update(str).digest('hex')
+	}
+
+	private base64url(input: unknown): string {
+		return Buffer.from(JSON.stringify(input))
+			.toString('base64')
+			.replace(/=/g, '')
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+	}
+
+	private signJwt(payload: Record<string, unknown>, secret: string): string {
+		const header = { alg: 'HS256', typ: 'JWT' }
+		const signingInput = `${this.base64url(header)}.${this.base64url(payload)}`
+		const signature = crypto
+			.createHmac('sha256', secret)
+			.update(signingInput)
+			.digest('base64')
+			.replace(/=/g, '')
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+		return `${signingInput}.${signature}`
 	}
 }
