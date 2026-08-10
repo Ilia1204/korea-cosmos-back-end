@@ -544,7 +544,6 @@ export class OrderService {
 			return true
 		}
 
-		// Attempt at 15s, 45s, 90s — cdek_number is usually available within seconds of creation
 		const delays = [15_000, 45_000, 90_000]
 		let resolved = false
 		for (const delay of delays) {
