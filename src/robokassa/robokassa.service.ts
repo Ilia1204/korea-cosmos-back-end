@@ -128,7 +128,7 @@ export class RobokassaService {
 				'https://services.robokassa.ru/RefundService/Refund/Create',
 				{
 					method: 'POST',
-					headers: { 'Content-Type': 'text/plain' },
+					headers: { 'Content-Type': 'application/jwt' },
 					body: jwt
 				}
 			)
