@@ -89,27 +89,35 @@ export class WooSyncService {
 		return this.wooOrders.getOrdersByEmailAdmin(email)
 	}
 
+	private lastProductSyncAt: Date | null = null
+
 	@Cron('0 */15 * * * *')
 	async syncProductStock() {
+		const since =
+			this.lastProductSyncAt ?? new Date(Date.now() - 20 * 60 * 1000)
+		const syncStartedAt = new Date()
+
 		try {
+			const wcProducts = await this.wooProducts.getModifiedProducts(since)
+			this.lastProductSyncAt = syncStartedAt
+			if (!wcProducts.length) return
+
+			const changedSlugs = wcProducts.map(p => p.slug)
+
 			const localProducts = await this.prisma.product.findMany({
+				where: { slug: { in: changedSlugs } },
 				select: { id: true, slug: true, inStock: true }
 			})
+			const localSlugsSet = new Set(localProducts.map(p => p.slug))
 
 			const subSlugs = await this.prisma.productSubscriptions.findMany({
+				where: { productId: { in: changedSlugs } },
 				select: { productId: true },
 				distinct: ['productId']
 			})
-			const localSlugsSet = new Set(localProducts.map(p => p.slug))
 			const extraSlugs = subSlugs
 				.map(s => s.productId)
 				.filter(slug => !localSlugsSet.has(slug))
-			const allSlugs = [...localProducts.map(p => p.slug), ...extraSlugs]
-			if (!allSlugs.length) return
-
-			const wcProducts: any[] = await this.wooProducts.getProductsBySlugs(
-				allSlugs
-			)
 
 			for (const wcProduct of wcProducts) {
 				const slug = wcProduct.slug

@@ -53,7 +53,8 @@ export class RobokassaService {
 			SuccessUrl: `${backendUrl}/robokassa/success`,
 			FailUrl: `${backendUrl}/robokassa/fail`,
 			...(this.isTest && { IsTest: '1' }),
-			...(incCurrLabel && { IncCurrLabel: incCurrLabel })
+			...(incCurrLabel && { IncCurrLabel: incCurrLabel }),
+			...(email && { Email: email })
 		})
 
 		return `https://auth.robokassa.ru/Merchant/Index.aspx?${params.toString()}`

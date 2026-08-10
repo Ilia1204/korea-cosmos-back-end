@@ -421,7 +421,8 @@ export class WooOrdersService {
 	async getOrdersByIds(wcIds: number[]) {
 		const res = await this.woo.get('orders', {
 			include: wcIds.join(','),
-			per_page: '100'
+			per_page: '100',
+			_fields: 'id,status'
 		})
 		if (!res.ok) return []
 		const data = await res.json()

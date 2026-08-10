@@ -54,6 +54,31 @@ export class WooProductsService {
 		return res.json()
 	}
 
+	async getModifiedProducts(since: Date) {
+		const results: any[] = []
+		let page = 1
+
+		while (true) {
+			const res = await this.woo.get('products', {
+				modified_after: since.toISOString(),
+				orderby: 'modified',
+				order: 'asc',
+				per_page: '100',
+				page: String(page),
+				_fields: 'id,slug,stock_status'
+			})
+			if (!res.ok) break
+			const batch = await res.json()
+			if (!Array.isArray(batch) || !batch.length) break
+
+			results.push(...batch)
+			if (batch.length < 100) break
+			page++
+		}
+
+		return results
+	}
+
 	private async buildLabelProducts() {
 		const results = await Promise.all(
 			TAG_IDS.map(tagId =>
