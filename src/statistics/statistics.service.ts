@@ -145,9 +145,15 @@ export class StatisticsService {
 			.slice(0, 15)
 		const resolved = await Promise.all(
 			topCandidates.map(async p => {
-				const slug = await this.getWCProductSlug(p.wcId, p.name)
-				return slug
-					? { name: p.name, count: p.count, revenue: p.revenue, slug, id: p.wcId }
+				const product = await this.getWCProduct(p.wcId, p.name)
+				return product
+					? {
+							name: p.name,
+							count: p.count,
+							revenue: p.revenue,
+							slug: product.slug,
+							id: product.id
+					  }
 					: null
 			})
 		)
@@ -185,10 +191,10 @@ export class StatisticsService {
 		})
 	}
 
-	private async getWCProductSlug(
+	private async getWCProduct(
 		wcId: string | null,
 		name: string
-	): Promise<string | null> {
+	): Promise<{ id: string; slug: string } | null> {
 		try {
 			const wpUrl = this.configService.get('WP_URL')
 			const key = this.configService.get('WC_CONSUMER_KEY')
@@ -198,12 +204,13 @@ export class StatisticsService {
 
 			if (wcId) {
 				const res = await fetch(
-					`${wpUrl}/wp-json/wc/v3/products/${wcId}?_fields=slug`,
+					`${wpUrl}/wp-json/wc/v3/products/${wcId}?_fields=id,slug`,
 					{ headers: { Authorization: auth } }
 				)
 				if (res.ok) {
 					const data = await res.json()
-					if (data?.slug) return data.slug
+					if (data?.slug && data?.id)
+						return { id: String(data.id), slug: data.slug }
 				}
 			}
 
@@ -217,12 +224,13 @@ export class StatisticsService {
 					`${wpUrl}/wp-json/wc/v3/products?${new URLSearchParams({
 						search: query,
 						per_page: '1',
-						_fields: 'slug'
+						_fields: 'id,slug'
 					})}`,
 					{ headers: { Authorization: auth } }
 				)
 				const data = await res.json()
-				if (data[0]?.slug) return data[0].slug
+				if (data[0]?.slug && data[0]?.id)
+					return { id: String(data[0].id), slug: data[0].slug }
 			}
 			return null
 		} catch {
