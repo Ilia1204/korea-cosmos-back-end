@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { WooReviewDto } from './woo-review.dto'
+import { EditWooReviewDto, WooReviewDto } from './woo-review.dto'
 import { WooReviewModerationService } from './woo-review-moderation.service'
 import { WooReviewQueriesService } from './woo-review-queries.service'
 
@@ -28,8 +28,14 @@ export class WooReviewService {
 	hasPurchased(userId: string, wooProductId: number) {
 		return this.queries.hasPurchased(userId, wooProductId)
 	}
+	getMine(userId: string) {
+		return this.queries.getMine(userId)
+	}
 	create(userId: string, dto: WooReviewDto) {
 		return this.moderation.create(userId, dto)
+	}
+	updateOwn(id: string, userId: string, dto: EditWooReviewDto) {
+		return this.moderation.updateOwn(id, userId, dto)
 	}
 	publish(id: string) {
 		return this.moderation.publish(id)

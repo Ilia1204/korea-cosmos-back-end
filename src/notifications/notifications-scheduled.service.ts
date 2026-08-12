@@ -99,33 +99,6 @@ export class NotificationsScheduledService {
 		}
 	}
 
-	@Cron('0 17 * * *')
-	async handleAdminOrdersReminder() {
-		const [payedCount, readyCount] = await Promise.all([
-			this.prisma.order.count({ where: { status: 'payed' } }),
-			this.prisma.order.count({ where: { status: 'ready_to_receive' } })
-		])
-
-		const total = payedCount + readyCount
-		if (total === 0) return
-
-		const parts: string[] = []
-		if (payedCount > 0)
-			parts.push(`${payedCount} оплачен${payedCount < 5 ? 'о' : 'о'}`)
-		if (readyCount > 0)
-			parts.push(`${readyCount} готов${readyCount === 1 ? 'о' : 'о'} к выдаче`)
-
-		const body = `${parts.join(', ')} — не забудьте обновить статусы.`
-
-		await this.notifications.sendPushNotificationToAdmins(
-			`📋 ${total} заказ${
-				total === 1 ? '' : total < 5 ? 'а' : 'ов'
-			} ждут обработки`,
-			body,
-			{ adminOrdersReminder: true }
-		)
-	}
-
 	@Cron('0 6 * * *')
 	async handleBirthdayNotifications() {
 		const now = new Date()

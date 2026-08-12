@@ -30,3 +30,18 @@ export class RejectReviewDto {
 	@IsOptional()
 	reason?: string
 }
+
+export class EditWooReviewDto {
+	@IsString()
+	message: string
+
+	@IsNumber()
+	@Min(1)
+	@Max(5)
+	rating: number
+
+	@IsArray()
+	@IsString({ each: true })
+	@IsOptional()
+	images?: string[]
+}

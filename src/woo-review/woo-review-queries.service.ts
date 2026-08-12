@@ -237,6 +237,31 @@ export class WooReviewQueriesService {
 		}
 	}
 
+	async getMine(userId: string) {
+		const reviews = await this.prisma.wooReview.findMany({
+			where: { userId },
+			orderBy: { createdAt: 'desc' },
+			select: {
+				id: true,
+				message: true,
+				images: true,
+				rating: true,
+				isPublic: true,
+				wooStatus: true,
+				rejectReason: true,
+				createdAt: true,
+				wooProductId: true,
+				wooReviewId: true
+			}
+		})
+		return Promise.all(
+			reviews.map(async review => ({
+				...review,
+				product: await this.woo.fetchProduct(review.wooProductId)
+			}))
+		)
+	}
+
 	async hasPurchased(userId: string, wooProductId: number): Promise<boolean> {
 		const order = await this.prisma.order.findFirst({
 			where: {

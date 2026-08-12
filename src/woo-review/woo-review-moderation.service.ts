@@ -1,8 +1,12 @@
-import { ForbiddenException, Injectable } from '@nestjs/common'
+import {
+	ForbiddenException,
+	Injectable,
+	NotFoundException
+} from '@nestjs/common'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
-import { WooReviewDto } from './woo-review.dto'
+import { EditWooReviewDto, WooReviewDto } from './woo-review.dto'
 import { WooReviewWooClient } from './woo-review-woo.client'
 import { WooReviewQueriesService } from './woo-review-queries.service'
 
@@ -69,6 +73,55 @@ export class WooReviewModerationService {
 		}, 2000)
 
 		return review
+	}
+
+	async updateOwn(id: string, userId: string, dto: EditWooReviewDto) {
+		const review = await this.prisma.wooReview.findUnique({ where: { id } })
+		if (!review) throw new NotFoundException('Отзыв не найден')
+		if (review.userId !== userId)
+			throw new ForbiddenException('Это не ваш отзыв')
+
+		const user = await this.userService.getById(userId)
+
+		if (isSpam(dto.message, user.name ?? undefined))
+			throw new ForbiddenException('Отзыв не прошёл проверку')
+
+		const updated = await this.prisma.wooReview.update({
+			where: { id },
+			data: {
+				message: dto.message,
+				rating: dto.rating,
+				images: dto.images ?? review.images,
+				isPublic: false,
+				wooStatus: 'hold',
+				rejectReason: null
+			}
+		})
+
+		if (updated.wooReviewId) {
+			this.woo.updateStatus(updated.wooReviewId, 'hold').catch(() => {})
+			this.woo.updateText(updated.wooReviewId, dto.message).catch(() => {})
+			this.woo.updateRating(updated.wooReviewId, dto.rating).catch(() => {})
+		}
+
+		setTimeout(() => {
+			this.notifications.sendPushNotificationToAdmins(
+				'📝 Отзыв отредактирован',
+				`Пользователь ${user.name} изменил отзыв — нужна повторная модерация`,
+				{ reviewId: updated.id, isRead: true }
+			)
+		}, 2000)
+
+		setTimeout(() => {
+			this.notifications.sendPushNotificationToUser(
+				updated.userId,
+				'📝 Отзыв отправлен на модерацию',
+				'Вы изменили отзыв — он снова проверяется и скоро будет опубликован.',
+				{ reviewId: updated.id, isRead: true }
+			)
+		}, 2000)
+
+		return updated
 	}
 
 	async publish(id: string) {

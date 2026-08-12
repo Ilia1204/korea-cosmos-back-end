@@ -16,7 +16,11 @@ import {
 
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
-import { RejectReviewDto, WooReviewDto } from './woo-review.dto'
+import {
+	EditWooReviewDto,
+	RejectReviewDto,
+	WooReviewDto
+} from './woo-review.dto'
 import { WooReviewService } from './woo-review.service'
 
 @Controller('woo-reviews')
@@ -47,6 +51,13 @@ export class WooReviewController {
 		@Query('wooProductId', ParseIntPipe) wooProductId: number
 	) {
 		return this.wooReviewService.getWooProductInfo(wooProductId)
+	}
+
+	// Отзывы текущего пользователя
+	@Get('mine')
+	@Auth()
+	async getMine(@CurrentUser('id') userId: string) {
+		return this.wooReviewService.getMine(userId)
 	}
 
 	@Get(':id')
@@ -86,6 +97,19 @@ export class WooReviewController {
 	@Auth()
 	async leave(@CurrentUser('id') userId: string, @Body() dto: WooReviewDto) {
 		return this.wooReviewService.create(userId, dto)
+	}
+
+	// Пользователь редактирует свой отзыв — уходит на повторную модерацию
+	@UsePipes(new ValidationPipe())
+	@HttpCode(200)
+	@Put(':id')
+	@Auth()
+	async updateOwn(
+		@CurrentUser('id') userId: string,
+		@Param('id') id: string,
+		@Body() dto: EditWooReviewDto
+	) {
+		return this.wooReviewService.updateOwn(id, userId, dto)
 	}
 
 	@HttpCode(200)

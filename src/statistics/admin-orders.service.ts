@@ -20,7 +20,6 @@ export class AdminOrdersService {
 	async getAdminOrders(search?: string, page = 1) {
 		const s = search?.trim()
 
-		// CUID префикс → ищем в локальной БД, потом по externalId в RetailCRM
 		let retailOrders: any[]
 		if (s && /^[a-zA-Z][a-zA-Z0-9]+$/.test(s)) {
 			const localOrders = await this.prisma.order.findMany({
@@ -87,12 +86,10 @@ export class AdminOrdersService {
 
 		const orders = retailOrders.map((o: any) => {
 			const wcId = o.externalId ? parseInt(o.externalId) : null
-			// appLocal: externalId matches a CUID in local DB (app orders without wcOrderId)
 			const appLocal =
 				o.externalId && isNaN(Number(o.externalId))
 					? localMap.byId.get(o.externalId)
 					: undefined
-			// wcLocal: numeric externalId matches a WooCommerce order AND dates are close
 			const wcLocalCandidate = wcId ? localMap.byWc.get(wcId) : undefined
 			const dateDiffMs =
 				wcLocalCandidate && o.createdAt
@@ -104,8 +101,6 @@ export class AdminOrdersService {
 			const wcLocal =
 				dateDiffMs < 7 * 24 * 60 * 60 * 1000 ? wcLocalCandidate : undefined
 
-			// App orders go through Robokassa and always have invoiceId set.
-			// Site orders created via WC webhook do not have invoiceId.
 			const isAppOrder = !!appLocal || !!wcLocal?.invoiceId
 			const localData = appLocal || (isAppOrder ? wcLocal : undefined)
 
@@ -223,17 +218,14 @@ export class AdminOrdersService {
 	}
 
 	async closeAllRetailOrders() {
-		// Берём все последние заказы (те же что показывает список заказов в приложении)
 		const all = await this.retailCrm.fetchAllRawOrders(100)
 
-		// Все RetailCRM-статусы, которые в нашем маппинге означают "Оплачен"
 		const payedStatuses = new Set<string>(
 			Object.entries(RETAILCRM_TO_LOCAL)
 				.filter(([, local]) => local === 'payed')
 				.map(([retail]) => retail)
 		)
 
-		// Розничные = нет externalId (app → CUID, site → числовой WC id)
 		const retailPayed = all.filter(
 			(o: any) => !o.externalId && payedStatuses.has(o.status)
 		)
