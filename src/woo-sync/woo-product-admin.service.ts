@@ -3,6 +3,7 @@ import {
 	Injectable,
 	NotFoundException
 } from '@nestjs/common'
+import { WooCacheService } from 'src/woo-proxy/woo-cache.service'
 import { WooApiClient } from './woo-api.client'
 import { WcProductQueryDto } from './dto/wc-product-dto'
 import { WcProductUpdateDto } from './dto/wc-product-update.dto'
@@ -12,7 +13,10 @@ const LIST_FIELDS =
 
 @Injectable()
 export class WooProductAdminService {
-	constructor(private readonly woo: WooApiClient) {}
+	constructor(
+		private readonly woo: WooApiClient,
+		private readonly wooCache: WooCacheService
+	) {}
 
 	async getProducts(dto: WcProductQueryDto) {
 		const params: Record<string, string> = {
@@ -53,6 +57,7 @@ export class WooProductAdminService {
 			const text = await res.text().catch(() => res.status.toString())
 			throw new BadRequestException(`WC update failed: ${text}`)
 		}
+		this.wooCache.invalidateProducts()
 		return res.json()
 	}
 

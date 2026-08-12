@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { WooApiClient } from 'src/woo-sync/woo-api.client'
+import { WooCacheService } from './woo-cache.service'
 
 const TTL_MS = {
 	products: 3 * 60 * 1000,
@@ -13,18 +14,17 @@ const TTL_MS = {
 
 @Injectable()
 export class WooProxyService {
-	private readonly cache = new Map<string, { data: any; expires: number }>()
-
-	constructor(private readonly woo: WooApiClient) {}
+	constructor(
+		private readonly woo: WooApiClient,
+		private readonly cache: WooCacheService
+	) {}
 
 	private hit<T>(key: string): T | null {
-		const entry = this.cache.get(key)
-		if (entry && entry.expires > Date.now()) return entry.data as T
-		return null
+		return this.cache.hit<T>(key)
 	}
 
 	private store(key: string, data: any, ttlMs: number) {
-		this.cache.set(key, { data, expires: Date.now() + ttlMs })
+		this.cache.store(key, data, ttlMs)
 	}
 
 	async proxyList(path: string, params: Record<string, string>, ttlMs: number) {
