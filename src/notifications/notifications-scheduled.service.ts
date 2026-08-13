@@ -181,10 +181,11 @@ export class NotificationsScheduledService {
 
 	@Cron('0 * * * *')
 	async handleAbandonedCart() {
-		const nowHour = new Date().getUTCHours() + 4
-		if (nowHour < 9 || nowHour >= 21) return
+		const nowHour = new Date().getUTCHours() + 3
+		if (nowHour < 11 || nowHour >= 20) return
 
 		const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
+		const cooldownFloor = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
 		const allCarts = await this.prisma.cartItem.groupBy({
 			by: ['userId'],
@@ -209,51 +210,47 @@ export class NotificationsScheduledService {
 		const candidates = staleCarts.filter(c => !recentBuyerIds.has(c.userId))
 		if (!candidates.length) return
 
-		const targets = await this.prisma.user.findMany({
+		const eligibleUsers = await this.prisma.user.findMany({
 			where: {
 				id: { in: candidates.map(c => c.userId) },
-				pushToken: { not: null }
+				pushToken: { not: null },
+				OR: [
+					{ lastAbandonedCartNotifiedAt: null },
+					{ lastAbandonedCartNotifiedAt: { lt: cooldownFloor } }
+				]
 			},
-			select: { id: true, name: true }
+			select: { id: true, name: true, lastAbandonedCartNotifiedAt: true }
+		})
+
+		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+		const targets = eligibleUsers.filter(user => {
+			if (!user.lastAbandonedCartNotifiedAt) return true
+			const cartLastUpdated = candidates.find(c => c.userId === user.id)?._max
+				.updatedAt
+			if (!cartLastUpdated) return false
+			return (
+				cartLastUpdated > user.lastAbandonedCartNotifiedAt ||
+				user.lastAbandonedCartNotifiedAt < thirtyDaysAgo
+			)
 		})
 
 		for (const user of targets) {
-			const cartLastUpdated = candidates.find(c => c.userId === user.id)?._max
-				.updatedAt
-			if (!cartLastUpdated) continue
-
-			const alreadyNotified = await this.prisma.notification.findFirst({
-				where: {
-					userId: user.id,
-					createdAt: { gte: cartLastUpdated },
-					data: { path: ['abandonedCart'], equals: true }
-				}
-			})
-			if (alreadyNotified) continue
-
 			const firstName = user.name ? `, ${user.name}` : ''
-			const notification = await this.notifications.saveNotification(
-				user.id,
-				`🛒 Забыли что-то${firstName}?`,
-				'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-				{ abandonedCart: true, screen: 'Cart' }
-			)
+			await this.prisma.user.update({
+				where: { id: user.id },
+				data: { lastAbandonedCartNotifiedAt: new Date() }
+			})
 			this.notifications
 				.sendPushNotificationToUser(
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{
-						abandonedCart: true,
-						screen: 'Cart',
-						notificationId: notification.id
-					}
+					{ abandonedCart: true, screen: 'Cart' }
 				)
 				.catch(() => {})
 		}
 	}
 
-	// Запланированные рассылки: каждую минуту проверяем очередь
 	@Cron('* * * * *')
 	async handleScheduledBroadcasts() {
 		const now = new Date()

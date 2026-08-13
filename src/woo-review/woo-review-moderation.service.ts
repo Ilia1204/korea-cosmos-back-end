@@ -68,7 +68,8 @@ export class WooReviewModerationService {
 			this.notifications.sendPushNotificationToAdmins(
 				'📝 Новый отзыв!',
 				`Пользователь ${user.name} оставил отзыв`,
-				{ reviewId: review.id, isRead: true }
+				{ reviewId: review.id, isRead: true },
+				['admin']
 			)
 		}, 2000)
 
@@ -108,7 +109,8 @@ export class WooReviewModerationService {
 			this.notifications.sendPushNotificationToAdmins(
 				'📝 Отзыв отредактирован',
 				`Пользователь ${user.name} изменил отзыв — нужна повторная модерация`,
-				{ reviewId: updated.id, isRead: true }
+				{ reviewId: updated.id, isRead: true },
+				['admin']
 			)
 		}, 2000)
 
@@ -247,7 +249,8 @@ export class WooReviewModerationService {
 			this.notifications.sendPushNotificationToAdmins(
 				'📝 Новый отзыв с сайта!',
 				`${reviewer} оставил отзыв на "${productName}"`,
-				{ wooReviewId: String(wooReviewId), isRead: true }
+				{ wooReviewId: String(wooReviewId), isRead: true },
+				['admin']
 			)
 		}, 2000)
 	}

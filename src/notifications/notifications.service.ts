@@ -95,10 +95,11 @@ export class NotificationsService {
 	async sendPushNotificationToAdmins(
 		title: string,
 		message: string,
-		data?: object
+		data?: object,
+		roles: ('admin' | 'manager')[] = ['admin', 'manager']
 	) {
 		const admins = await this.prisma.user.findMany({
-			where: { role: { in: ['admin', 'manager'] } }
+			where: { role: { in: roles } }
 		})
 
 		await Promise.all(

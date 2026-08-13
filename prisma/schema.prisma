@@ -31,6 +31,7 @@ model User {
 
   pushToken  String?   @default("") @map("push_token")
   lastSeenAt DateTime? @map("last_seen_at")
+  lastAbandonedCartNotifiedAt DateTime? @map("last_abandoned_cart_notified_at")
 
   name               String?   @default("")
   surname            String?   @default("")

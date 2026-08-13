@@ -60,7 +60,8 @@ export class AuthService {
 			.sendPushNotificationToAdmins(
 				'👤 Новый пользователь',
 				`Зарегистрировался: ${dto.email}`,
-				{ newUser: true, newUserId: user.id }
+				{ newUser: true, newUserId: user.id },
+				['admin']
 			)
 			.catch(() => null)
 
@@ -202,7 +203,8 @@ export class AuthService {
 						.sendPushNotificationToAdmins(
 							'👤 Новый пользователь',
 							`Зарегистрировался по номеру: +${normalized}`,
-							{ newUser: true, newUserId: user.id }
+							{ newUser: true, newUserId: user.id },
+							['admin']
 						)
 						.catch(() => null)
 				}
