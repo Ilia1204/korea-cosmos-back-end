@@ -102,6 +102,8 @@ export class WebhookProductsService {
 		const emailRestrictions: string[] = payload?.email_restrictions ?? []
 		if (!code || !amount) return { ok: true }
 
+		if (description?.toLowerCase().includes('блогер')) return { ok: true }
+
 		const cacheKey = `coupon:${code}`
 		if (this.notifiedCoupons.has(cacheKey)) return { ok: true }
 		this.notifiedCoupons.add(cacheKey)
@@ -112,7 +114,9 @@ export class WebhookProductsService {
 			discountText = `−${amount}₽`
 
 		// Персональный купон: телефон в описании — любой формат (+7 (937) 75-70-876, 79..., 89...)
-		const phoneMatch = description?.replace(/[\s\-\(\)\+]/g, '').match(/[78]\d{10}/)
+		const phoneMatch = description
+			?.replace(/[\s\-\(\)\+]/g, '')
+			.match(/[78]\d{10}/)
 		if (phoneMatch) {
 			let phone = phoneMatch[0]
 			if (phone.startsWith('8')) phone = '7' + phone.slice(1)
@@ -142,8 +146,7 @@ export class WebhookProductsService {
 					{ couponCode: code, notificationId: notification.id }
 				)
 			}
-			// Личный купон для конкретного человека — не рассылать всем,
-			// даже если этот номер не зарегистрирован в приложении
+
 			return { ok: true }
 		}
 
@@ -191,7 +194,9 @@ export class WebhookProductsService {
 			? `«${name}» теперь у нас — загляните, пока не разобрали!`
 			: `Новый раздел «${name}» уже открыт — что там? 🛍️`
 
-		await this.notifications.sendBroadcastPushOnly(title, body, { categorySlug: slug })
+		await this.notifications.sendBroadcastPushOnly(title, body, {
+			categorySlug: slug
+		})
 		return { ok: true }
 	}
 
