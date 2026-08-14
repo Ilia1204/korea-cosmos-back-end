@@ -128,11 +128,18 @@ export class RobokassaService {
 				'https://services.robokassa.ru/RefundService/Refund/Create',
 				{
 					method: 'POST',
-					headers: { 'Content-Type': 'text/plain' },
-					body: jwt
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(jwt)
 				}
 			)
 			const text = await res.text()
+			this.logger.log(
+				`Robokassa refund (v2) response status=${res.status} ${
+					res.statusText
+				} headers=${JSON.stringify(
+					Object.fromEntries(res.headers.entries())
+				)} body=${JSON.stringify(text)}`
+			)
 			let parsed: { success?: boolean; message?: string; requestId?: string }
 			try {
 				parsed = JSON.parse(text)
