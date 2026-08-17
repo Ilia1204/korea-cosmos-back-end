@@ -80,6 +80,8 @@ export class WooProxyController {
 		if (query.max_price) params.max_price = query.max_price
 		if (query.stock_status) params.stock_status = query.stock_status
 		if (query.on_sale) params.on_sale = query.on_sale
+		if (query.attribute) params.attribute = query.attribute
+		if (query.attribute_term) params.attribute_term = query.attribute_term
 		return this.service.proxyPaginated(params)
 	}
 
