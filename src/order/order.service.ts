@@ -485,7 +485,6 @@ export class OrderService {
 				this.logger.error(`Refund for order ${id} threw: ${e}`)
 			}
 		}
-		const needsManualRefund = order.status === 'payed' && !refundSucceeded
 
 		if (wasLoyaltyApplied && cancelled.userId) {
 			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)
@@ -514,10 +513,6 @@ export class OrderService {
 				'❌ Заказ отменён клиентом',
 				`Заказ #${id.slice(0, 6).toUpperCase()} отменён пользователем${
 					reason ? `. Причина: ${reason}` : ''
-				}${
-					needsManualRefund
-						? `. ⚠️ Требуется вернуть ${order.totalPrice} ₽ вручную в личном кабинете Robokassa`
-						: ''
 				}`,
 				{ orderId: id, isRead: true }
 			)

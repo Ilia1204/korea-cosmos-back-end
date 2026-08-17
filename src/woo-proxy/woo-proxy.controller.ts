@@ -16,7 +16,10 @@ const PRODUCT_QUERY_KEYS = [
 	'status',
 	'catalog_visibility',
 	'_fields',
-	'page'
+	'page',
+	'min_price',
+	'max_price',
+	'stock_status'
 ]
 
 @Controller('woo')
@@ -73,6 +76,10 @@ export class WooProxyController {
 			catalog_visibility: 'visible'
 		}
 		if (query.search) params.search = query.search
+		if (query.min_price) params.min_price = query.min_price
+		if (query.max_price) params.max_price = query.max_price
+		if (query.stock_status) params.stock_status = query.stock_status
+		if (query.on_sale) params.on_sale = query.on_sale
 		return this.service.proxyPaginated(params)
 	}
 
