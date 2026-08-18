@@ -248,7 +248,7 @@ export class ChatService {
 	async sendPushToUser(userId: string, title: string, body: string) {
 		const data = { screen: 'SupportChat' }
 		this.notifications
-			.sendPushNotificationToUser(userId, title, body, data)
+			.sendPushNotificationToUser(userId, title, body, data, 'chat')
 			.catch(() => {})
 	}
 

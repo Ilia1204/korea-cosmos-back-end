@@ -7,6 +7,7 @@ import {
 	Param,
 	Patch,
 	Post,
+	Query,
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
@@ -16,6 +17,7 @@ import {
 	AdminBroadcastDto,
 	ScheduleBroadcastDto
 } from './dto/admin-notification.dto'
+import { NotificationPreferences } from './notification-categories'
 import { NotificationsService } from './notifications.service'
 
 @Controller('notifications')
@@ -118,8 +120,40 @@ export class NotificationsController {
 	@HttpCode(200)
 	@Get('by-user')
 	@Auth()
-	async getByUser(@CurrentUser('id') id: string) {
-		return this.notificationsService.getNotificationsForUser(id)
+	async getByUser(
+		@CurrentUser('id') id: string,
+		@Query('page') page?: string,
+		@Query('perPage') perPage?: string
+	) {
+		return this.notificationsService.getNotificationsForUser(
+			id,
+			page ? parseInt(page) : 1,
+			perPage ? parseInt(perPage) : 20
+		)
+	}
+
+	@HttpCode(200)
+	@Get('unread-count')
+	@Auth()
+	async getUnreadCount(@CurrentUser('id') id: string) {
+		return { count: await this.notificationsService.getUnreadCount(id) }
+	}
+
+	@HttpCode(200)
+	@Get('preferences')
+	@Auth()
+	async getPreferences(@CurrentUser('id') id: string) {
+		return this.notificationsService.getNotificationPreferences(id)
+	}
+
+	@HttpCode(200)
+	@Patch('preferences')
+	@Auth()
+	async updatePreferences(
+		@CurrentUser('id') id: string,
+		@Body() body: NotificationPreferences
+	) {
+		return this.notificationsService.updateNotificationPreferences(id, body)
 	}
 
 	@HttpCode(200)

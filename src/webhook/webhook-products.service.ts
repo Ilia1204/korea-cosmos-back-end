@@ -37,9 +37,12 @@ export class WebhookProductsService {
 			? `${name} уже в разделе «${categoryName}» — посмотрите первыми! 👀`
 			: `${name} уже в магазине — посмотрите первыми! 👀`
 
-		await this.notifications.sendBroadcastPushOnly('🌸 Новинка!', body, {
-			productSlug: slug
-		})
+		await this.notifications.sendBroadcastPushOnly(
+			'🌸 Новинка!',
+			body,
+			{ productSlug: slug },
+			'promotions'
+		)
 		return { ok: true }
 	}
 
@@ -143,7 +146,8 @@ export class WebhookProductsService {
 					user.id,
 					personalTitle,
 					personalBody,
-					{ couponCode: code, notificationId: notification.id }
+					{ couponCode: code, notificationId: notification.id },
+					'promotions'
 				)
 			}
 
@@ -170,16 +174,20 @@ export class WebhookProductsService {
 					user.id,
 					'🎁 Промокод для вас!',
 					body,
-					{ couponCode: code }
+					{ couponCode: code },
+					'promotions'
 				)
 			}
 			return { ok: true }
 		}
 
 		// Публичный купон — отправляем всем
-		await this.notifications.sendBroadcastPushOnly('🎁 Промокод!', body, {
-			couponCode: code
-		})
+		await this.notifications.sendBroadcastPushOnly(
+			'🎁 Промокод!',
+			body,
+			{ couponCode: code },
+			'promotions'
+		)
 		return { ok: true }
 	}
 
@@ -194,9 +202,12 @@ export class WebhookProductsService {
 			? `«${name}» теперь у нас — загляните, пока не разобрали!`
 			: `Новый раздел «${name}» уже открыт — что там? 🛍️`
 
-		await this.notifications.sendBroadcastPushOnly(title, body, {
-			categorySlug: slug
-		})
+		await this.notifications.sendBroadcastPushOnly(
+			title,
+			body,
+			{ categorySlug: slug },
+			'promotions'
+		)
 		return { ok: true }
 	}
 
@@ -208,7 +219,8 @@ export class WebhookProductsService {
 		await this.notifications.sendBroadcastPushOnly(
 			'📖 Новая статья',
 			`${title} — читайте в блоге Korea Cosmos`,
-			{ postSlug: slug }
+			{ postSlug: slug },
+			'promotions'
 		)
 		return { ok: true }
 	}
@@ -232,7 +244,8 @@ export class WebhookProductsService {
 			await this.notifications.sendBroadcastPushOnly(
 				'🏷️ Скидка!',
 				`Успейте! ${p.name} — было ${p.regularPrice}₽, теперь ${p.salePrice}₽ 🔥`,
-				{ productSlug: p.slug }
+				{ productSlug: p.slug },
+				'promotions'
 			)
 			return
 		}
@@ -259,6 +272,11 @@ export class WebhookProductsService {
 			navData = {}
 		}
 
-		await this.notifications.sendBroadcastPushOnly('🏷️ Скидки!', body, navData)
+		await this.notifications.sendBroadcastPushOnly(
+			'🏷️ Скидки!',
+			body,
+			navData,
+			'promotions'
+		)
 	}
 }

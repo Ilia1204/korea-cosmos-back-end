@@ -203,7 +203,8 @@ export class WooSyncService {
 					order.userId,
 					icon,
 					title,
-					data
+					data,
+					'orders'
 				)
 
 				this.logger.log(

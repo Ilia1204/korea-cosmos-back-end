@@ -3,6 +3,12 @@ import { randomUUID } from 'crypto'
 import { Expo, ExpoPushMessage } from 'expo-server-sdk'
 import { PrismaService } from 'src/prisma.service'
 import { UserService } from 'src/user/user.service'
+import {
+	NOTIFICATION_CATEGORIES,
+	NotificationCategory,
+	NotificationPreferences,
+	isCategoryEnabled
+} from './notification-categories'
 import { returnNotificationObject } from './return-notification.object'
 
 @Injectable()
@@ -34,12 +40,73 @@ export class NotificationsService {
 		})
 	}
 
-	async sendBroadcastPushOnly(title: string, body: string, data?: object) {
+	async sendBroadcastPushOnly(
+		title: string,
+		body: string,
+		data?: object,
+		category?: NotificationCategory
+	) {
 		const tokens = await this.prisma.pushToken.findMany({
 			select: { id: true, token: true, userId: true }
 		})
 
-		await this.sendToTokens(tokens, title, body, data)
+		const allowed = await this.filterTokensByCategory(tokens, category)
+		await this.sendToTokens(allowed, title, body, data)
+	}
+
+	private async filterTokensByCategory<T extends { userId: string }>(
+		tokens: T[],
+		category?: NotificationCategory
+	): Promise<T[]> {
+		if (!category || !tokens.length) return tokens
+
+		const userIds = [...new Set(tokens.map(t => t.userId))]
+		const users = await this.prisma.user.findMany({
+			where: { id: { in: userIds } },
+			select: { id: true, notificationPreferences: true }
+		})
+		const disabled = new Set(
+			users
+				.filter(u => !isCategoryEnabled(u.notificationPreferences, category))
+				.map(u => u.id)
+		)
+		return tokens.filter(t => !disabled.has(t.userId))
+	}
+
+	async getNotificationPreferences(userId: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { notificationPreferences: true }
+		})
+		if (!user) throw new NotFoundException('Пользователь не найден')
+
+		const preferences = (user.notificationPreferences ??
+			{}) as NotificationPreferences
+
+		return Object.fromEntries(
+			NOTIFICATION_CATEGORIES.map(category => [
+				category,
+				isCategoryEnabled(preferences, category)
+			])
+		) as Record<NotificationCategory, boolean>
+	}
+
+	async updateNotificationPreferences(
+		userId: string,
+		preferences: NotificationPreferences
+	) {
+		const filtered: NotificationPreferences = {}
+		for (const category of NOTIFICATION_CATEGORIES) {
+			if (typeof preferences[category] === 'boolean')
+				filtered[category] = preferences[category]
+		}
+
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: { notificationPreferences: filtered }
+		})
+
+		return this.getNotificationPreferences(userId)
 	}
 
 	private async sendToTokens(
@@ -122,8 +189,18 @@ export class NotificationsService {
 		userId: string,
 		title: string,
 		message: string,
-		data: any
+		data: any,
+		category?: NotificationCategory
 	) {
+		if (category) {
+			const user = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { notificationPreferences: true }
+			})
+			if (user && !isCategoryEnabled(user.notificationPreferences, category))
+				return
+		}
+
 		const tokens = await this.prisma.pushToken.findMany({
 			where: { userId },
 			select: { id: true, token: true, userId: true }
@@ -133,14 +210,32 @@ export class NotificationsService {
 		await this.sendToTokens(tokens, title, message, data)
 	}
 
-	async getNotificationsForUser(userId: string) {
+	async getNotificationsForUser(userId: string, page = 1, perPage = 20) {
 		const user = await this.user.getById(userId)
 		if (!user) throw new NotFoundException('Пользователь не найден')
 
-		return this.prisma.notification.findMany({
-			where: { userId: user.id },
-			orderBy: { createdAt: 'desc' },
-			select: { ...returnNotificationObject }
+		const skip = (page - 1) * perPage
+		const [notifications, total] = await Promise.all([
+			this.prisma.notification.findMany({
+				where: { userId: user.id },
+				orderBy: { createdAt: 'desc' },
+				skip,
+				take: perPage,
+				select: { ...returnNotificationObject }
+			}),
+			this.prisma.notification.count({ where: { userId: user.id } })
+		])
+
+		return {
+			notifications,
+			total,
+			hasMore: skip + notifications.length < total
+		}
+	}
+
+	async getUnreadCount(userId: string) {
+		return this.prisma.notification.count({
+			where: { userId, isRead: false }
 		})
 	}
 
@@ -200,10 +295,13 @@ export class NotificationsService {
 				body,
 				data
 			)
-			this.sendPushNotificationToUser(user.id, title, body, {
-				...data,
-				notificationId: notification.id
-			}).catch(() => {})
+			this.sendPushNotificationToUser(
+				user.id,
+				title,
+				body,
+				{ ...data, notificationId: notification.id },
+				'stock'
+			).catch(() => {})
 		}
 	}
 
@@ -218,7 +316,8 @@ export class NotificationsService {
 					user.id,
 					'📦 Товар в наличии!',
 					'Товар, который вы добавили в избранное, снова в наличии. Посмотрите его!',
-					{ productSlug: slug, isRead: true }
+					{ productSlug: slug, isRead: true },
+					'stock'
 				).catch(() => {})
 				this.saveNotification(
 					user.id,
@@ -248,7 +347,8 @@ export class NotificationsService {
 					user.id,
 					'🎉 Товар снова в наличии!',
 					'Товар, на который вы подписались, появился в наличии. Заходите, пока не разобрали!',
-					{ productSlug, isRead: true }
+					{ productSlug, isRead: true },
+					'stock'
 				).catch(() => {})
 				this.saveNotification(
 					user.id,

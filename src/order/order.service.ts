@@ -428,7 +428,8 @@ export class OrderService {
 					orderUserId: updated.id,
 					status: updated.status,
 					notification: notification.id
-				}
+				},
+				'orders'
 			)
 		}, 2000)
 	}
@@ -504,7 +505,8 @@ export class OrderService {
 				userId,
 				'❌ Заказ отменён',
 				`Заказ #${id.slice(0, 6).toUpperCase()} был отменён по вашему запросу.`,
-				{ orderUserId: id, status: 'cancelled', notification: notification.id }
+				{ orderUserId: id, status: 'cancelled', notification: notification.id },
+				'orders'
 			)
 		}, 1000)
 

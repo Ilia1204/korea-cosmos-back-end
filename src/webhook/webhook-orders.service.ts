@@ -81,7 +81,8 @@ export class WebhookOrdersService {
 		if (updated.userId) {
 			await this.notifyOrderStatus(updated.userId, updated.id, localStatus)
 			if (localStatus === 'delivered') {
-				const amountToAdd = (existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
+				const amountToAdd =
+					(existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
 				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd)
 			}
 		}
@@ -111,10 +112,13 @@ export class WebhookOrdersService {
 			title,
 			data
 		)
-		await this.notifications.sendPushNotificationToUser(user.id, icon, title, {
-			...data,
-			notification: notification.id
-		})
+		await this.notifications.sendPushNotificationToUser(
+			user.id,
+			icon,
+			title,
+			{ ...data, notification: notification.id },
+			'orders'
+		)
 	}
 
 	async handleWooCommerceOrderCreated(payload: any) {
@@ -245,10 +249,13 @@ export class WebhookOrdersService {
 			title,
 			data
 		)
-		await this.notifications.sendPushNotificationToUser(userId, icon, title, {
-			...data,
-			notification: notification.id
-		})
+		await this.notifications.sendPushNotificationToUser(
+			userId,
+			icon,
+			title,
+			{ ...data, notification: notification.id },
+			'orders'
+		)
 	}
 
 	private async applyLoyaltyOnDelivery(userId: string, amountToAdd: number) {

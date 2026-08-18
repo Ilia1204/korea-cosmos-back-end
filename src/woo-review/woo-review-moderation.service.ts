@@ -119,7 +119,8 @@ export class WooReviewModerationService {
 				updated.userId,
 				'📝 Отзыв отправлен на модерацию',
 				'Вы изменили отзыв — он снова проверяется и скоро будет опубликован.',
-				{ reviewId: updated.id, isRead: true }
+				{ reviewId: updated.id, isRead: true },
+				'orders'
 			)
 		}, 2000)
 
@@ -141,7 +142,8 @@ export class WooReviewModerationService {
 				review.userId,
 				'✅ Отзыв опубликован',
 				'Ваш отзыв опубликован — спасибо за обратную связь!',
-				{ reviewId: review.id, isRead: true }
+				{ reviewId: review.id, isRead: true },
+				'orders'
 			)
 		}, 2000)
 
@@ -167,7 +169,8 @@ export class WooReviewModerationService {
 				review.userId,
 				'⛔ Отзыв отклонён',
 				body,
-				{ reviewId: review.id, isRead: true }
+				{ reviewId: review.id, isRead: true },
+				'orders'
 			)
 		}, 2000)
 

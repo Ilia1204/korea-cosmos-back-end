@@ -120,7 +120,7 @@ export class WooDiscountService {
 		if (dto.isSentNotification && dto.title && dto.message) {
 			const navData = await this.resolveNotificationNav(dto)
 			await this.notifications
-				.sendBroadcastPushOnly(dto.title, dto.message, navData)
+				.sendBroadcastPushOnly(dto.title, dto.message, navData, 'promotions')
 				.catch(e => this.logger.warn(`Push notification failed: ${e}`))
 		}
 
@@ -395,9 +395,7 @@ export class WooDiscountService {
 		discountProhibited: boolean
 	) {
 		try {
-			await this.ms.updatePrices(
-				items.map(i => ({ ...i, discountProhibited }))
-			)
+			await this.ms.updatePrices(items.map(i => ({ ...i, discountProhibited })))
 		} catch (e) {
 			this.logger.warn(`MS update failed: ${e}`)
 		}

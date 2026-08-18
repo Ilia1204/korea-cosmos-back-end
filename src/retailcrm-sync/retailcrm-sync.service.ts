@@ -99,7 +99,8 @@ export class RetailCRMSyncService {
 						orderUserId: updated.id,
 						status: localStatus,
 						notification: notification.id
-					}
+					},
+					'orders'
 				)
 
 				this.logger.log(
@@ -289,7 +290,9 @@ export class RetailCRMSyncService {
 		const data = await res.json().catch(() => null)
 		if (!data?.success) {
 			this.logger.error(
-				`[RetailCRM] patchStatus failed (externalId=${externalId}): ${JSON.stringify(data)}`
+				`[RetailCRM] patchStatus failed (externalId=${externalId}): ${JSON.stringify(
+					data
+				)}`
 			)
 		} else {
 			this.logger.log(
@@ -313,7 +316,9 @@ export class RetailCRMSyncService {
 		const orderId: number = data.order.id
 		const paymentsRaw = data.order.payments
 		this.logger.log(
-			`[RetailCRM] markPaymentsAsPaid orderId=${orderId} payments=${JSON.stringify(paymentsRaw)}`
+			`[RetailCRM] markPaymentsAsPaid orderId=${orderId} payments=${JSON.stringify(
+				paymentsRaw
+			)}`
 		)
 
 		const payments: any[] = Array.isArray(paymentsRaw)
@@ -355,7 +360,9 @@ export class RetailCRMSyncService {
 				)
 			} else {
 				this.logger.error(
-					`[RetailCRM] Payment update failed (id=${payment.id}): ${JSON.stringify(editData)}`
+					`[RetailCRM] Payment update failed (id=${
+						payment.id
+					}): ${JSON.stringify(editData)}`
 				)
 			}
 		}

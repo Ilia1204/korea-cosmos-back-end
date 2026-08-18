@@ -38,7 +38,8 @@ export class NotificationsScheduledService {
 					reviewReminder: true,
 					orderUserId: order.id,
 					notificationId: notification.id
-				}
+				},
+				'reminders'
 			)
 		}
 	}
@@ -93,7 +94,8 @@ export class NotificationsScheduledService {
 						profileReminder: true,
 						editProfileNavigate: 'EditProfile',
 						notificationId: notification.id
-					}
+					},
+					'reminders'
 				)
 				.catch(() => {})
 		}
@@ -163,10 +165,13 @@ export class NotificationsScheduledService {
 				data
 			)
 			this.notifications
-				.sendPushNotificationToUser(user.id, title, body, {
-					...data,
-					notificationId: notification.id
-				})
+				.sendPushNotificationToUser(
+					user.id,
+					title,
+					body,
+					{ ...data, notificationId: notification.id },
+					'loyalty'
+				)
 				.catch(() => {})
 		}
 	}
@@ -245,7 +250,8 @@ export class NotificationsScheduledService {
 					user.id,
 					`🛒 Забыли что-то${firstName}?`,
 					'У вас остались товары в корзине — оформите заказ, пока они не закончились!',
-					{ abandonedCart: true, screen: 'Cart' }
+					{ abandonedCart: true, screen: 'Cart' },
+					'reminders'
 				)
 				.catch(() => {})
 		}
@@ -340,11 +346,17 @@ export class NotificationsScheduledService {
 				{ loyaltyReminder: true, discount: true }
 			)
 			this.notifications
-				.sendPushNotificationToUser(userLoyalty.userId, title, body, {
-					loyaltyReminder: true,
-					discount: true,
-					notificationId: notification.id
-				})
+				.sendPushNotificationToUser(
+					userLoyalty.userId,
+					title,
+					body,
+					{
+						loyaltyReminder: true,
+						discount: true,
+						notificationId: notification.id
+					},
+					'loyalty'
+				)
 				.catch(() => {})
 		}
 	}

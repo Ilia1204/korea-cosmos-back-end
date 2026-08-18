@@ -40,9 +40,12 @@ export class WooDiscountReminderService {
 			this.recentlyUsed.add(group.name)
 
 			const { title, message } = this.buildNotification(group)
-			await this.notifications.sendBroadcastPushOnly(title, message, {
-				categorySlug: 'sale'
-			})
+			await this.notifications.sendBroadcastPushOnly(
+				title,
+				message,
+				{ categorySlug: 'sale' },
+				'promotions'
+			)
 
 			this.logger.log(
 				`Reminder sent: "${title}" | group="${group.name}" products=${group.count} discount=${group.maxDiscount}%`

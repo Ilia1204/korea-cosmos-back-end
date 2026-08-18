@@ -23,7 +23,8 @@ export class LoyaltyLevelService {
 		private notifications: NotificationsService,
 		private config: ConfigService
 	) {
-		this.crmUrl = this.config.get('RETAILCRM_URL') || 'https://koreacosmos.retailcrm.ru'
+		this.crmUrl =
+			this.config.get('RETAILCRM_URL') || 'https://koreacosmos.retailcrm.ru'
 		this.crmApiKey = this.config.get('RETAILCRM_API_KEY')
 	}
 
@@ -97,28 +98,46 @@ export class LoyaltyLevelService {
 		})
 	}
 
-	async syncFromRetailCrm(): Promise<{ synced: number; created: number; updated: number }> {
+	async syncFromRetailCrm(): Promise<{
+		synced: number
+		created: number
+		updated: number
+	}> {
 		if (!this.crmApiKey) throw new Error('RETAILCRM_API_KEY не настроен')
 
 		// Получаем список программ лояльности
-		const loyaltiesRes = await fetch(`${this.crmUrl}/api/v5/loyalty/loyalties`, {
-			headers: { 'X-API-KEY': this.crmApiKey }
-		})
+		const loyaltiesRes = await fetch(
+			`${this.crmUrl}/api/v5/loyalty/loyalties`,
+			{
+				headers: { 'X-API-KEY': this.crmApiKey }
+			}
+		)
 		const loyaltiesData = await loyaltiesRes.json()
-		this.logger.log(`RetailCRM loyalties response: ${JSON.stringify(loyaltiesData)}`)
+		this.logger.log(
+			`RetailCRM loyalties response: ${JSON.stringify(loyaltiesData)}`
+		)
 
 		if (!loyaltiesData.success || !loyaltiesData.loyalties?.length) {
-			throw new Error(`Программы лояльности не найдены: ${JSON.stringify(loyaltiesData)}`)
+			throw new Error(
+				`Программы лояльности не найдены: ${JSON.stringify(loyaltiesData)}`
+			)
 		}
 
 		// Берём первую активную программу
-		const program = loyaltiesData.loyalties.find((l: any) => l.active) ?? loyaltiesData.loyalties[0]
-		this.logger.log(`Using loyalty program id=${program.id} name="${program.name}"`)
+		const program =
+			loyaltiesData.loyalties.find((l: any) => l.active) ??
+			loyaltiesData.loyalties[0]
+		this.logger.log(
+			`Using loyalty program id=${program.id} name="${program.name}"`
+		)
 
 		// Получаем детали программы (включая уровни)
-		const programRes = await fetch(`${this.crmUrl}/api/v5/loyalty/loyalties/${program.id}`, {
-			headers: { 'X-API-KEY': this.crmApiKey }
-		})
+		const programRes = await fetch(
+			`${this.crmUrl}/api/v5/loyalty/loyalties/${program.id}`,
+			{
+				headers: { 'X-API-KEY': this.crmApiKey }
+			}
+		)
 		const programData = await programRes.json()
 		this.logger.log(`RetailCRM program detail: ${JSON.stringify(programData)}`)
 
@@ -156,7 +175,9 @@ export class LoyaltyLevelService {
 			}
 		}
 
-		this.logger.log(`RetailCRM loyalty sync: created=${created} updated=${updated}`)
+		this.logger.log(
+			`RetailCRM loyalty sync: created=${created} updated=${updated}`
+		)
 		return { synced: crmLevels.length, created, updated }
 	}
 
@@ -181,7 +202,9 @@ export class LoyaltyLevelService {
 	}
 
 	async subtractAmountAndUpdateLevel(userId: string, amount: number) {
-		const userLoyalty = await this.prisma.userLoyalty.findUnique({ where: { userId } })
+		const userLoyalty = await this.prisma.userLoyalty.findUnique({
+			where: { userId }
+		})
 		if (!userLoyalty) return
 
 		const newTotal = Math.max(0, userLoyalty.totalAmountSpent - amount)
@@ -214,9 +237,13 @@ export class LoyaltyLevelService {
 					.saveNotification(userId, title, body, { discount: newLevel })
 					.catch(() => {})
 				this.notifications
-					.sendPushNotificationToUser(userId, title, body, {
-						discount: newLevel
-					})
+					.sendPushNotificationToUser(
+						userId,
+						title,
+						body,
+						{ discount: newLevel },
+						'loyalty'
+					)
 					.catch(() => {})
 			}, 5000)
 		}
