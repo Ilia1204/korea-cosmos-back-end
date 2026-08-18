@@ -95,15 +95,24 @@ export class NotificationsService {
 		userId: string,
 		preferences: NotificationPreferences
 	) {
-		const filtered: NotificationPreferences = {}
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { notificationPreferences: true }
+		})
+		if (!user) throw new NotFoundException('Пользователь не найден')
+
+		const existing = (user.notificationPreferences ??
+			{}) as NotificationPreferences
+
+		const merged: NotificationPreferences = { ...existing }
 		for (const category of NOTIFICATION_CATEGORIES) {
 			if (typeof preferences[category] === 'boolean')
-				filtered[category] = preferences[category]
+				merged[category] = preferences[category]
 		}
 
 		await this.prisma.user.update({
 			where: { id: userId },
-			data: { notificationPreferences: filtered }
+			data: { notificationPreferences: merged }
 		})
 
 		return this.getNotificationPreferences(userId)
