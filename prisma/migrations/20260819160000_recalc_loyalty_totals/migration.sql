@@ -20,14 +20,27 @@ WHERE NOT EXISTS (
 );
 
 -- Пересчитываем уровень и скидку под новую сумму (та же логика,
--- что и applyLevelChange в loyalty-level.service.ts)
+-- что и applyLevelChange в loyalty-level.service.ts).
+-- Целевую таблицу UPDATE нельзя переиспользовать в LATERAL-подзапросе
+-- FROM-clause — Postgres это не поддерживает, поэтому используем
+-- коррелированные скалярные подзапросы прямо в SET
 UPDATE "user_loyalty" ul
-SET "level_id" = lvl."id",
-    "current_discount" = lvl."discount"
-FROM LATERAL (
-    SELECT "id", "discount"
+SET "level_id" = (
+        SELECT "id"
+        FROM "loyalty_level"
+        WHERE "min_amount" <= ul."total_amount_spent"
+        ORDER BY "min_amount" DESC
+        LIMIT 1
+    ),
+    "current_discount" = (
+        SELECT "discount"
+        FROM "loyalty_level"
+        WHERE "min_amount" <= ul."total_amount_spent"
+        ORDER BY "min_amount" DESC
+        LIMIT 1
+    )
+WHERE EXISTS (
+    SELECT 1
     FROM "loyalty_level"
     WHERE "min_amount" <= ul."total_amount_spent"
-    ORDER BY "min_amount" DESC
-    LIMIT 1
-) lvl;
+);
