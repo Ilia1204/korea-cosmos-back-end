@@ -14,4 +14,4 @@ RUN yarn build
 ENV NODE_ENV=production
 EXPOSE 4200
 
-CMD ["sh", "-c", "npx prisma migrate resolve --rolled-back 20260819160000_recalc_loyalty_totals; npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
