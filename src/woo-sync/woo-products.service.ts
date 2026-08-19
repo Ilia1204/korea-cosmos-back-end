@@ -48,7 +48,8 @@ export class WooProductsService {
 		if (!slugs.length) return []
 		const res = await this.woo.get('products', {
 			slug: slugs.join(','),
-			per_page: '100'
+			per_page: '100',
+			status: 'publish'
 		})
 		if (!res.ok) return []
 		return res.json()
