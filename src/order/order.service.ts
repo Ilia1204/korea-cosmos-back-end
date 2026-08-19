@@ -359,10 +359,22 @@ export class OrderService {
 		const order = await this.getById(id)
 		if (!order) throw new NotFoundException('Заказ не найден')
 
-		const updated = await this.prisma.order.update({
-			where: { id },
-			include: { user: true },
+		// Атомарный переход статуса: пишем, только если статус в БД всё ещё
+		// совпадает с прочитанным — иначе кто-то параллельно уже изменил его
+		// (вебхук WC/RetailCRM или cron), и повторно применять побочные
+		// эффекты (начисление/списание лояльности) нельзя
+		const guard = await this.prisma.order.updateMany({
+			where: { id, status: order.status },
 			data: { status: dto.status }
+		})
+		if (guard.count === 0)
+			throw new BadRequestException(
+				'Статус заказа уже был изменён параллельно, обновите страницу и повторите'
+			)
+
+		const updated = await this.prisma.order.findUnique({
+			where: { id },
+			include: { user: true }
 		})
 
 		this.audit

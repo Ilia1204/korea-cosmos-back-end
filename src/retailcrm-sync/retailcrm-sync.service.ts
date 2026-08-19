@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Cron, CronExpression } from '@nestjs/schedule'
+import { LoyaltyLevelService } from 'src/loyalty-level/loyalty-level.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import {
 	getOrderStatusIcons,
 	getOrderStatusTranslation
 } from 'src/utils/translate-status'
+import { WooSyncService } from 'src/woo-sync/woo-sync.service'
 import {
 	LOCAL_TO_RETAILCRM,
 	RETAILCRM_TO_LOCAL
@@ -21,7 +23,9 @@ export class RetailCRMSyncService {
 	constructor(
 		private prisma: PrismaService,
 		private notificationService: NotificationsService,
-		private configService: ConfigService
+		private configService: ConfigService,
+		private loyaltyLevel: LoyaltyLevelService,
+		private wooSync: WooSyncService
 	) {
 		this.url =
 			this.configService.get('RETAILCRM_URL') ||
@@ -75,10 +79,26 @@ export class RetailCRMSyncService {
 				)
 				if (!localOrder || localOrder.status === localStatus) continue
 
-				const updated = await this.prisma.order.update({
-					where: { id: localOrder.id },
+				// Атомарный переход: guard от гонки с order.service.ts/вебхуками WC/RetailCRM
+				const guard = await this.prisma.order.updateMany({
+					where: { id: localOrder.id, status: localOrder.status },
 					data: { status: localStatus as any }
 				})
+				if (guard.count === 0) continue
+
+				const updated = await this.prisma.order.findUnique({
+					where: { id: localOrder.id }
+				})
+
+				if (updated.userId && localStatus === 'delivered') {
+					const amountToAdd =
+						(updated.totalPrice ?? 0) - (updated.deliveryPrice ?? 0)
+					await this.applyLoyaltyOnDelivery(
+						updated.userId,
+						amountToAdd,
+						updated.id
+					)
+				}
 
 				const notification = await this.notificationService.saveNotification(
 					updated.userId,
@@ -366,5 +386,35 @@ export class RetailCRMSyncService {
 				)
 			}
 		}
+	}
+
+	private async applyLoyaltyOnDelivery(
+		userId: string,
+		amountToAdd: number,
+		orderId: string
+	) {
+		this.loyaltyLevel
+			.addAmountAndUpdateLevel(userId, amountToAdd, {
+				orderId,
+				reason: `Заказ #${orderId.slice(0, 6).toUpperCase()} доставлен`
+			})
+			.then(async () => {
+				const [loyalty, user] = await Promise.all([
+					this.prisma.userLoyalty.findUnique({
+						where: { userId },
+						select: { currentDiscount: true }
+					}),
+					this.prisma.user.findUnique({
+						where: { id: userId },
+						select: { email: true }
+					})
+				])
+				if (loyalty?.currentDiscount && user?.email) {
+					this.wooSync
+						.updateCustomerDiscount(user.email, loyalty.currentDiscount)
+						.catch(() => null)
+				}
+			})
+			.catch(() => null)
 	}
 }

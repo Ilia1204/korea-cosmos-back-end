@@ -70,12 +70,20 @@ export class WebhookOrdersService {
 			| string
 			| undefined
 
-		const updated = await this.prisma.order.update({
-			where: { id: existing.id },
+		// Атомарный переход: если статус успел измениться между чтением и
+		// записью (гонка с order.service.ts/WC webhook/cron), пропускаем
+		// побочные эффекты — их уже применил победивший вызов
+		const guard = await this.prisma.order.updateMany({
+			where: { id: existing.id, status: existing.status },
 			data: {
 				status: localStatus as any,
 				...(trackingNumber && { trackingNumber })
 			}
+		})
+		if (guard.count === 0) return { ok: true }
+
+		const updated = await this.prisma.order.findUnique({
+			where: { id: existing.id }
 		})
 
 		if (updated.userId) {
@@ -217,9 +225,15 @@ export class WebhookOrdersService {
 			if (newPriority < curPriority) return { ok: true }
 		}
 
-		const updated = await this.prisma.order.update({
-			where: { id: order.id },
+		// Атомарный переход: guard от гонки с order.service.ts/RetailCRM webhook/cron
+		const guard = await this.prisma.order.updateMany({
+			where: { id: order.id, status: order.status },
 			data: { status: localStatus as any }
+		})
+		if (guard.count === 0) return { ok: true }
+
+		const updated = await this.prisma.order.findUnique({
+			where: { id: order.id }
 		})
 
 		if (updated.userId) {
