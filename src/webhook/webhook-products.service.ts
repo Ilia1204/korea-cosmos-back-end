@@ -154,6 +154,92 @@ export class WebhookProductsService {
 			return { ok: true }
 		}
 
+		const PROMO_WORDS = new Set([
+			'новый',
+			'новая',
+			'новое',
+			'год',
+			'года',
+			'скидка',
+			'скидки',
+			'акция',
+			'акции',
+			'распродажа',
+			'черная',
+			'чёрная',
+			'пятница',
+			'весна',
+			'лето',
+			'зима',
+			'осень',
+			'подарок',
+			'подарки',
+			'праздник',
+			'праздники',
+			'юбилей',
+			'открытие',
+			'закрытие',
+			'сезон',
+			'коллекция',
+			'новинка',
+			'новинки',
+			'бренд',
+			'бренды',
+			'выходные',
+			'неделя',
+			'месяц',
+			'сегодня',
+			'завтра'
+		])
+
+		const nameWords = description?.trim().split(/\s+/).filter(Boolean) ?? []
+		const isNameWord = (w: string) => /^[А-ЯЁ][а-яё-]+$/.test(w)
+
+		if (
+			nameWords.length === 2 &&
+			nameWords.every(isNameWord) &&
+			nameWords.every(w => !PROMO_WORDS.has(w.toLowerCase()))
+		) {
+			const [w1, w2] = nameWords
+			const nameUser = await this.prisma.user.findFirst({
+				where: {
+					pushToken: { not: null },
+					OR: [
+						{
+							name: { equals: w1, mode: 'insensitive' },
+							surname: { equals: w2, mode: 'insensitive' }
+						},
+						{
+							name: { equals: w2, mode: 'insensitive' },
+							surname: { equals: w1, mode: 'insensitive' }
+						}
+					]
+				},
+				select: { id: true }
+			})
+
+			if (nameUser) {
+				const personalTitle = '🎁 Ваш промокод!'
+				const personalBody = `${
+					discountText ? discountText + ' ' : ''
+				}по промокоду ${code.toUpperCase()} — специально для вас 🎁`
+				const notification = await this.notifications.saveNotification(
+					nameUser.id,
+					personalTitle,
+					personalBody,
+					{ couponCode: code }
+				)
+				await this.notifications.sendPushNotificationToUser(
+					nameUser.id,
+					personalTitle,
+					personalBody,
+					{ couponCode: code, notificationId: notification.id },
+					'promotions'
+				)
+				return { ok: true }
+			}
+		}
+
 		const body = description
 			? `${description} Промокод: ${code.toUpperCase()}`
 			: `${

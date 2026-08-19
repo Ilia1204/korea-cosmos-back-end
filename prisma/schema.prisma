@@ -57,6 +57,7 @@ model User {
   groupChatParticipant GroupChatParticipant[]
   groupChatMessages    GroupChatMessage[]     @relation("GroupChatMessageSender")
   pushTokens           PushToken[]
+  loyaltyTransactions  LoyaltyTransaction[]
 
   @@map("user")
 }
@@ -331,9 +332,26 @@ model Order {
   russianPostId  String? @map("russian_post_id")
   cancelReason   String? @map("cancel_reason")
 
-  items OrderItem[]
+  items               OrderItem[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@map("order")
+}
+
+model LoyaltyTransaction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  amount Int
+  reason String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId String? @map("order_id")
+
+  @@map("loyalty_transaction")
 }
 
 model OrderItem {

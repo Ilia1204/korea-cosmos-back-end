@@ -191,17 +191,26 @@ export class LoyaltyLevelService {
 		await this.applyLevelChange(userId, userLoyalty)
 	}
 
-	async addAmountAndUpdateLevel(userId: string, amount: number) {
+	async addAmountAndUpdateLevel(
+		userId: string,
+		amount: number,
+		meta?: { orderId?: string; reason?: string }
+	) {
 		const userLoyalty = await this.prisma.userLoyalty.upsert({
 			where: { userId },
 			update: { totalAmountSpent: { increment: amount } },
 			create: { userId, totalAmountSpent: amount, currentDiscount: 0 }
 		})
 
+		await this.recordTransaction(userId, amount, meta)
 		await this.applyLevelChange(userId, userLoyalty)
 	}
 
-	async subtractAmountAndUpdateLevel(userId: string, amount: number) {
+	async subtractAmountAndUpdateLevel(
+		userId: string,
+		amount: number,
+		meta?: { orderId?: string; reason?: string }
+	) {
 		const userLoyalty = await this.prisma.userLoyalty.findUnique({
 			where: { userId }
 		})
@@ -213,7 +222,40 @@ export class LoyaltyLevelService {
 			data: { totalAmountSpent: newTotal }
 		})
 
+		await this.recordTransaction(userId, -amount, meta)
 		await this.applyLevelChange(userId, updated)
+	}
+
+	private async recordTransaction(
+		userId: string,
+		amount: number,
+		meta?: { orderId?: string; reason?: string }
+	) {
+		if (!amount) return
+
+		await this.prisma.loyaltyTransaction.create({
+			data: {
+				userId,
+				amount,
+				orderId: meta?.orderId,
+				reason:
+					meta?.reason ?? (amount > 0 ? 'Начисление баллов' : 'Списание баллов')
+			}
+		})
+	}
+
+	async getHistory(userId: string) {
+		return this.prisma.loyaltyTransaction.findMany({
+			where: { userId },
+			orderBy: { createdAt: 'desc' },
+			select: {
+				id: true,
+				createdAt: true,
+				amount: true,
+				reason: true,
+				orderId: true
+			}
+		})
 	}
 
 	private async applyLevelChange(userId: string, userLoyalty: any) {

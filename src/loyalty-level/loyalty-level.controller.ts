@@ -12,6 +12,7 @@ import {
 	ValidationPipe,
 } from '@nestjs/common'
 import { Auth } from 'src/auth/decorators/auth.decorator'
+import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { LoyaltyLevelDto, UpdateLoyaltyLevelDto } from './loyalty-level.dto'
 import { LoyaltyLevelService } from './loyalty-level.service'
 
@@ -24,6 +25,12 @@ export class LoyaltyLevelController {
 	@Auth()
 	async getAll(@Query('searchTerm') searchTerm?: string) {
 		return this.loyaltyLevelService.getAll(searchTerm)
+	}
+
+	@Get('history/me')
+	@Auth()
+	async getMyHistory(@CurrentUser('id') userId: string) {
+		return this.loyaltyLevelService.getHistory(userId)
 	}
 
 	@HttpCode(200)

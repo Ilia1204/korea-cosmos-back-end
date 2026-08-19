@@ -381,10 +381,17 @@ export class OrderService {
 		this.wooSync.updateOrderStatus(id, dto.status).catch(() => null)
 		this.retailCRM.updateOrderStatus(id, dto.status).catch(() => null)
 
-		if (dto.status === 'delivered' && updated.userId) {
+		if (
+			dto.status === 'delivered' &&
+			order.status !== 'delivered' &&
+			updated.userId
+		) {
 			const amountToAdd = order.totalPrice - (order.deliveryPrice || 0)
 			this.loyaltyLevel
-				.addAmountAndUpdateLevel(updated.userId, amountToAdd)
+				.addAmountAndUpdateLevel(updated.userId, amountToAdd, {
+					orderId: id,
+					reason: `Заказ #${id.slice(0, 6).toUpperCase()} доставлен`
+				})
 				.then(async () => {
 					const loyalty = await this.prisma.userLoyalty.findUnique({
 						where: { userId: updated.userId },
@@ -395,6 +402,34 @@ export class OrderService {
 							.updateCustomerDiscount(
 								updated.user.email,
 								loyalty.currentDiscount
+							)
+							.catch(() => null)
+					}
+				})
+				.catch(() => null)
+		} else if (
+			order.status === 'delivered' &&
+			dto.status !== 'delivered' &&
+			updated.userId
+		) {
+			// Ранее доставленный заказ переведён в другой статус (отмена/возврат) —
+			// откатываем начисленную за него сумму лояльности
+			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)
+			this.loyaltyLevel
+				.subtractAmountAndUpdateLevel(updated.userId, amountToSubtract, {
+					orderId: id,
+					reason: `Отмена заказа #${id.slice(0, 6).toUpperCase()}`
+				})
+				.then(async () => {
+					const loyalty = await this.prisma.userLoyalty.findUnique({
+						where: { userId: updated.userId },
+						select: { currentDiscount: true }
+					})
+					if (updated.user?.email) {
+						this.wooSync
+							.updateCustomerDiscount(
+								updated.user.email,
+								loyalty?.currentDiscount ?? 0
 							)
 							.catch(() => null)
 					}
@@ -451,8 +486,6 @@ export class OrderService {
 				)
 		}
 
-		const wasLoyaltyApplied = order.status === 'payed'
-
 		const cancelled = await this.prisma.order.update({
 			where: { id },
 			include: { user: true },
@@ -487,12 +520,8 @@ export class OrderService {
 			}
 		}
 
-		if (wasLoyaltyApplied && cancelled.userId) {
-			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)
-			this.loyaltyLevel
-				.subtractAmountAndUpdateLevel(cancelled.userId, amountToSubtract)
-				.catch(() => null)
-		}
+		// Лояльность начисляется только при статусе delivered, а отменить можно
+		// только pending/payed заказ — значит списывать здесь нечего
 
 		setTimeout(async () => {
 			const notification = await this.notifications.saveNotification(

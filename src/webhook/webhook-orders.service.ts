@@ -83,7 +83,7 @@ export class WebhookOrdersService {
 			if (localStatus === 'delivered') {
 				const amountToAdd =
 					(existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
-				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd)
+				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd, updated.id)
 			}
 		}
 
@@ -226,7 +226,7 @@ export class WebhookOrdersService {
 			await this.notifyOrderStatus(updated.userId, updated.id, localStatus)
 			if (localStatus === 'delivered') {
 				const amountToAdd = (order.totalPrice ?? 0) - (order.deliveryPrice ?? 0)
-				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd)
+				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd, updated.id)
 			}
 		}
 
@@ -258,9 +258,16 @@ export class WebhookOrdersService {
 		)
 	}
 
-	private async applyLoyaltyOnDelivery(userId: string, amountToAdd: number) {
+	private async applyLoyaltyOnDelivery(
+		userId: string,
+		amountToAdd: number,
+		orderId: string
+	) {
 		this.loyaltyLevel
-			.addAmountAndUpdateLevel(userId, amountToAdd)
+			.addAmountAndUpdateLevel(userId, amountToAdd, {
+				orderId,
+				reason: `Заказ #${orderId.slice(0, 6).toUpperCase()} доставлен`
+			})
 			.then(async () => {
 				const [loyalty, user] = await Promise.all([
 					this.prisma.userLoyalty.findUnique({
