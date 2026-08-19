@@ -11,5 +11,6 @@ export const returnAddressObject: Prisma.AddressSelect = {
 	apartment: true,
 	isDefault: true,
 	comment: true,
+	label: true,
 	userId: true
 }
