@@ -5,6 +5,7 @@ import {
 	Logger,
 	NotFoundException
 } from '@nestjs/common'
+import { Cron, CronExpression } from '@nestjs/schedule'
 import { EnumOrderStatus } from '@prisma/client'
 import { DeliveryService } from 'src/delivery/delivery.service'
 import { LoyaltyLevelService } from 'src/loyalty-level/loyalty-level.service'
@@ -68,11 +69,20 @@ export class OrderService {
 		})
 	}
 
-	async getByUserId(userId: string, page = 1, perPage = 10) {
+	async getByUserId(
+		userId: string,
+		page = 1,
+		perPage = 10,
+		statuses?: EnumOrderStatus[]
+	) {
 		const skip = (page - 1) * perPage
+		const where = {
+			userId,
+			...(statuses?.length ? { status: { in: statuses } } : {})
+		}
 		const [orders, total] = await Promise.all([
 			this.prisma.order.findMany({
-				where: { userId },
+				where,
 				orderBy: { createdAt: 'desc' },
 				skip,
 				take: perPage,
@@ -82,7 +92,7 @@ export class OrderService {
 					items: true
 				}
 			}),
-			this.prisma.order.count({ where: { userId } })
+			this.prisma.order.count({ where })
 		])
 		return { orders, total, hasMore: skip + orders.length < total }
 	}
@@ -424,8 +434,6 @@ export class OrderService {
 			dto.status !== 'delivered' &&
 			updated.userId
 		) {
-			// Ранее доставленный заказ переведён в другой статус (отмена/возврат) —
-			// откатываем начисленную за него сумму лояльности
 			const amountToSubtract = order.totalPrice - (order.deliveryPrice || 0)
 			this.loyaltyLevel
 				.subtractAmountAndUpdateLevel(updated.userId, amountToSubtract, {
@@ -492,11 +500,63 @@ export class OrderService {
 
 		if (order.status === 'payed') {
 			const hours = (Date.now() - new Date(order.createdAt).getTime()) / 3600000
-			if (hours > 1)
+			if (hours > 2)
 				throw new BadRequestException(
-					'Время для отмены оплаченного заказа истекло (1 час)'
+					'Время для отмены оплаченного заказа истекло (2 часа)'
 				)
 		}
+
+		return this.applyCancellation(order, reason, {
+			userMessage: `Заказ #${id
+				.slice(0, 6)
+				.toUpperCase()} был отменён по вашему запросу.`,
+			adminTitle: '❌ Заказ отменён клиентом',
+			adminMessage: `Заказ #${id
+				.slice(0, 6)
+				.toUpperCase()} отменён пользователем${
+				reason ? `. Причина: ${reason}` : ''
+			}`
+		})
+	}
+
+	private readonly PENDING_EXPIRY_HOURS = 24
+
+	@Cron(CronExpression.EVERY_HOUR)
+	async cancelStalePendingOrders() {
+		const cutoff = new Date(Date.now() - this.PENDING_EXPIRY_HOURS * 3600000)
+		const staleOrders = await this.prisma.order.findMany({
+			where: { status: 'pending', createdAt: { lt: cutoff } },
+			include: { user: true }
+		})
+
+		for (const order of staleOrders) {
+			try {
+				await this.applyCancellation(order, 'Не оплачен вовремя', {
+					userMessage: `Заказ #${order.id
+						.slice(0, 6)
+						.toUpperCase()} отменён — не был оплачен в течение ${
+						this.PENDING_EXPIRY_HOURS
+					} часов.`,
+					adminTitle: '❌ Заказ отменён автоматически',
+					adminMessage: `Заказ #${order.id
+						.slice(0, 6)
+						.toUpperCase()} отменён — не оплачен в течение ${
+						this.PENDING_EXPIRY_HOURS
+					} часов.`
+				})
+			} catch (e) {
+				this.logger.error(`Auto-cancel for order ${order.id} failed: ${e}`)
+			}
+		}
+	}
+
+	private async applyCancellation(
+		order: any,
+		reason: string | undefined,
+		messages: { userMessage: string; adminTitle: string; adminMessage: string }
+	) {
+		const id = order.id
+		const userId = order.userId
 
 		const cancelled = await this.prisma.order.update({
 			where: { id },
@@ -506,24 +566,24 @@ export class OrderService {
 
 		this.wooSync.updateOrderStatus(id, 'cancelled').catch(() => null)
 		this.retailCRM.updateOrderStatus(id, 'cancelled').catch(() => null)
-		if ((order as any).cdekUuid) {
-			this.delivery.cancelCdekOrder((order as any).cdekUuid).catch(() => null)
+		if (order.cdekUuid) {
+			this.delivery.cancelCdekOrder(order.cdekUuid).catch(() => null)
 		}
-		if ((order as any).russianPostId) {
+		if (order.russianPostId) {
 			this.delivery
-				.cancelRussianPostOrder(Number((order as any).russianPostId))
+				.cancelRussianPostOrder(Number(order.russianPostId))
 				.catch(() => null)
 		}
 
 		let refundSucceeded = false
-		if (order.status === 'payed' && (order as any).invoiceId) {
+		if (order.status === 'payed' && order.invoiceId) {
 			try {
 				refundSucceeded = await this.robokassa.refundByInvoiceId(
-					(order as any).invoiceId,
+					order.invoiceId,
 					order.totalPrice
 				)
 				this.logger.log(
-					`Refund for order ${id} (invId=${(order as any).invoiceId}): ${
+					`Refund for order ${id} (invId=${order.invoiceId}): ${
 						refundSucceeded ? 'succeeded' : 'failed'
 					}`
 				)
@@ -539,13 +599,13 @@ export class OrderService {
 			const notification = await this.notifications.saveNotification(
 				userId,
 				'❌ Заказ отменён',
-				`Заказ #${id.slice(0, 6).toUpperCase()} был отменён по вашему запросу.`,
+				messages.userMessage,
 				{ orderUserId: id, status: 'cancelled' }
 			)
 			await this.notifications.sendPushNotificationToUser(
 				userId,
 				'❌ Заказ отменён',
-				`Заказ #${id.slice(0, 6).toUpperCase()} был отменён по вашему запросу.`,
+				messages.userMessage,
 				{ orderUserId: id, status: 'cancelled', notification: notification.id },
 				'orders'
 			)
@@ -553,11 +613,12 @@ export class OrderService {
 
 		this.notifications
 			.sendPushNotificationToAdmins(
-				'❌ Заказ отменён клиентом',
-				`Заказ #${id.slice(0, 6).toUpperCase()} отменён пользователем${
-					reason ? `. Причина: ${reason}` : ''
-				}`,
-				{ orderId: id, isRead: true }
+				messages.adminTitle,
+				messages.adminMessage,
+				{
+					orderId: id,
+					isRead: true
+				}
 			)
 			.catch(() => null)
 

@@ -13,6 +13,7 @@ import {
 	UsePipes,
 	ValidationPipe
 } from '@nestjs/common'
+import { EnumOrderStatus } from '@prisma/client'
 import { Auth } from 'src/auth/decorators/auth.decorator'
 import { CurrentUser } from 'src/auth/decorators/user.decorator'
 import { AuditService } from 'src/audit/audit.service'
@@ -80,12 +81,14 @@ export class OrderController {
 	async getByUserId(
 		@CurrentUser('id') userId: string,
 		@Query('page') page?: string,
-		@Query('perPage') perPage?: string
+		@Query('perPage') perPage?: string,
+		@Query('status') status?: string
 	) {
 		return this.orderService.getByUserId(
 			userId,
 			page ? parseInt(page) : 1,
-			perPage ? parseInt(perPage) : 10
+			perPage ? parseInt(perPage) : 10,
+			status ? (status.split(',') as EnumOrderStatus[]) : undefined
 		)
 	}
 
