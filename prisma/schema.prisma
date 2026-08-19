@@ -29,10 +29,10 @@ model User {
   role     Role           @default(user)
   source   EnumUserSource @default(app)
 
-  pushToken  String?   @default("") @map("push_token")
-  lastSeenAt DateTime? @map("last_seen_at")
+  pushToken                   String?   @default("") @map("push_token")
+  lastSeenAt                  DateTime? @map("last_seen_at")
   lastAbandonedCartNotifiedAt DateTime? @map("last_abandoned_cart_notified_at")
-  notificationPreferences Json @default("{}") @map("notification_preferences")
+  notificationPreferences     Json      @default("{}") @map("notification_preferences")
 
   name               String?   @default("")
   surname            String?   @default("")
@@ -137,6 +137,7 @@ model Address {
 
   comment   String?  @default("")
   isDefault Boolean? @default(true) @map("is_default")
+  label     String?  @default("")
 
   user   User?   @relation(fields: [userId], references: [id])
   userId String? @map("user_id")

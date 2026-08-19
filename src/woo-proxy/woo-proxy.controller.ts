@@ -26,9 +26,6 @@ const PRODUCT_QUERY_KEYS = [
 export class WooProxyController {
 	constructor(private readonly service: WooProxyService) {}
 
-	// ── products/categories ──────────────────────────────────────────────────
-	// Must come before products/:id to avoid route collision
-
 	@Get('products/categories')
 	categories(@Query() query: Record<string, string>) {
 		const params: Record<string, string> = { per_page: '100' }

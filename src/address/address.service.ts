@@ -70,6 +70,7 @@ export class AddressService {
 					house: dto.house,
 					apartment: dto.apartment,
 					comment: dto.comment,
+					label: dto.label,
 					isDefault: true,
 					user: { connect: { id: userId } }
 				}
@@ -90,6 +91,7 @@ export class AddressService {
 				house: dto.house,
 				apartment: dto.apartment,
 				comment: dto.comment,
+				label: dto.label,
 				isDefault: dto.isDefault
 			}
 		})

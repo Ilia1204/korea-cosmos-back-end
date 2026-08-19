@@ -32,4 +32,8 @@ export class AddressDto {
 	@IsOptional()
 	@IsBoolean()
 	isDefault: boolean
+
+	@IsOptional()
+	@IsString()
+	label: string
 }
