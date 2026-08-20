@@ -10,61 +10,37 @@ export class SmsService {
 		this.apiId = this.configService.get('SMS_RU_API_ID') || ''
 	}
 
-	async initiateCallCheck(
-		phone: string
-	): Promise<{ checkId: string; callPhone: string } | null> {
+	async sendOtpCode(
+		phone: string,
+		code: string,
+		ip?: string
+	): Promise<boolean> {
 		if (!this.apiId) {
-			this.logger.warn('SMS.ru не настроен — dev-режим callcheck')
-			return { checkId: 'dev-check-id', callPhone: '+7 (000) 000-00-00' }
+			this.logger.warn(
+				`SMS.ru не настроен — dev-режим, код для ${phone}: ${code}`
+			)
+			return true
 		}
 
 		try {
 			const params = new URLSearchParams({
 				api_id: this.apiId,
-				phone,
+				to: phone,
+				msg: `Код для входа: ${code}`,
 				json: '1'
 			})
-			const res = await fetch(
-				`https://sms.ru/callcheck/add?${params.toString()}`
-			)
-			const data = await res.json()
-			if (data.status !== 'OK') {
-				this.logger.error(`SMS.ru callcheck/add error: ${JSON.stringify(data)}`)
-				return null
-			}
-			return {
-				checkId: data.check_id,
-				callPhone: data.call_phone_pretty || data.call_phone
-			}
-		} catch (e) {
-			this.logger.error('SMS.ru callcheck/add failed', e)
-			return null
-		}
-	}
+			if (ip) params.set('ip', ip)
 
-	async getCallCheckStatus(
-		checkId: string
-	): Promise<'authorized' | 'waiting' | 'error'> {
-		if (!this.apiId) return 'authorized' // dev-режим
-
-		try {
-			const params = new URLSearchParams({
-				api_id: this.apiId,
-				check_id: checkId,
-				json: '1'
-			})
-			const res = await fetch(
-				`https://sms.ru/callcheck/status?${params.toString()}`
-			)
+			const res = await fetch(`https://sms.ru/sms/send?${params.toString()}`)
 			const data = await res.json()
-			this.logger.log(`callcheck/status response: ${JSON.stringify(data)}`)
-			if (data.status !== 'OK') return 'error'
-			// check_status 401 = авторизован ("номер подтвержден")
-			if (Number(data.check_status) === 401) return 'authorized'
-			return 'waiting'
+			if (data.status !== 'OK' || data.sms?.[phone]?.status !== 'OK') {
+				this.logger.error(`SMS.ru sms/send error: ${JSON.stringify(data)}`)
+				return false
+			}
+			return true
 		} catch (e) {
-			this.logger.error('SMS.ru callcheck/status failed', e)
-			return 'error'
+			this.logger.error('SMS.ru sms/send failed', e)
+			return false
 		}
 	}
 }

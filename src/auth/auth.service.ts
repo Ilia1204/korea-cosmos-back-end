@@ -16,8 +16,8 @@ import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
 import { AuthDto } from './dto/auth.dto'
-import { PhoneDto } from './dto/phone-auth.dto'
-import { callCheckStore } from './callCheck.store'
+import { PhoneDto, VerifyPhoneOtpDto } from './dto/phone-auth.dto'
+import { otpCodeStore } from './otpCode.store'
 
 @Injectable()
 export class AuthService {
@@ -112,42 +112,51 @@ export class AuthService {
 		return { message: 'Письмо с новым паролем было отправлено на ваш email!' }
 	}
 
-	async sendPhoneOtp(dto: PhoneDto) {
+	async sendPhoneOtp(dto: PhoneDto, ip?: string) {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
-		if (!callCheckStore.canSet(normalized)) {
-			return { message: 'Звонок уже был инициирован', alreadySent: true }
+		if (!otpCodeStore.canSet(normalized)) {
+			return { message: 'Код уже был отправлен', alreadySent: true }
 		}
 
-		const result = await this.smsService.initiateCallCheck(normalized)
+		const code = this.generateOtpCode()
+		const sent = await this.smsService.sendOtpCode('+' + normalized, code, ip)
 
-		if (!result) {
+		if (!sent) {
 			throw new BadRequestException(
-				'Не удалось инициировать звонок. Попробуйте позже.'
+				'Не удалось отправить код. Попробуйте позже.'
 			)
 		}
 
-		callCheckStore.set(normalized, result.checkId)
+		otpCodeStore.set(normalized, code)
 
-		return { message: 'Звонок инициирован', callPhone: result.callPhone }
+		return { message: 'Код отправлен' }
 	}
 
-	async pollCallStatus(dto: PhoneDto, res: Response) {
+	async verifyPhoneOtp(dto: VerifyPhoneOtpDto, res: Response) {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
-		const checkId = callCheckStore.getCheckId(normalized)
-		if (!checkId) return { authorized: false, expired: true }
+		const result = otpCodeStore.verify(normalized, dto.code)
 
-		const status = await this.smsService.getCallCheckStatus(checkId)
+		if (result === 'expired')
+			return { authorized: false, expired: true }
+		if (result === 'too_many_attempts')
+			throw new BadRequestException(
+				'Слишком много попыток. Запросите код заново.'
+			)
+		if (result === 'invalid')
+			return { authorized: false, invalid: true }
 
-		if (status === 'waiting') return { authorized: false }
-		if (status === 'error')
-			throw new BadRequestException('Ошибка проверки статуса')
+		return this.authorizeByPhone(normalized, res)
+	}
 
-		callCheckStore.delete(normalized)
+	private generateOtpCode(): string {
+		return String(Math.floor(1000 + Math.random() * 9000))
+	}
 
+	private async authorizeByPhone(normalized: string, res: Response) {
 		// Ищем пользователя в локальной БД по номеру
 		let user = await this.prisma.user.findFirst({
 			where: { phone: { contains: normalized.slice(-10) } }
