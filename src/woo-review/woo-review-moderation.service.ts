@@ -194,6 +194,9 @@ export class WooReviewModerationService {
 	}
 
 	async reject(id: string, reason?: string) {
+		const before = await this.prisma.wooReview.findUnique({ where: { id } })
+		const wasPublic = before?.isPublic ?? false
+
 		const review = await this.prisma.wooReview.update({
 			where: { id },
 			data: { isPublic: false, wooStatus: 'hold', rejectReason: reason ?? null }
@@ -203,24 +206,31 @@ export class WooReviewModerationService {
 			this.woo.updateStatus(review.wooReviewId, 'hold').catch(() => {})
 		}
 
-		const body = reason
-			? `Причина: ${reason}`
-			: 'К сожалению, ваш отзыв не прошёл модерацию.'
+		if (wasPublic) {
+			this.sendRevokedPush(review.userId)
+		} else {
+			const body = reason
+				? `Причина: ${reason}`
+				: 'К сожалению, ваш отзыв не прошёл модерацию.'
 
-		setTimeout(() => {
-			this.notifications.sendPushNotificationToUser(
-				review.userId,
-				'⛔ Отзыв отклонён',
-				body,
-				{ reviewId: review.id, isRead: true },
-				'orders'
-			)
-		}, 2000)
+			setTimeout(() => {
+				this.notifications.sendPushNotificationToUser(
+					review.userId,
+					'⛔ Отзыв отклонён',
+					body,
+					{ reviewId: review.id, isRead: true },
+					'orders'
+				)
+			}, 2000)
+		}
 
 		return review
 	}
 
 	async spam(id: string) {
+		const before = await this.prisma.wooReview.findUnique({ where: { id } })
+		const wasPublic = before?.isPublic ?? false
+
 		const review = await this.prisma.wooReview.update({
 			where: { id },
 			data: { isPublic: false, wooStatus: 'spam' }
@@ -230,10 +240,15 @@ export class WooReviewModerationService {
 			this.woo.updateStatus(review.wooReviewId, 'spam').catch(() => {})
 		}
 
+		if (wasPublic) this.sendRevokedPush(review.userId)
+
 		return review
 	}
 
 	async trash(id: string) {
+		const before = await this.prisma.wooReview.findUnique({ where: { id } })
+		const wasPublic = before?.isPublic ?? false
+
 		const review = await this.prisma.wooReview.update({
 			where: { id },
 			data: { isPublic: false, wooStatus: 'trash' }
@@ -243,7 +258,21 @@ export class WooReviewModerationService {
 			this.woo.updateStatus(review.wooReviewId, 'trash').catch(() => {})
 		}
 
+		if (wasPublic) this.sendRevokedPush(review.userId)
+
 		return review
+	}
+
+	private sendRevokedPush(userId: string) {
+		setTimeout(() => {
+			this.notifications.sendPushNotificationToUser(
+				userId,
+				'⚠️ Отзыв снят с публикации',
+				'Один из ваших отзывов был удалён из публичного доступа.',
+				{ screen: 'MyReviews', isRead: true },
+				'orders'
+			)
+		}, 2000)
 	}
 
 	async updateRating(id: string, rating: number) {
