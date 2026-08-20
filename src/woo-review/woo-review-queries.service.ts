@@ -272,4 +272,39 @@ export class WooReviewQueriesService {
 		})
 		return !!order
 	}
+
+	async findEligibleOrders(userId: string, wooProductId: number) {
+		const orders = await this.prisma.order.findMany({
+			where: {
+				userId,
+				status: 'delivered',
+				items: { some: { productId: String(wooProductId) } }
+			},
+			orderBy: { createdAt: 'desc' }
+		})
+		if (!orders.length) return []
+
+		const reviewed = await this.prisma.wooReview.findMany({
+			where: { orderId: { in: orders.map(o => o.id) }, wooProductId },
+			select: { orderId: true }
+		})
+		const reviewedIds = new Set(reviewed.map(r => r.orderId))
+
+		return orders.filter(o => !reviewedIds.has(o.id))
+	}
+
+	async getOrderForReview(
+		userId: string,
+		wooProductId: number,
+		orderId: string
+	) {
+		return this.prisma.order.findFirst({
+			where: {
+				id: orderId,
+				userId,
+				status: 'delivered',
+				items: { some: { productId: String(wooProductId) } }
+			}
+		})
+	}
 }

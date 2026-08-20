@@ -210,9 +210,11 @@ model WooReview {
   wooProductId Int      @map("woo_product_id")
   wooReviewId  Int?     @map("woo_review_id")
 
-  user   User   @relation(fields: [userId], references: [id])
-  userId String @map("user_id")
+  user    User    @relation(fields: [userId], references: [id])
+  userId  String  @map("user_id")
+  orderId String? @map("order_id")
 
+  @@unique([orderId, wooProductId])
   @@map("woo_review")
 }
 

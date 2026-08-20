@@ -84,11 +84,11 @@ export class WooReviewController {
 		@CurrentUser('id') userId: string,
 		@Param('wooProductId', ParseIntPipe) wooProductId: number
 	) {
-		const canReview = await this.wooReviewService.hasPurchased(
+		const eligibleOrders = await this.wooReviewService.findEligibleOrders(
 			userId,
 			wooProductId
 		)
-		return { canReview }
+		return { canReview: eligibleOrders.length > 0 }
 	}
 
 	@UsePipes(new ValidationPipe())
@@ -231,6 +231,13 @@ export class WooReviewController {
 			})
 			.catch(() => {})
 		return { ok: true }
+	}
+
+	@HttpCode(200)
+	@Delete('mine/:id')
+	@Auth()
+	async deleteOwn(@CurrentUser('id') userId: string, @Param('id') id: string) {
+		return this.wooReviewService.deleteOwn(id, userId)
 	}
 
 	@HttpCode(200)

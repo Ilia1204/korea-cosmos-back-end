@@ -28,6 +28,9 @@ export class WooReviewService {
 	hasPurchased(userId: string, wooProductId: number) {
 		return this.queries.hasPurchased(userId, wooProductId)
 	}
+	findEligibleOrders(userId: string, wooProductId: number) {
+		return this.queries.findEligibleOrders(userId, wooProductId)
+	}
 	getMine(userId: string) {
 		return this.queries.getMine(userId)
 	}
@@ -93,5 +96,8 @@ export class WooReviewService {
 	}
 	delete(id: string) {
 		return this.moderation.delete(id)
+	}
+	deleteOwn(id: string, userId: string) {
+		return this.moderation.deleteOwn(id, userId)
 	}
 }

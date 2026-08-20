@@ -28,9 +28,51 @@ export class WooReviewModerationService {
 	) {}
 
 	async create(userId: string, dto: WooReviewDto) {
-		const purchased = await this.queries.hasPurchased(userId, dto.wooProductId)
-		if (!purchased)
-			throw new ForbiddenException('Отзыв доступен только после покупки товара')
+		let orderId: string
+
+		if (dto.orderId) {
+			const order = await this.queries.getOrderForReview(
+				userId,
+				dto.wooProductId,
+				dto.orderId
+			)
+			if (!order)
+				throw new ForbiddenException(
+					'Отзыв доступен только после получения заказа'
+				)
+
+			const existing = await this.prisma.wooReview.findUnique({
+				where: {
+					orderId_wooProductId: {
+						orderId: order.id,
+						wooProductId: dto.wooProductId
+					}
+				}
+			})
+			if (existing)
+				throw new ForbiddenException(
+					'Вы уже оставили отзыв на этот товар по этому заказу'
+				)
+
+			orderId = order.id
+		} else {
+			const [eligibleOrder] = await this.queries.findEligibleOrders(
+				userId,
+				dto.wooProductId
+			)
+			if (!eligibleOrder) {
+				const purchased = await this.queries.hasPurchased(
+					userId,
+					dto.wooProductId
+				)
+				throw new ForbiddenException(
+					purchased
+						? 'Вы уже оставили отзыв на этот товар по всем своим заказам'
+						: 'Отзыв доступен только после покупки товара'
+				)
+			}
+			orderId = eligibleOrder.id
+		}
 
 		const user = await this.userService.getById(userId)
 
@@ -43,6 +85,7 @@ export class WooReviewModerationService {
 				rating: dto.rating,
 				images: dto.images ?? [],
 				wooProductId: dto.wooProductId,
+				orderId,
 				user: { connect: { id: userId } }
 			}
 		})
@@ -279,5 +322,14 @@ export class WooReviewModerationService {
 			this.woo.deleteReview(review.wooReviewId).catch(() => {})
 		}
 		return this.prisma.wooReview.delete({ where: { id } })
+	}
+
+	async deleteOwn(id: string, userId: string) {
+		const review = await this.prisma.wooReview.findUnique({ where: { id } })
+		if (!review) throw new NotFoundException('Отзыв не найден')
+		if (review.userId !== userId)
+			throw new ForbiddenException('Это не ваш отзыв')
+
+		return this.delete(id)
 	}
 }

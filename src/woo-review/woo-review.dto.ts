@@ -23,6 +23,10 @@ export class WooReviewDto {
 
 	@IsNumber()
 	wooProductId: number
+
+	@IsString()
+	@IsOptional()
+	orderId?: string
 }
 
 export class RejectReviewDto {
