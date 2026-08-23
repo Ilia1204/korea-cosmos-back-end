@@ -16,6 +16,7 @@ import { AuthService } from './auth.service'
 import { CaptchaService } from './captcha.service'
 import { AuthDto } from './dto/auth.dto'
 import {
+	ResetPasswordDto,
 	SendVerificationCodeDto,
 	VerifyEmailDto
 } from './dto/email-verification.dto'
@@ -101,8 +102,8 @@ export class AuthController {
 
 	@HttpCode(200)
 	@Post('reset-password')
-	async resetPassword(@Body('email') email: string) {
-		return this.authService.resetPassword(email)
+	async resetPassword(@Body() dto: ResetPasswordDto) {
+		return this.authService.resetPassword(dto.email)
 	}
 
 	@HttpCode(200)

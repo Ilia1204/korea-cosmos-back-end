@@ -21,6 +21,7 @@ import { PhoneDto } from './dto/phone-auth.dto'
 import { RegisterDto } from './dto/register.dto'
 import { callCheckStore } from './callCheck.store'
 import { emailVerificationStore } from './emailVerification.store'
+import { passwordResetStore } from './passwordReset.store'
 
 @Injectable()
 export class AuthService {
@@ -142,9 +143,16 @@ export class AuthService {
 	}
 
 	async resetPassword(email: string) {
+		const successMessage = {
+			message:
+				'Если такой email зарегистрирован, мы отправим на него новый пароль'
+		}
+
 		const user = await this.prisma.user.findUnique({ where: { email } })
-		if (!user)
-			throw new NotFoundException('Пользователь с таким email не найден')
+		if (!user) return successMessage
+
+		if (!passwordResetStore.canSend(email)) return successMessage
+		passwordResetStore.markSent(email)
 
 		const newPassword = this.generateRandomPassword()
 		await this.prisma.user.update({
@@ -152,7 +160,7 @@ export class AuthService {
 			data: { password: await hash(newPassword) }
 		})
 		await this.emailService.sendPasswordResetEmail(user.email, newPassword)
-		return { message: 'Письмо с новым паролем было отправлено на ваш email!' }
+		return successMessage
 	}
 
 	async sendPhoneOtp(dto: PhoneDto) {
