@@ -14,6 +14,7 @@ import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
 import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { SmsService } from 'src/sms/sms.service'
+import { UserDto } from 'src/user/user.dto'
 import { UserService } from 'src/user/user.service'
 import { CaptchaService } from './captcha.service'
 import { AuthDto } from './dto/auth.dto'
@@ -159,6 +160,9 @@ export class AuthService {
 			where: { email },
 			data: { password: await hash(newPassword) }
 		})
+		this.userService
+			.syncProfileToWordPress(email, { password: newPassword } as UserDto)
+			.catch(() => null)
 		await this.emailService.sendPasswordResetEmail(user.email, newPassword)
 		return successMessage
 	}

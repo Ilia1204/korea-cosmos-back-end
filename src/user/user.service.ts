@@ -444,12 +444,12 @@ export class UserService {
 		const wcCustomer = await this.getWooCommerceCustomer(email)
 		if (!wcCustomer) return
 
-		const updateData: any = {
-			first_name: dto.name,
-			last_name: dto.surname,
-			display_name: dto.displayName,
-			billing: { phone: dto.phone }
-		}
+		const updateData: any = {}
+
+		if (dto.name !== undefined) updateData.first_name = dto.name
+		if (dto.surname !== undefined) updateData.last_name = dto.surname
+		if (dto.displayName !== undefined) updateData.display_name = dto.displayName
+		if (dto.phone !== undefined) updateData.billing = { phone: dto.phone }
 
 		if (dto.email && dto.email !== email) {
 			updateData.email = dto.email
