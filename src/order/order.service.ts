@@ -149,11 +149,16 @@ export class OrderService {
 					name: true,
 					surname: true,
 					phone: true,
-					email: true
+					email: true,
+					emailVerified: true,
+					source: true
 				}
 			}),
 			this.prisma.order.count({ where: { userId } })
 		])
+
+		if (!user.emailVerified && user.source === 'app')
+			throw new ForbiddenException('Подтвердите email, чтобы оформить заказ')
 
 		const welcomeDiscount = previousOrdersCount === 0 ? 20 : 0
 		const discount = getApplicableDiscount(

@@ -248,7 +248,8 @@ export class UserService {
 				name: wcCustomer?.first_name || '',
 				surname: wcCustomer?.last_name || '',
 				phone: wcCustomer?.billing?.phone || '',
-				source: 'site'
+				source: 'site',
+				emailVerified: true
 			}
 		})
 
@@ -271,7 +272,8 @@ export class UserService {
 				name: retailCustomer?.firstName || '',
 				surname: retailCustomer?.lastName || '',
 				phone,
-				source: 'retail'
+				source: 'retail',
+				emailVerified: true
 			}
 		})
 

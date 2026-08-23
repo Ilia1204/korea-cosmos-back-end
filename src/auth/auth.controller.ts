@@ -1,6 +1,7 @@
 import {
 	Body,
 	Controller,
+	Get,
 	HttpCode,
 	Post,
 	Req,
@@ -12,14 +13,29 @@ import {
 import { Throttle } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
+import { CaptchaService } from './captcha.service'
 import { AuthDto } from './dto/auth.dto'
+import {
+	SendVerificationCodeDto,
+	VerifyEmailDto
+} from './dto/email-verification.dto'
 import { PhoneDto } from './dto/phone-auth.dto'
+import { RegisterDto } from './dto/register.dto'
 
 @Controller('auth')
 @UsePipes(new ValidationPipe())
 @Throttle({ default: { ttl: 60000, limit: 10 } })
 export class AuthController {
-	constructor(private readonly authService: AuthService) {}
+	constructor(
+		private readonly authService: AuthService,
+		private readonly captchaService: CaptchaService
+	) {}
+
+	@Get('captcha-widget')
+	captchaWidget(@Res() res: Response) {
+		res.set('Content-Type', 'text/html; charset=utf-8')
+		res.send(this.captchaService.getWidgetHtml())
+	}
 
 	@HttpCode(200)
 	@Post('login')
@@ -32,12 +48,24 @@ export class AuthController {
 	@HttpCode(200)
 	@Post('register')
 	async register(
-		@Body() dto: AuthDto,
+		@Body() dto: RegisterDto,
 		@Res({ passthrough: true }) res: Response
 	) {
 		const { refreshToken, ...response } = await this.authService.register(dto)
 		this.authService.addRefreshTokenToResponse(res, refreshToken)
 		return { ...response, refreshToken }
+	}
+
+	@HttpCode(200)
+	@Post('send-verification-code')
+	async sendVerificationCode(@Body() dto: SendVerificationCodeDto) {
+		return this.authService.sendVerificationCode(dto.email)
+	}
+
+	@HttpCode(200)
+	@Post('verify-email')
+	async verifyEmail(@Body() dto: VerifyEmailDto) {
+		return this.authService.verifyEmail(dto.email, dto.code)
 	}
 
 	@HttpCode(200)

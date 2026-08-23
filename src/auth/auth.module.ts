@@ -12,6 +12,7 @@ import { UserModule } from 'src/user/user.module'
 import { UserService } from 'src/user/user.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
+import { CaptchaService } from './captcha.service'
 import { JwtStrategy } from './strategies/jwt.strategy'
 
 @Module({
@@ -34,7 +35,8 @@ import { JwtStrategy } from './strategies/jwt.strategy'
 		UserService,
 		PrismaService,
 		AddressService,
-		RetailCrmService
+		RetailCrmService,
+		CaptchaService
 	]
 })
 export class AuthModule {}

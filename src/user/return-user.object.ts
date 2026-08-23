@@ -13,6 +13,7 @@ export const returnUserObject: Prisma.UserSelect = {
 	dateOfBirth: true,
 	phone: true,
 	resetPasswordCount: true,
+	emailVerified: true,
 	pushToken: true,
 	addresses: true
 }

@@ -15,9 +15,12 @@ import { PrismaService } from 'src/prisma.service'
 import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { SmsService } from 'src/sms/sms.service'
 import { UserService } from 'src/user/user.service'
+import { CaptchaService } from './captcha.service'
 import { AuthDto } from './dto/auth.dto'
 import { PhoneDto } from './dto/phone-auth.dto'
+import { RegisterDto } from './dto/register.dto'
 import { callCheckStore } from './callCheck.store'
+import { emailVerificationStore } from './emailVerification.store'
 
 @Injectable()
 export class AuthService {
@@ -33,7 +36,8 @@ export class AuthService {
 		private smsService: SmsService,
 		private configService: ConfigService,
 		private notificationsService: NotificationsService,
-		private retailCrm: RetailCrmService
+		private retailCrm: RetailCrmService,
+		private captchaService: CaptchaService
 	) {}
 
 	async login(dto: AuthDto) {
@@ -42,7 +46,11 @@ export class AuthService {
 		return { user, ...this.issueTokens(user.id) }
 	}
 
-	async register(dto: AuthDto) {
+	async register(dto: RegisterDto) {
+		const captchaValid = await this.captchaService.verify(dto.captchaToken)
+		if (!captchaValid)
+			throw new BadRequestException('Проверка на робота не пройдена')
+
 		const oldUser = await this.userService.getByEmail(dto.email)
 		if (oldUser)
 			throw new BadRequestException('Пользователь с таким email уже существует')
@@ -64,8 +72,44 @@ export class AuthService {
 				['admin']
 			)
 			.catch(() => null)
+		this.sendVerificationCode(dto.email).catch(() => null)
 
 		return { user, ...this.issueTokens(user.id) }
+	}
+
+	async sendVerificationCode(email: string) {
+		if (!emailVerificationStore.canSet(email)) {
+			return { message: 'Код уже был отправлен', alreadySent: true }
+		}
+
+		const code = Math.floor(100000 + Math.random() * 900000).toString()
+		emailVerificationStore.set(email, code)
+		await this.emailService.sendVerificationCodeEmail(email, code)
+
+		return { message: 'Код подтверждения отправлен на ваш email' }
+	}
+
+	async verifyEmail(email: string, code: string) {
+		const result = emailVerificationStore.verify(email, code)
+
+		if (result === 'expired')
+			throw new BadRequestException(
+				'Срок действия кода истёк. Запросите новый код.'
+			)
+		if (result === 'too_many_attempts')
+			throw new BadRequestException(
+				'Слишком много попыток. Запросите новый код.'
+			)
+		if (result === 'invalid') throw new BadRequestException('Неверный код')
+
+		const user = await this.prisma.user.update({
+			where: { email },
+			data: { emailVerified: true }
+		})
+
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { password, ...safeUser } = user
+		return { message: 'Email подтверждён', user: safeUser }
 	}
 
 	async getNewTokens(refreshToken: string) {
@@ -192,7 +236,8 @@ export class AuthService {
 								data: {
 									email,
 									password: await hash(this.generateRandomPassword()),
-									phone: '+' + normalized
+									phone: '+' + normalized,
+									emailVerified: true
 								}
 						  })
 					this.createWordPressAccount(
