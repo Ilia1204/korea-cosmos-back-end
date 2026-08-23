@@ -72,7 +72,6 @@ export class AuthService {
 				['admin']
 			)
 			.catch(() => null)
-		this.sendVerificationCode(dto.email).catch(() => null)
 
 		return { user, ...this.issueTokens(user.id) }
 	}
