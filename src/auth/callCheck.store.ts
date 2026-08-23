@@ -6,8 +6,19 @@ interface CallCheckEntry {
 
 class CallCheckStore {
 	private store = new Map<string, CallCheckEntry>()
+	private locked = new Set<string>()
 	private readonly TTL = 5 * 60 * 1000
 	private readonly COOLDOWN = 60 * 1000
+
+	tryLock(phone: string): boolean {
+		if (this.locked.has(phone)) return false
+		this.locked.add(phone)
+		return true
+	}
+
+	unlock(phone: string): void {
+		this.locked.delete(phone)
+	}
 
 	canSet(phone: string): boolean {
 		const existing = this.store.get(phone)

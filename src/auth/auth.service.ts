@@ -192,17 +192,27 @@ export class AuthService {
 		const phone = dto.phone.replace(/\D/g, '')
 		const normalized = phone.startsWith('8') ? '7' + phone.slice(1) : phone
 
-		const checkId = callCheckStore.getCheckId(normalized)
-		if (!checkId) return { authorized: false, expired: true }
+		if (!callCheckStore.tryLock(normalized)) return { authorized: false }
 
-		const status = await this.smsService.getCallCheckStatus(checkId)
+		try {
+			const checkId = callCheckStore.getCheckId(normalized)
+			if (!checkId) return { authorized: false, expired: true }
 
-		if (status === 'waiting') return { authorized: false }
-		if (status === 'error')
-			throw new BadRequestException('Ошибка проверки статуса')
+			const status = await this.smsService.getCallCheckStatus(checkId)
 
-		callCheckStore.delete(normalized)
+			if (status === 'waiting') return { authorized: false }
+			if (status === 'error')
+				throw new BadRequestException('Ошибка проверки статуса')
 
+			callCheckStore.delete(normalized)
+
+			return await this.completePhonePoll(normalized, res)
+		} finally {
+			callCheckStore.unlock(normalized)
+		}
+	}
+
+	private async completePhonePoll(normalized: string, res: Response) {
 		// Ищем пользователя в локальной БД по номеру
 		let user = await this.prisma.user.findFirst({
 			where: { phone: { contains: normalized.slice(-10) } }
