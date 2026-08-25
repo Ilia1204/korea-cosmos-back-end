@@ -307,12 +307,28 @@ export class UserService {
 			const retailDiscount: number = account.level?.privilegeSize ?? 0
 			const retailLevelType: string | undefined = account.level?.type
 
-			// Берём максимум между RetailCRM и локальными данными (мобильные заказы)
+			// Сумму считаем напрямую по доставленным заказам в приложении —
+			// это источник истины. Из RetailCRM берём её только как стартовое
+			// значение для тех, у кого ещё нет ни одного доставленного заказа
+			// (например, покупали раньше на сайте/в CRM до установки приложения),
+			// иначе сумма из CRM (может включать заказы любых статусов) при
+			// каждом логине перезатирала бы корректную локальную сумму
 			const existing = await this.prisma.userLoyalty.findUnique({
 				where: { userId }
 			})
-			const localOrdersSum = existing?.totalAmountSpent || 0
-			const ordersSum = Math.max(retailOrdersSum, localOrdersSum)
+			const deliveredOrders = await this.prisma.order.aggregate({
+				where: { userId, status: 'delivered' },
+				_sum: { totalPrice: true, deliveryPrice: true }
+			})
+			const localOrdersSum =
+				(deliveredOrders._sum.totalPrice ?? 0) -
+				(deliveredOrders._sum.deliveryPrice ?? 0)
+			const ordersSum =
+				localOrdersSum > 0
+					? localOrdersSum
+					: existing
+					? existing.totalAmountSpent
+					: retailOrdersSum
 
 			// Синхронизируем уровень из RetailCRM в локальную БД (обновляем скидку если изменилась)
 			let retailLevel = retailLevelName
@@ -339,12 +355,11 @@ export class UserService {
 				orderBy: { minAmount: 'desc' }
 			})
 
-			// Используем уровень с максимальной скидкой (защита от даунгрейда из RetailCRM)
-			const bestLevel =
-				calculatedLevel &&
-				(!retailLevel || calculatedLevel.discount >= retailLevel.discount)
-					? calculatedLevel
-					: retailLevel
+			// Уровень пользователя всегда определяется реально посчитанной суммой,
+			// а не «сырым» уровнем из CRM — иначе название статуса в CRM
+			// (не всегда синхронное с суммой заказов в приложении) навязывало бы
+			// скидку в обход фактических покупок
+			const bestLevel = calculatedLevel ?? retailLevel
 
 			await this.prisma.userLoyalty.upsert({
 				where: { userId },
@@ -596,8 +611,6 @@ export class UserService {
 			}
 		})
 
-		return {
-			message: 'Все товары удалены из избранного'
-		}
+		return { message: 'Все товары удалены из избранного' }
 	}
 }
