@@ -165,7 +165,7 @@ export class StatisticsService {
 		const topCandidates = Object.values(productMap)
 			.sort((a, b) => b.count - a.count)
 			.slice(0, 15)
-		const resolved = await Promise.all(
+		const resolvedRaw = await Promise.all(
 			topCandidates.map(async p => {
 				const product = await this.getWCProduct(p.wcId, p.name)
 				return product
@@ -178,6 +178,23 @@ export class StatisticsService {
 					  }
 					: null
 			})
+		)
+
+		// Разные позиции в CRM (опечатки/варианты названия) могут указывать
+		// на один и тот же товар в WooCommerce — схлопываем по id
+		const mergedById = new Map<string, (typeof resolvedRaw)[number]>()
+		for (const p of resolvedRaw) {
+			if (!p) continue
+			const existing = mergedById.get(p.id)
+			if (existing) {
+				existing.count += p.count
+				existing.revenue += p.revenue
+			} else {
+				mergedById.set(p.id, { ...p })
+			}
+		}
+		const resolved = Array.from(mergedById.values()).sort(
+			(a, b) => b.count - a.count
 		)
 
 		return {
