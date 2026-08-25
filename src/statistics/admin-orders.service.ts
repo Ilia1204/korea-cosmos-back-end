@@ -103,6 +103,7 @@ export class AdminOrdersService {
 
 			const isAppOrder = !!appLocal || !!wcLocal?.invoiceId
 			const localData = appLocal || (isAppOrder ? wcLocal : undefined)
+			const deliveryLocal = appLocal || wcLocal
 
 			const source: 'app' | 'site' | 'manual' = isAppOrder
 				? 'app'
@@ -153,8 +154,11 @@ export class AdminOrdersService {
 				phone,
 				itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
 				items,
-				deliveryMethod: localData?.deliveryMethod || o.delivery?.name || null,
-				deliveryPrice: localData?.deliveryPrice || o.delivery?.cost || 0
+				deliveryMethod:
+					source === 'manual'
+						? 'pickup'
+						: deliveryLocal?.deliveryMethod || o.delivery?.name || null,
+				deliveryPrice: deliveryLocal?.deliveryPrice ?? o.delivery?.cost ?? 0
 			}
 		})
 
@@ -183,7 +187,7 @@ export class AdminOrdersService {
 			phone,
 			comment: o.customerComment || o.managerComment || null,
 			cancelReason: o.statusComment || null,
-			deliveryMethod: delivery.code || null,
+			deliveryMethod: 'pickup',
 			deliveryPrice: delivery.cost || 0,
 			address: address.text
 				? {
