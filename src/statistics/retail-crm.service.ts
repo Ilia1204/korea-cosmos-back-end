@@ -20,29 +20,46 @@ export class RetailCrmService {
 
 	async fetchAllOrders(from: string, to: string): Promise<any[]> {
 		if (!this.key) return []
-		const all: any[] = []
-		let page = 1
+		const fetchPage = async (page: number) => {
+			const params = new URLSearchParams({
+				'filter[createdAtFrom]': from,
+				'filter[createdAtTo]': to,
+				limit: '100',
+				page: String(page)
+			})
+			const res = await fetch(`${this.url}/api/v5/orders?${params}`, {
+				headers: this.headers
+			})
+			return res.json()
+		}
+
 		try {
-			while (true) {
-				const params = new URLSearchParams({
-					'filter[createdAtFrom]': from,
-					'filter[createdAtTo]': to,
-					limit: '100',
-					page: String(page)
-				})
-				const res = await fetch(`${this.url}/api/v5/orders?${params}`, {
-					headers: this.headers
-				})
-				const data = await res.json()
-				if (!data.success || !data.orders?.length) break
-				all.push(...data.orders)
-				if (all.length >= data.pagination?.totalCount) break
-				page++
+			const first = await fetchPage(1)
+			if (!first.success || !first.orders?.length) return []
+
+			const totalPages = first.pagination?.totalPageCount ?? 1
+			if (totalPages <= 1) return first.orders
+
+			const remainingPages = Array.from(
+				{ length: totalPages - 1 },
+				(_, i) => i + 2
+			)
+			const rest: any[] = []
+			const CONCURRENCY = 5
+			for (let i = 0; i < remainingPages.length; i += CONCURRENCY) {
+				const batch = await Promise.all(
+					remainingPages.slice(i, i + CONCURRENCY).map(fetchPage)
+				)
+				rest.push(...batch)
 			}
+
+			return [
+				...first.orders,
+				...rest.flatMap(d => (d.success ? d.orders ?? [] : []))
+			]
 		} catch {
 			return []
 		}
-		return all
 	}
 
 	async fetchRecentOrders(limit = 20): Promise<any[]> {
