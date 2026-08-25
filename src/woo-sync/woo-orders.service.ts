@@ -166,16 +166,23 @@ export class WooOrdersService {
 					  }
 					: null,
 				items: [
-					...(o.line_items || []).map((li: any) => ({
-						id: String(li.id),
-						productId: li.product_id ? String(li.product_id) : null,
-						quantity: li.quantity,
-						price: Math.round(parseFloat(li.price || li.total || '0')),
-						product: {
-							name: li.name,
-							images: li.image?.src ? [li.image.src] : []
+					...(o.line_items || []).map((li: any) => {
+						const price = Math.round(parseFloat(li.price || li.total || '0'))
+						const originalPrice = Math.round(
+							parseFloat(li.subtotal || li.total || '0')
+						)
+						return {
+							id: String(li.id),
+							productId: li.product_id ? String(li.product_id) : null,
+							quantity: li.quantity,
+							price,
+							originalPrice: originalPrice > price ? originalPrice : undefined,
+							product: {
+								name: li.name,
+								images: li.image?.src ? [li.image.src] : []
+							}
 						}
-					})),
+					}),
 					...(o.fee_lines || []).map((fl: any) => ({
 						id: String(fl.id),
 						quantity: 1,
