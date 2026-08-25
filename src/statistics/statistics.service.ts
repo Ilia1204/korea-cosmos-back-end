@@ -170,7 +170,7 @@ export class StatisticsService {
 				const product = await this.getWCProduct(p.wcId, p.name)
 				return product
 					? {
-							name: p.name,
+							name: product.name || p.name,
 							count: p.count,
 							revenue: p.revenue,
 							slug: product.slug,
@@ -221,7 +221,7 @@ export class StatisticsService {
 	private async getWCProduct(
 		wcId: string | null,
 		name: string
-	): Promise<{ id: string; slug: string } | null> {
+	): Promise<{ id: string; slug: string; name: string } | null> {
 		try {
 			const wpUrl = this.configService.get('WP_URL')
 			const key = this.configService.get('WC_CONSUMER_KEY')
@@ -231,13 +231,13 @@ export class StatisticsService {
 
 			if (wcId) {
 				const res = await fetch(
-					`${wpUrl}/wp-json/wc/v3/products/${wcId}?_fields=id,slug`,
+					`${wpUrl}/wp-json/wc/v3/products/${wcId}?_fields=id,slug,name`,
 					{ headers: { Authorization: auth } }
 				)
 				if (res.ok) {
 					const data = await res.json()
 					if (data?.slug && data?.id)
-						return { id: String(data.id), slug: data.slug }
+						return { id: String(data.id), slug: data.slug, name: data.name }
 				}
 			}
 
@@ -251,13 +251,17 @@ export class StatisticsService {
 					`${wpUrl}/wp-json/wc/v3/products?${new URLSearchParams({
 						search: query,
 						per_page: '1',
-						_fields: 'id,slug'
+						_fields: 'id,slug,name'
 					})}`,
 					{ headers: { Authorization: auth } }
 				)
 				const data = await res.json()
 				if (data[0]?.slug && data[0]?.id)
-					return { id: String(data[0].id), slug: data[0].slug }
+					return {
+						id: String(data[0].id),
+						slug: data[0].slug,
+						name: data[0].name
+					}
 			}
 			return null
 		} catch {
