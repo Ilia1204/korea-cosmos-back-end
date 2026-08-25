@@ -26,17 +26,61 @@ export class AdminOrdersService {
 		).toString()
 		if (!raw) return null
 		const lower = raw.toLowerCase()
-		if (lower.includes('сдэк') || lower.includes('cdek') || lower.includes('sdek'))
+		if (
+			lower.includes('сдэк') ||
+			lower.includes('cdek') ||
+			lower.includes('sdek')
+		)
 			return 'sdec'
-		if (lower.includes('почт') || lower.includes('pochta') || lower.includes('post'))
+		if (
+			lower.includes('почт') ||
+			lower.includes('pochta') ||
+			lower.includes('post')
+		)
 			return 'russian_post'
 		if (lower.includes('самовывоз') || lower.includes('pickup')) return 'pickup'
 		if (lower.includes('курьер') || lower.includes('courier')) return 'courier'
 		return raw
 	}
 
-	async getAdminOrders(search?: string, page = 1) {
+	private extendedStatusesFor(localStatus?: string): string[] | undefined {
+		if (!localStatus || localStatus === 'all') return undefined
+		const statuses = Object.entries(RETAILCRM_TO_LOCAL)
+			.filter(([, local]) => local === localStatus)
+			.map(([retail]) => retail)
+		return statuses.length ? statuses : [LOCAL_TO_RETAILCRM[localStatus]]
+	}
+
+	private dateRangeFor(period?: string): { from?: string; to?: string } {
+		if (!period || period === 'all') return {}
+		const now = new Date()
+		const to = now.toISOString().slice(0, 10)
+		const from = new Date(now)
+		if (period === 'today') {
+			// from = today's start, handled by same date as `to`
+		} else if (period === 'week') {
+			from.setDate(from.getDate() - 7)
+		} else if (period === 'month') {
+			from.setDate(from.getDate() - 30)
+		}
+		return { from: from.toISOString().slice(0, 10), to }
+	}
+
+	async getAdminOrders(
+		search?: string,
+		page = 1,
+		filters?: {
+			status?: string
+			period?: string
+			deliveryMethod?: string
+			source?: string
+		}
+	) {
 		const s = search?.trim()
+		const extendedStatuses = this.extendedStatusesFor(filters?.status)
+		const { from: createdAtFrom, to: createdAtTo } = this.dateRangeFor(
+			filters?.period
+		)
 
 		let retailOrders: any[]
 		if (s && /^[a-zA-Z][a-zA-Z0-9]+$/.test(s)) {
@@ -51,7 +95,13 @@ export class AdminOrdersService {
 				  )
 				: []
 		} else {
-			retailOrders = await this.retailCrm.fetchOrdersForAdmin(search, page)
+			retailOrders = await this.retailCrm.fetchOrdersForAdmin(
+				search,
+				page,
+				extendedStatuses,
+				createdAtFrom,
+				createdAtTo
+			)
 		}
 
 		const localRows = await this.prisma.order.findMany({
@@ -182,7 +232,17 @@ export class AdminOrdersService {
 			}
 		})
 
-		return { orders, page, hasMore: retailOrders.length === 50 }
+		const filteredOrders = orders.filter(o => {
+			if (filters?.deliveryMethod && filters.deliveryMethod !== 'all') {
+				if (o.deliveryMethod !== filters.deliveryMethod) return false
+			}
+			if (filters?.source && filters.source !== 'all') {
+				if (o.source !== filters.source) return false
+			}
+			return true
+		})
+
+		return { orders: filteredOrders, page, hasMore: retailOrders.length === 50 }
 	}
 
 	async getRetailOrder(retailId: number) {

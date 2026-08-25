@@ -79,9 +79,18 @@ export class StatisticsController {
 	@Auth('manager')
 	getAdminOrders(
 		@Query('search') search?: string,
-		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number
+		@Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+		@Query('status') status?: string,
+		@Query('period') period?: string,
+		@Query('deliveryMethod') deliveryMethod?: string,
+		@Query('source') source?: string
 	) {
-		return this.adminOrdersService.getAdminOrders(search, page)
+		return this.adminOrdersService.getAdminOrders(search, page, {
+			status,
+			period,
+			deliveryMethod,
+			source
+		})
 	}
 
 	@Patch('/retail-order/:id/status')

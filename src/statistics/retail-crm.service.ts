@@ -76,12 +76,23 @@ export class RetailCrmService {
 		}
 	}
 
-	async fetchOrdersForAdmin(search?: string, page = 1): Promise<any[]> {
+	async fetchOrdersForAdmin(
+		search?: string,
+		page = 1,
+		extendedStatuses?: string[],
+		createdAtFrom?: string,
+		createdAtTo?: string
+	): Promise<any[]> {
 		if (!this.key) return []
 		try {
 			const s = search?.trim()
 			if (!s) {
 				const params = new URLSearchParams({ limit: '50', page: String(page) })
+				for (const status of extendedStatuses || []) {
+					params.append('filter[extendedStatus][]', status)
+				}
+				if (createdAtFrom) params.set('filter[createdAtFrom]', createdAtFrom)
+				if (createdAtTo) params.set('filter[createdAtTo]', createdAtTo)
 				const res = await fetch(`${this.url}/api/v5/orders?${params}`, {
 					headers: this.headers
 				})
