@@ -180,8 +180,6 @@ export class StatisticsService {
 			})
 		)
 
-		// Разные позиции в CRM (опечатки/варианты названия) могут указывать
-		// на один и тот же товар в WooCommerce — схлопываем по id
 		const mergedById = new Map<string, (typeof resolvedRaw)[number]>()
 		for (const p of resolvedRaw) {
 			if (!p) continue

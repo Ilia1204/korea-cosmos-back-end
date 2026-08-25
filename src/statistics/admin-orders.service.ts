@@ -195,6 +195,7 @@ export class AdminOrdersService {
 				: null,
 			items: (o.items || []).map((i: any) => ({
 				id: String(i.id || Math.random()),
+				productId: i.offer?.externalId || null,
 				productName: i.offer?.name || i.productName || 'Товар',
 				quantity: i.quantity || 1,
 				price: i.initialPrice || 0
