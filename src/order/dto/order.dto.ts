@@ -63,6 +63,14 @@ export class OrderDto {
 	@IsOptional()
 	podeli?: boolean
 
+	@IsString()
+	@IsOptional()
+	cdekPickupCode?: string
+
+	@IsString()
+	@IsOptional()
+	cdekPickupAddress?: string
+
 	@IsArray({ message: 'В заказе нет ни одного товара' })
 	@ValidateNested({ each: true })
 	@Type(() => OrderItemDto)

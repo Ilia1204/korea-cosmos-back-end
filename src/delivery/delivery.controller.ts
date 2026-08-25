@@ -27,4 +27,15 @@ export class DeliveryController {
 
 		throw new BadRequestException('Неизвестный метод доставки')
 	}
+
+	@Get('cdek/points')
+	async cdekPoints(@Query('postCode') postCode: string) {
+		if (!postCode || !/^\d{6}$/.test(postCode))
+			throw new BadRequestException(
+				'Укажите корректный почтовый индекс (6 цифр)'
+			)
+
+		const points = await this.deliveryService.getCdekPickupPoints(postCode)
+		return { points }
+	}
 }

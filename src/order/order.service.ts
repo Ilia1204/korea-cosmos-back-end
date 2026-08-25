@@ -220,6 +220,7 @@ export class OrderService {
 						recipientName,
 						recipientPhone,
 						orderTotal: totalPrice,
+						pickupPointCode: dto.cdekPickupCode || undefined,
 						items: dto.items.map(i => ({
 							name: i.productName || 'Косметика',
 							quantity: i.quantity,

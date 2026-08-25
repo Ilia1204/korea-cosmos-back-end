@@ -24,6 +24,15 @@ export interface CdekShipmentParams {
 	recipientPhone: string
 	orderTotal?: number
 	items?: ShipmentItem[]
+	pickupPointCode?: string
+}
+
+export interface CdekPickupPoint {
+	code: string
+	name: string
+	address: string
+	workTime: string
+	type: string
 }
 
 export interface RussianPostShipmentParams {
@@ -117,6 +126,39 @@ export class DeliveryService {
 		}
 	}
 
+	async getCdekPickupPoints(postCode: string): Promise<CdekPickupPoint[]> {
+		const clientId = this.configService.get('CDEK_CLIENT_ID') || ''
+		const clientSecret = this.configService.get('CDEK_CLIENT_SECRET') || ''
+		if (!clientId || !clientSecret) return []
+
+		try {
+			const token = await this.getSdekToken(clientId, clientSecret)
+
+			const response = await fetch(
+				`${CDEK_API}/deliverypoints?postal_code=${postCode}&type=PVZ`,
+				{ headers: { Authorization: `Bearer ${token}` } }
+			)
+
+			if (!response.ok) return []
+
+			const data = await response.json()
+			if (!Array.isArray(data)) return []
+
+			return data
+				.map((p: any) => ({
+					code: p.code,
+					name: p.name || 'Пункт СДЭК',
+					address: p.location?.address_full || p.location?.address || '',
+					workTime: p.work_time || '',
+					type: p.type || 'PVZ'
+				}))
+				.filter((p: CdekPickupPoint) => p.code && p.address)
+		} catch (e) {
+			this.logger.error(`CDEK pickup points error: ${e}`)
+			return []
+		}
+	}
+
 	async getCdekTrackingNumber(uuid: string): Promise<string | null> {
 		const clientId = this.configService.get('CDEK_CLIENT_ID') || ''
 		const clientSecret = this.configService.get('CDEK_CLIENT_SECRET') || ''
@@ -136,7 +178,9 @@ export class DeliveryService {
 		}
 	}
 
-	async createCdekShipment(params: CdekShipmentParams): Promise<{ uuid: string; trackingNumber: string | null } | null> {
+	async createCdekShipment(
+		params: CdekShipmentParams
+	): Promise<{ uuid: string; trackingNumber: string | null } | null> {
 		const clientId = this.configService.get('CDEK_CLIENT_ID') || ''
 		const clientSecret = this.configService.get('CDEK_CLIENT_SECRET') || ''
 		if (!clientId || !clientSecret) return null
@@ -152,13 +196,19 @@ export class DeliveryService {
 				},
 				body: JSON.stringify({
 					number: params.orderNumber,
-					tariff_code: 137, // Посылка дверь-дверь (ИМ-договор)
-					from_location: { postal_code: this.SENDER_POST_CODE, city: SENDER_CITY },
-					to_location: {
-						postal_code: params.toPostCode,
-						city: params.toCity,
-						address: params.toAddress
+					// 139 — дверь-склад (доставка в ПВЗ), 137 — дверь-дверь (курьер на адрес)
+					tariff_code: params.pickupPointCode ? 139 : 137,
+					from_location: {
+						postal_code: this.SENDER_POST_CODE,
+						city: SENDER_CITY
 					},
+					to_location: params.pickupPointCode
+						? { code: params.pickupPointCode }
+						: {
+								postal_code: params.toPostCode,
+								city: params.toCity,
+								address: params.toAddress
+						  },
 					sender: {
 						name: SENDER_NAME,
 						phones: [{ number: SENDER_PHONE }]
@@ -174,13 +224,24 @@ export class DeliveryService {
 							length: 20,
 							width: 20,
 							height: 10,
-							items: (params.items?.length ? params.items : [{ name: 'Косметика', quantity: 1, price: params.orderTotal ?? 500 }]).map((item, i) => ({
+							items: (params.items?.length
+								? params.items
+								: [
+										{
+											name: 'Косметика',
+											quantity: 1,
+											price: params.orderTotal ?? 500
+										}
+								  ]
+							).map((item, i) => ({
 								name: item.name.slice(0, 255),
 								ware_key: String(i + 1),
 								marking: String(i + 1),
 								payment: { value: 0 },
 								cost: item.price,
-								weight: Math.round(this.DEFAULT_WEIGHT / (params.items?.length || 1)),
+								weight: Math.round(
+									this.DEFAULT_WEIGHT / (params.items?.length || 1)
+								),
 								amount: item.quantity
 							}))
 						}
@@ -198,7 +259,9 @@ export class DeliveryService {
 			const isAccepted = data?.requests?.[0]?.state === 'ACCEPTED'
 
 			if (!uuid || !isAccepted) {
-				this.logger.warn(`CDEK order not accepted: ${JSON.stringify(data?.requests?.[0])}`)
+				this.logger.warn(
+					`CDEK order not accepted: ${JSON.stringify(data?.requests?.[0])}`
+				)
 				return null
 			}
 
@@ -207,7 +270,10 @@ export class DeliveryService {
 			// cdek_number is typically available within 3-5 seconds of order creation
 			await new Promise(resolve => setTimeout(resolve, 4000))
 			const trackingNumber = await this.getCdekTrackingNumber(uuid)
-			if (trackingNumber) this.logger.log(`CDEK tracking number obtained immediately: ${trackingNumber}`)
+			if (trackingNumber)
+				this.logger.log(
+					`CDEK tracking number obtained immediately: ${trackingNumber}`
+				)
 
 			return { uuid, trackingNumber }
 		} catch (e) {
@@ -282,7 +348,9 @@ export class DeliveryService {
 
 			if (!response.ok) {
 				const err = await response.text()
-				this.logger.warn(`Russian Post create failed ${response.status}: ${err}`)
+				this.logger.warn(
+					`Russian Post create failed ${response.status}: ${err}`
+				)
 				return null
 			}
 
@@ -296,7 +364,9 @@ export class DeliveryService {
 			}
 
 			if (errors?.some((e: any) => e?.['error-codes']?.length)) {
-				this.logger.warn(`Russian Post validation errors: ${JSON.stringify(errors)}`)
+				this.logger.warn(
+					`Russian Post validation errors: ${JSON.stringify(errors)}`
+				)
 				return null
 			}
 
@@ -340,7 +410,11 @@ export class DeliveryService {
 		}
 	}
 
-	async getRussianPostBarcode(id: number, token?: string, userKey?: string): Promise<string | null> {
+	async getRussianPostBarcode(
+		id: number,
+		token?: string,
+		userKey?: string
+	): Promise<string | null> {
 		const t = token || this.configService.get('RUSSIAN_POST_TOKEN')
 		const uk = userKey || this.configService.get('RUSSIAN_POST_USER_KEY')
 		if (!t || !uk) return null
@@ -361,7 +435,10 @@ export class DeliveryService {
 		}
 	}
 
-	private async getSdekToken(clientId: string, clientSecret: string): Promise<string> {
+	private async getSdekToken(
+		clientId: string,
+		clientSecret: string
+	): Promise<string> {
 		const now = Date.now()
 		if (this.sdekToken && now < this.sdekTokenExpiry) return this.sdekToken
 

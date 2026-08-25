@@ -101,6 +101,8 @@ export function buildOrderData(
 		discountApplied: discount,
 		invoiceId,
 		podeli: dto.podeli ?? false,
+		cdekPickupCode: dto.cdekPickupCode || null,
+		cdekPickupAddress: dto.cdekPickupAddress || '',
 		totalPrice,
 		items: {
 			create: dto.items.map(item => ({

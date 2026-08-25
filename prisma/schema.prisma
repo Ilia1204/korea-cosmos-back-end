@@ -335,6 +335,9 @@ model Order {
   russianPostId  String? @map("russian_post_id")
   cancelReason   String? @map("cancel_reason")
 
+  cdekPickupCode    String? @map("cdek_pickup_code")
+  cdekPickupAddress String? @default("") @map("cdek_pickup_address")
+
   items               OrderItem[]
   loyaltyTransactions LoyaltyTransaction[]
 
