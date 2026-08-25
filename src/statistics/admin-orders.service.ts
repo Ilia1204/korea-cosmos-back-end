@@ -17,6 +17,24 @@ export class AdminOrdersService {
 		private auditService: AuditService
 	) {}
 
+	private normalizeRetailDelivery(delivery: any): string | null {
+		const raw = (
+			delivery?.service?.name ||
+			delivery?.code ||
+			delivery?.integrationCode ||
+			''
+		).toString()
+		if (!raw) return null
+		const lower = raw.toLowerCase()
+		if (lower.includes('сдэк') || lower.includes('cdek') || lower.includes('sdek'))
+			return 'sdec'
+		if (lower.includes('почт') || lower.includes('pochta') || lower.includes('post'))
+			return 'russian_post'
+		if (lower.includes('самовывоз') || lower.includes('pickup')) return 'pickup'
+		if (lower.includes('курьер') || lower.includes('courier')) return 'courier'
+		return raw
+	}
+
 	async getAdminOrders(search?: string, page = 1) {
 		const s = search?.trim()
 
@@ -157,7 +175,9 @@ export class AdminOrdersService {
 				deliveryMethod:
 					source === 'manual'
 						? 'pickup'
-						: deliveryLocal?.deliveryMethod || o.delivery?.name || null,
+						: deliveryLocal?.deliveryMethod ||
+						  this.normalizeRetailDelivery(o.delivery) ||
+						  null,
 				deliveryPrice: deliveryLocal?.deliveryPrice ?? o.delivery?.cost ?? 0
 			}
 		})
