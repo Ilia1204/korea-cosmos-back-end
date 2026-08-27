@@ -276,10 +276,12 @@ export class AuthService {
 			}
 		}
 
-		if (user.phone)
-			this.userService
-				.syncLoyaltyFromRetailCRM(user.id, user.phone)
-				.catch(() => null)
+		this.userService
+			.syncLoyaltyFromRetailCRM(user.id, user.phone, user.email)
+			.catch(() => null)
+		this.userService
+			.fillProfileFromRetailCrm(user.id, user.phone, user.email)
+			.catch(() => null)
 
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { password, ...safeUser } = user
@@ -328,10 +330,12 @@ export class AuthService {
 				this.addressService
 					.importFromWooCommerce(user.id, dto.email)
 					.catch(() => null)
-				if (user.phone)
-					this.userService
-						.syncLoyaltyFromRetailCRM(user.id, user.phone)
-						.catch(() => null)
+				this.userService
+					.syncLoyaltyFromRetailCRM(user.id, user.phone, dto.email)
+					.catch(() => null)
+				this.userService
+					.fillProfileFromRetailCrm(user.id, user.phone, dto.email)
+					.catch(() => null)
 				this.userService.recalculateLoyaltyLevel(user.id).catch(() => null)
 				return user
 			}

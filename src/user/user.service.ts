@@ -226,10 +226,16 @@ export class UserService {
 			}
 		})
 
-		if (wcCustomer?.billing?.phone)
-			this.syncLoyaltyFromRetailCRM(user.id, wcCustomer.billing.phone).catch(
-				() => null
-			)
+		this.syncLoyaltyFromRetailCRM(
+			user.id,
+			wcCustomer?.billing?.phone,
+			dto.email
+		).catch(() => null)
+		this.fillProfileFromRetailCrm(
+			user.id,
+			wcCustomer?.billing?.phone,
+			dto.email
+		).catch(() => null)
 
 		return user
 	}
@@ -254,7 +260,8 @@ export class UserService {
 		})
 
 		const phone = wcCustomer?.billing?.phone
-		this.syncLoyaltyFromRetailCRM(user.id, phone).catch(() => null)
+		this.syncLoyaltyFromRetailCRM(user.id, phone, email).catch(() => null)
+		this.fillProfileFromRetailCrm(user.id, phone, email).catch(() => null)
 
 		return user
 	}
@@ -285,15 +292,57 @@ export class UserService {
 		return user
 	}
 
-	async syncLoyaltyFromRetailCRM(userId: string, phone?: string) {
+	// Ищем клиента в RetailCRM по телефону, а если его нет (частый случай для
+	// сайтовых клиентов — WooCommerce не всегда хранит телефон) — по email
+	private async findRetailCrmCustomer(
+		phone?: string | null,
+		email?: string | null
+	): Promise<any | null> {
+		const retailUrl =
+			process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
+		const apiKey = process.env.RETAILCRM_API_KEY
+		if (!apiKey) return null
+
+		if (phone) {
+			const params = new URLSearchParams({ limit: '1' })
+			params.append('filter[phone]', phone.replace(/\D/g, ''))
+			const res = await fetch(`${retailUrl}/api/v5/customers?${params}`, {
+				headers: { 'X-API-KEY': apiKey }
+			})
+			const data = await res.json()
+			const customer = data?.customers?.[0]
+			if (customer) return customer
+		}
+
+		if (email) {
+			const params = new URLSearchParams({ limit: '1' })
+			params.append('filter[email]', email)
+			const res = await fetch(`${retailUrl}/api/v5/customers?${params}`, {
+				headers: { 'X-API-KEY': apiKey }
+			})
+			const data = await res.json()
+			return data?.customers?.[0] || null
+		}
+
+		return null
+	}
+
+	async syncLoyaltyFromRetailCRM(
+		userId: string,
+		phone?: string | null,
+		email?: string | null
+	) {
 		try {
+			const apiKey = process.env.RETAILCRM_API_KEY
+			if (!apiKey) return
+
+			const customer = await this.findRetailCrmCustomer(phone, email)
+			if (!customer) return
+
 			const retailUrl =
 				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
-			const apiKey = process.env.RETAILCRM_API_KEY
-			if (!apiKey || !phone) return
-
-			const params = new URLSearchParams({ limit: '20' })
-			params.append('filter[phoneNumber]', phone.replace(/\D/g, ''))
+			const params = new URLSearchParams({ limit: '1' })
+			params.append('filter[customerId]', String(customer.id))
 
 			const res = await fetch(
 				`${retailUrl}/api/v5/loyalty/accounts?${params}`,
@@ -383,21 +432,16 @@ export class UserService {
 		}
 	}
 
-	private async fillProfileFromRetailCrm(userId: string, phone: string) {
+	async fillProfileFromRetailCrm(
+		userId: string,
+		phone?: string | null,
+		email?: string | null
+	) {
 		try {
-			const retailUrl =
-				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
 			const apiKey = process.env.RETAILCRM_API_KEY
-			if (!apiKey || !phone) return
+			if (!apiKey) return
 
-			const params = new URLSearchParams({ limit: '1' })
-			params.append('filter[phone]', phone.replace(/\D/g, ''))
-
-			const res = await fetch(`${retailUrl}/api/v5/customers?${params}`, {
-				headers: { 'X-API-KEY': apiKey }
-			})
-			const data = await res.json()
-			const customer = data?.customers?.[0]
+			const customer = await this.findRetailCrmCustomer(phone, email)
 			if (!customer) return
 
 			const currentUser = await this.prisma.user.findUnique({
@@ -623,8 +667,8 @@ export class UserService {
 
 		// Если телефон только что добавили/сменили — подтягиваем лояльность и недостающие поля профиля из розницы
 		if (dto.phone && dto.phone !== currentUser?.phone) {
-			this.syncLoyaltyFromRetailCRM(id, dto.phone).catch(() => null)
-			this.fillProfileFromRetailCrm(id, dto.phone).catch(() => null)
+			this.syncLoyaltyFromRetailCRM(id, dto.phone, dto.email).catch(() => null)
+			this.fillProfileFromRetailCrm(id, dto.phone, dto.email).catch(() => null)
 		}
 
 		// Дата рождения указана пользователем впервые — RetailCRM должен остаться источником истины

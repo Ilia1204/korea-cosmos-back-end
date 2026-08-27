@@ -238,24 +238,62 @@ export class WooReviewQueriesService {
 	}
 
 	async getMine(userId: string) {
-		const reviews = await this.prisma.wooReview.findMany({
-			where: { userId },
-			orderBy: { createdAt: 'desc' },
-			select: {
-				id: true,
-				message: true,
-				images: true,
-				rating: true,
-				isPublic: true,
-				wooStatus: true,
-				rejectReason: true,
-				createdAt: true,
-				wooProductId: true,
-				wooReviewId: true
-			}
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { email: true }
 		})
+
+		const [reviews, approvedWooReviews] = await Promise.all([
+			this.prisma.wooReview.findMany({
+				where: { userId },
+				orderBy: { createdAt: 'desc' },
+				select: {
+					id: true,
+					message: true,
+					images: true,
+					rating: true,
+					isPublic: true,
+					wooStatus: true,
+					rejectReason: true,
+					createdAt: true,
+					wooProductId: true,
+					wooReviewId: true
+				}
+			}),
+
+			user?.email ? this.woo.fetchReviews('approved') : Promise.resolve([])
+		])
+
+		const localWooIds = new Set(reviews.map(r => r.wooReviewId).filter(Boolean))
+		const email = user?.email?.toLowerCase()
+
+		const wooOnlyReviews = approvedWooReviews
+			.filter(
+				(r: any) =>
+					email &&
+					r.reviewer_email?.toLowerCase() === email &&
+					!localWooIds.has(r.id)
+			)
+			.map((r: any) => ({
+				id: `woo-${r.id}`,
+				message: r.review?.replace(/<[^>]*>/g, '') ?? '',
+				images: [] as string[],
+				rating: r.rating || 5,
+				isPublic: true,
+				wooStatus: 'approved' as const,
+				rejectReason: null as string | null,
+				createdAt: r.date_created,
+				wooProductId: r.product_id,
+				wooReviewId: r.id
+			}))
+
+		const allReviews = [...reviews, ...wooOnlyReviews].sort(
+			(a, b) =>
+				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		)
+
 		return Promise.all(
-			reviews.map(async review => ({
+			allReviews.map(async review => ({
 				...review,
 				product: await this.woo.fetchProduct(review.wooProductId)
 			}))
