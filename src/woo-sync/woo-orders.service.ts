@@ -267,9 +267,7 @@ export class WooOrdersService {
 				status: 'pending',
 				customer_id: customerId || 0,
 				payment_method: isPodeli ? 'podeli' : 'all',
-				payment_method_title: isPodeli
-					? 'Подели'
-					: 'Банковской картой на сайте',
+				payment_method_title: isPodeli ? 'Подели' : 'Банковской картой',
 				billing: {
 					email: userEmail,
 					first_name: isOtherRecipient
