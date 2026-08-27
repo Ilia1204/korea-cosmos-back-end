@@ -355,7 +355,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 		}
 	}
 
-	// Returns userId of the partner (opposite role) in the room
 	private async getPartnerUserId(
 		roomId: string,
 		myIsAdmin: boolean
@@ -365,12 +364,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 			const room = await this.chat.getRoomFromId(roomId)
 			return room?.userId ?? null
 		} else {
-			// Partner is an admin — find last admin who replied in this room
 			return this.chat.getLastAdminSenderInRoom(roomId)
 		}
 	}
 
-	// Send event to all sockets in room with opposite isAdmin value
 	private emitToPartner(
 		roomId: string,
 		myIsAdmin: boolean,

@@ -237,7 +237,6 @@ export class AuthService {
 						.catch(() => null)
 				}
 			} else {
-				// Нет на сайте — проверяем розницу (RetailCRM) по номеру
 				const retailCustomer = await this.retailCrm.findCustomerByPhone(
 					'+' + normalized
 				)

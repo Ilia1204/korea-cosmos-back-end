@@ -12,14 +12,12 @@ export class CdekTrackingService {
 		private readonly delivery: DeliveryService
 	) {}
 
-	// Frequent poll for recently created orders — cdek_number is assigned at creation
 	@Cron(CronExpression.EVERY_MINUTE)
 	async syncRecentCdekTrackingNumbers() {
 		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
 		await this.pollOrders({ createdAt: { gte: twoHoursAgo } })
 	}
 
-	// Fallback for older orders still missing a tracking number
 	@Cron(CronExpression.EVERY_30_MINUTES)
 	async syncOldCdekTrackingNumbers() {
 		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
@@ -34,7 +32,9 @@ export class CdekTrackingService {
 			where: { id: orderId },
 			data: { trackingNumber }
 		})
-		this.logger.log(`Order ${orderId}: tracking number saved — ${trackingNumber}`)
+		this.logger.log(
+			`Order ${orderId}: tracking number saved — ${trackingNumber}`
+		)
 	}
 
 	private async pollOrders(createdAtFilter: object) {
@@ -53,14 +53,18 @@ export class CdekTrackingService {
 		this.logger.log(`Polling CDEK tracking for ${orders.length} order(s)...`)
 
 		for (const order of orders) {
-			const trackingNumber = await this.delivery.getCdekTrackingNumber(order.cdekUuid)
+			const trackingNumber = await this.delivery.getCdekTrackingNumber(
+				order.cdekUuid
+			)
 			if (!trackingNumber) continue
 
 			await this.prisma.order.update({
 				where: { id: order.id },
 				data: { trackingNumber }
 			})
-			this.logger.log(`Order ${order.id}: tracking number saved — ${trackingNumber}`)
+			this.logger.log(
+				`Order ${order.id}: tracking number saved — ${trackingNumber}`
+			)
 		}
 	}
 }
