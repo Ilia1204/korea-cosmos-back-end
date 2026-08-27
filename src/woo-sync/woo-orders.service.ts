@@ -262,9 +262,14 @@ export class WooOrdersService {
 			})
 
 			const isOtherRecipient = order.recipientDetails === 'other_recipient'
+			const isPodeli = order.podeli === true
 			const body: any = {
 				status: 'pending',
 				customer_id: customerId || 0,
+				payment_method: isPodeli ? 'podeli' : 'all',
+				payment_method_title: isPodeli
+					? 'Подели'
+					: 'Банковской картой на сайте',
 				billing: {
 					email: userEmail,
 					first_name: isOtherRecipient
@@ -310,6 +315,14 @@ export class WooOrdersService {
 					city: address.city || '',
 					state: address.region || '',
 					postcode: address.postCode || '',
+					country: 'RU'
+				}
+			} else if (order.deliveryMethod === 'pickup') {
+				body.shipping = {
+					first_name: order.recipientName || '',
+					last_name: order.recipientSurname || '',
+					address_1: 'ул. Гончарова 34, ТЦ Садко, бутик 221',
+					city: 'Ульяновск',
 					country: 'RU'
 				}
 			}
