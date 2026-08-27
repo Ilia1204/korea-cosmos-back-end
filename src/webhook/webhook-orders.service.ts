@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { LoyaltyLevelService } from 'src/loyalty-level/loyalty-level.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
 import { PrismaService } from 'src/prisma.service'
@@ -20,6 +20,8 @@ const STATUS_PRIORITY: Record<string, number> = {
 
 @Injectable()
 export class WebhookOrdersService {
+	private readonly logger = new Logger(WebhookOrdersService.name)
+
 	// Дедупликация: не слать два уведомления об одном WC заказе (created + updated стреляют одновременно)
 	private notifiedWcOrders = new Set<string>()
 
@@ -32,10 +34,18 @@ export class WebhookOrdersService {
 
 	async handleRetailCRMOrderStatus(payload: any) {
 		const order = payload?.order
+		this.logger.log(
+			`[RetailCRM webhook] externalId=${order?.externalId} status=${order?.status}`
+		)
 		if (!order?.externalId || !order?.status) return { ok: true }
 
 		const localStatus = RETAILCRM_TO_LOCAL[order.status]
-		if (!localStatus) return { ok: true }
+		if (!localStatus) {
+			this.logger.log(
+				`[RetailCRM webhook] unmapped status "${order.status}", ignoring`
+			)
+			return { ok: true }
+		}
 
 		const wcId = parseInt(order.externalId)
 		const existing = await this.prisma.order.findFirst({
@@ -47,6 +57,9 @@ export class WebhookOrdersService {
 		if (!existing) {
 			// Заказ с сайта без записи в локальной БД: ищем пользователя по email
 			const customerEmail = order.customer?.email || order.email
+			this.logger.log(
+				`[RetailCRM webhook] no local order for externalId=${order.externalId}, email=${customerEmail}`
+			)
 			if (customerEmail) {
 				await this.notifyUserByEmail(
 					customerEmail,
@@ -63,8 +76,17 @@ export class WebhookOrdersService {
 		if (localStatus !== 'cancelled') {
 			const curPriority = STATUS_PRIORITY[existing.status] ?? -1
 			const newPriority = STATUS_PRIORITY[localStatus] ?? -1
-			if (newPriority < curPriority) return { ok: true }
+			if (newPriority < curPriority) {
+				this.logger.log(
+					`[RetailCRM webhook] ignoring downgrade orderId=${existing.id} ${existing.status} → ${localStatus}`
+				)
+				return { ok: true }
+			}
 		}
+
+		this.logger.log(
+			`[RetailCRM webhook] applying orderId=${existing.id} ${existing.status} → ${localStatus}`
+		)
 
 		const trackingNumber = order.delivery?.data?.trackNumber as
 			| string
