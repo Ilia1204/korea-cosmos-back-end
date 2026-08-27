@@ -316,8 +316,17 @@ export class WooOrdersService {
 
 			const res = await this.woo.post('orders', body)
 			const created = await res.json()
-			this.logger.log(`[WC createOrder] status=${res.status} id=${created?.id}`)
-			if (!created?.id) return null
+			if (!created?.id) {
+				this.logger.error(
+					`[WC createOrder] failed status=${
+						res.status
+					} email=${userEmail} orderId=${order.id} response=${JSON.stringify(
+						created
+					)}`
+				)
+				return null
+			}
+			this.logger.log(`[WC createOrder] status=${res.status} id=${created.id}`)
 
 			this.woo
 				.post(`orders/${created.id}/notes`, {
@@ -328,7 +337,9 @@ export class WooOrdersService {
 
 			return created.id
 		} catch (e) {
-			this.logger.error('WC createOrder error:', e)
+			this.logger.error(
+				`[WC createOrder] exception email=${userEmail} orderId=${order.id}: ${e}`
+			)
 			return null
 		}
 	}
