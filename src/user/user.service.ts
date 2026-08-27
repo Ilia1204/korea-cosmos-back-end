@@ -273,7 +273,10 @@ export class UserService {
 				surname: retailCustomer?.lastName || '',
 				phone,
 				source: 'retail',
-				emailVerified: true
+				emailVerified: true,
+				...(retailCustomer?.birthday && {
+					dateOfBirth: new Date(retailCustomer.birthday)
+				})
 			}
 		})
 
@@ -397,12 +400,62 @@ export class UserService {
 			const customer = data?.customers?.[0]
 			if (!customer) return
 
+			const currentUser = await this.prisma.user.findUnique({
+				where: { id: userId },
+				select: { name: true, surname: true, dateOfBirth: true }
+			})
+
+			const updateData: Prisma.UserUpdateInput = {}
+			if (!currentUser?.name && !currentUser?.surname) {
+				updateData.name = customer.firstName || ''
+				updateData.surname = customer.lastName || ''
+			}
+			// RetailCRM — источник истины для даты рождения, дозаполняем только если пусто
+			if (!currentUser?.dateOfBirth && customer.birthday) {
+				updateData.dateOfBirth = new Date(customer.birthday)
+			}
+			if (Object.keys(updateData).length === 0) return
+
 			await this.prisma.user.update({
 				where: { id: userId },
-				data: {
-					name: customer.firstName || '',
-					surname: customer.lastName || ''
-				}
+				data: updateData
+			})
+		} catch {
+			// silent fail
+		}
+	}
+
+	// Дата рождения указывается пользователем впервые — пушим её в RetailCRM,
+	// чтобы CRM оставалась источником истины при следующих логинах/синках
+	private async pushDateOfBirthToRetailCrm(phone: string, dateOfBirth: string) {
+		try {
+			const retailUrl =
+				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
+			const apiKey = process.env.RETAILCRM_API_KEY
+			if (!apiKey || !phone) return
+
+			const params = new URLSearchParams({ limit: '1' })
+			params.append('filter[phone]', phone.replace(/\D/g, ''))
+
+			const res = await fetch(`${retailUrl}/api/v5/customers?${params}`, {
+				headers: { 'X-API-KEY': apiKey }
+			})
+			const data = await res.json()
+			const customer = data?.customers?.[0]
+			if (!customer) return
+
+			const birthday = new Date(dateOfBirth).toISOString().slice(0, 10)
+
+			await fetch(`${retailUrl}/api/v5/customers/${customer.id}/edit`, {
+				method: 'POST',
+				headers: {
+					'X-API-KEY': apiKey,
+					'Content-Type': 'application/x-www-form-urlencoded'
+				},
+				body: new URLSearchParams({
+					by: 'id',
+					customer: JSON.stringify({ birthday })
+				}).toString()
 			})
 		} catch {
 			// silent fail
@@ -509,7 +562,7 @@ export class UserService {
 		}
 	}
 
-	async update(id: string, dto: UserDto) {
+	async update(id: string, dto: UserDto, isAdmin = false) {
 		const isSameUser = await this.prisma.user.findUnique({
 			where: { email: dto.email }
 		})
@@ -519,7 +572,7 @@ export class UserService {
 
 		const currentUser = await this.prisma.user.findUnique({
 			where: { id },
-			select: { phone: true, name: true, surname: true }
+			select: { phone: true, name: true, surname: true, dateOfBirth: true }
 		})
 
 		if (dto.phone) {
@@ -529,6 +582,17 @@ export class UserService {
 			if (phoneOwner)
 				throw new BadRequestException(
 					'Этот номер телефона уже используется другим аккаунтом'
+				)
+		}
+
+		// Дату рождения можно установить только один раз — дальше она либо
+		// пришла из RetailCRM, либо указана пользователем и уже уехала в CRM
+		if (!isAdmin && dto.dateOfBirth !== undefined && currentUser?.dateOfBirth) {
+			const currentIso = currentUser.dateOfBirth.toISOString().slice(0, 10)
+			const nextIso = new Date(dto.dateOfBirth).toISOString().slice(0, 10)
+			if (currentIso !== nextIso)
+				throw new BadRequestException(
+					'Дату рождения можно установить только один раз'
 				)
 		}
 
@@ -557,11 +621,19 @@ export class UserService {
 			})
 		}
 
-		// Если телефон только что добавили/сменили — подтягиваем лояльность и (если профиль пустой) имя из розницы
+		// Если телефон только что добавили/сменили — подтягиваем лояльность и недостающие поля профиля из розницы
 		if (dto.phone && dto.phone !== currentUser?.phone) {
 			this.syncLoyaltyFromRetailCRM(id, dto.phone).catch(() => null)
-			if (!currentUser?.name && !currentUser?.surname)
-				this.fillProfileFromRetailCrm(id, dto.phone).catch(() => null)
+			this.fillProfileFromRetailCrm(id, dto.phone).catch(() => null)
+		}
+
+		// Дата рождения указана пользователем впервые — RetailCRM должен остаться источником истины
+		if (dto.dateOfBirth && !currentUser?.dateOfBirth) {
+			const phone = dto.phone || currentUser?.phone
+			if (phone)
+				this.pushDateOfBirthToRetailCrm(phone, dto.dateOfBirth).catch(
+					() => null
+				)
 		}
 
 		return updatedUser

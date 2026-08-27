@@ -89,7 +89,7 @@ export class UserController {
 		@CurrentUser('id') actorId: string
 	) {
 		const before = await this.userService.getById(id)
-		const updated = await this.userService.update(id, dto)
+		const updated = await this.userService.update(id, dto, true)
 
 		if (before && (dto as any).role && (dto as any).role !== before.role) {
 			this.auditService.log({

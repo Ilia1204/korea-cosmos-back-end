@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
+import { getDaysUntilBirthday } from 'src/order/order-discount.utils'
 import { PrismaService } from 'src/prisma.service'
 import { NotificationsService } from './notifications.service'
 
@@ -10,7 +11,7 @@ export class NotificationsScheduledService {
 		private notifications: NotificationsService
 	) {}
 
-	@Cron('0 12 * * *')
+	@Cron('0 12 * * *', { timeZone: 'Europe/Moscow' })
 	async handleReviewReminders() {
 		const from = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
 		const to = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
@@ -45,7 +46,7 @@ export class NotificationsScheduledService {
 	}
 
 	// Раз в квартал (1 янв, 1 апр, 1 июл, 1 окт) — максимум 3 раза за всё время
-	@Cron('0 12 1 1,4,7,10 *')
+	@Cron('0 12 1 1,4,7,10 *', { timeZone: 'Europe/Moscow' })
 	async handleProfileReminder() {
 		const users = await this.prisma.user.findMany({
 			where: {
@@ -101,7 +102,7 @@ export class NotificationsScheduledService {
 		}
 	}
 
-	@Cron('0 6 * * *')
+	@Cron('0 6 * * *', { timeZone: 'Europe/Moscow' })
 	async handleBirthdayNotifications() {
 		const now = new Date()
 
@@ -111,15 +112,7 @@ export class NotificationsScheduledService {
 		})
 
 		for (const user of users) {
-			const birth = new Date(user.dateOfBirth!)
-			const thisYear = new Date(
-				now.getUTCFullYear(),
-				birth.getUTCMonth(),
-				birth.getUTCDate()
-			)
-			const diffDays = Math.round(
-				(thisYear.getTime() - now.getTime()) / (1000 * 3600 * 24)
-			)
+			const diffDays = getDaysUntilBirthday(new Date(user.dateOfBirth!), now)
 			const firstName = user.name ? `, ${user.name}` : ''
 
 			let title: string | null = null
@@ -129,19 +122,19 @@ export class NotificationsScheduledService {
 			if (diffDays === 3) {
 				title = `🎂 До дня рождения${firstName ? ',' + firstName : ''} 3 дня!`
 				body =
-					'Скидка 20% активируется в день рождения — в приложении автоматически, на сайте пришлём купон.'
+					'Скидка 20% активируется за 3 дня до дня рождения — в приложении автоматически, на сайте пришлём купон.'
 				data = { birthdayReminder: true, daysLeft: 3 }
 			} else if (diffDays === 0) {
 				title = `🎉 С днём рождения${firstName}!`
 				body =
 					'Ваша скидка 20% уже активна! В приложении считается автоматически, на сайте — ждите промокод.'
 				data = { birthdayDiscount: true, daysLeft: 0 }
-			} else if (diffDays === -6) {
-				// Последний шанс — завтра заканчивается
+			} else if (diffDays === -2) {
+				// Последний шанс — завтра заканчивается (окно действует до +3 дней)
 				title = `⏰ Последний день скидки${firstName ? ',' + firstName : ''}!`
 				body =
 					'Завтра истекает ваша скидка 20% ко дню рождения. Не упустите момент!'
-				data = { birthdayDiscount: true, daysLeft: -6 }
+				data = { birthdayDiscount: true, daysLeft: -2 }
 			}
 
 			if (!title || !body) continue
@@ -176,7 +169,7 @@ export class NotificationsScheduledService {
 		}
 	}
 
-	@Cron('0 3 * * *')
+	@Cron('0 3 * * *', { timeZone: 'Europe/Moscow' })
 	async handleCleanupOldNotifications() {
 		const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
 		await this.prisma.notification.deleteMany({
@@ -283,7 +276,7 @@ export class NotificationsScheduledService {
 	}
 
 	// 10-го числа каждого месяца в 12:00
-	@Cron('0 12 10 * *')
+	@Cron('0 12 10 * *', { timeZone: 'Europe/Moscow' })
 	async handleLoyaltyLevelReminders() {
 		const allLevels = await this.prisma.loyaltyLevel.findMany({
 			orderBy: { minAmount: 'asc' }

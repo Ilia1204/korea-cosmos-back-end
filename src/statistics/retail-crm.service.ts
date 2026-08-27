@@ -234,7 +234,12 @@ export class RetailCrmService {
 
 	async updateCustomer(
 		id: number,
-		data: { firstName?: string; lastName?: string; phone?: string }
+		data: {
+			firstName?: string
+			lastName?: string
+			phone?: string
+			birthday?: string
+		}
 	): Promise<boolean> {
 		if (!this.key) return false
 		try {
@@ -242,6 +247,7 @@ export class RetailCrmService {
 			if (data.firstName !== undefined) customer.firstName = data.firstName
 			if (data.lastName !== undefined) customer.lastName = data.lastName
 			if (data.phone !== undefined) customer.phones = [{ number: data.phone }]
+			if (data.birthday !== undefined) customer.birthday = data.birthday
 			const body = new URLSearchParams({
 				by: 'id',
 				customer: JSON.stringify(customer)
