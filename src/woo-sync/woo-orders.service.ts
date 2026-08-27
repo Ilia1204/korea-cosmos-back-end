@@ -215,36 +215,12 @@ export class WooOrdersService {
 				`[WC createOrder] customerId=${customerId} email=${userEmail}`
 			)
 
-			const productIds = items.map(i => i.productId).filter(Boolean) as string[]
-			let wcProductIdMap: Record<string, number> = {}
-
-			if (productIds.length > 0) {
-				const localProducts = await this.prisma.product.findMany({
-					where: { id: { in: productIds } },
-					select: { id: true, slug: true }
-				})
-				const slugs = localProducts.map(p => p.slug)
-				if (slugs.length > 0) {
-					const res = await this.woo.get('products', {
-						slug: slugs.join(','),
-						per_page: '100'
-					})
-					const wcProducts = await res.json()
-					if (Array.isArray(wcProducts)) {
-						for (const wcp of wcProducts) {
-							const local = localProducts.find(p => p.slug === wcp.slug)
-							if (local) wcProductIdMap[local.id] = wcp.id
-						}
-					}
-				}
-			}
-
+			// productId is the WooCommerce product ID itself (products are proxied
+			// live from WC, not stored locally), so it can be used directly.
 			const lineItems = items
 				.map(item => {
-					const wcProductId = item.productId
-						? wcProductIdMap[item.productId]
-						: undefined
-					return wcProductId
+					const wcProductId = item.productId ? parseInt(item.productId) : NaN
+					return Number.isFinite(wcProductId)
 						? {
 								product_id: wcProductId,
 								quantity: item.quantity,
@@ -255,10 +231,8 @@ export class WooOrdersService {
 				.filter(Boolean)
 
 			const unknownItems = items.filter(item => {
-				const wcProductId = item.productId
-					? wcProductIdMap[item.productId]
-					: undefined
-				return !wcProductId
+				const wcProductId = item.productId ? parseInt(item.productId) : NaN
+				return !Number.isFinite(wcProductId)
 			})
 
 			const isOtherRecipient = order.recipientDetails === 'other_recipient'
@@ -267,7 +241,9 @@ export class WooOrdersService {
 				status: 'pending',
 				customer_id: customerId || 0,
 				payment_method: isPodeli ? 'podeli' : 'all',
-				payment_method_title: isPodeli ? 'Подели' : 'Банковской картой',
+				payment_method_title: isPodeli
+					? 'Подели'
+					: 'Банковской картой в приложение',
 				billing: {
 					email: userEmail,
 					first_name: isOtherRecipient
