@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression } from '@nestjs/schedule'
 import { WooApiClient } from 'src/woo-sync/woo-api.client'
 import { WooCacheService } from './woo-cache.service'
 
@@ -14,10 +15,50 @@ const TTL_MS = {
 
 @Injectable()
 export class WooProxyService {
+	private readonly logger = new Logger(WooProxyService.name)
+
 	constructor(
 		private readonly woo: WooApiClient,
 		private readonly cache: WooCacheService
 	) {}
+
+	// Refreshes the catalog cache before it expires so real app requests
+	// (on app launch, when traffic is low) always hit a warm cache instead
+	// of waiting on WooCommerce directly.
+	@Cron('*/2 * * * *')
+	async warmProductsCache() {
+		try {
+			await Promise.all([
+				this.proxyList('products', { status: 'publish' }, TTL_MS.products),
+				this.proxyPaginated({
+					per_page: '30',
+					page: '1',
+					orderby: 'date',
+					order: 'desc',
+					status: 'publish',
+					catalog_visibility: 'visible'
+				})
+			])
+		} catch (err) {
+			this.logger.warn(`[warmProductsCache] failed: ${err}`)
+		}
+	}
+
+	@Cron(CronExpression.EVERY_10_MINUTES)
+	async warmTaxonomyCache() {
+		try {
+			await Promise.all([
+				this.proxyList(
+					'products/categories',
+					{ per_page: '100' },
+					TTL_MS.categories
+				),
+				this.proxyList('products/tags', { per_page: '100' }, TTL_MS.tags)
+			])
+		} catch (err) {
+			this.logger.warn(`[warmTaxonomyCache] failed: ${err}`)
+		}
+	}
 
 	private hit<T>(key: string): T | null {
 		return this.cache.hit<T>(key)
