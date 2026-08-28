@@ -1,8 +1,9 @@
-import { IsBoolean, IsDateString, IsOptional, IsString } from 'class-validator'
+import { IsIn, IsInt, IsOptional, IsString } from 'class-validator'
 
-export class PostDto {
+export class UpdateWpPostDto {
 	@IsString()
-	title: string
+	@IsOptional()
+	title?: string
 
 	@IsString()
 	@IsOptional()
@@ -10,15 +11,17 @@ export class PostDto {
 
 	@IsString()
 	@IsOptional()
-	image?: string
+	slug?: string
 
-	@IsBoolean()
+	@IsIn(['publish', 'draft', 'future', 'pending', 'private'])
 	@IsOptional()
-	isPublic?: boolean
+	status?: string
 
 	@IsOptional()
-	@IsDateString()
-	createdAt: string
+	@IsString()
+	date?: string
+
+	@IsInt()
+	@IsOptional()
+	featuredMediaId?: number
 }
-
-export type UpdatePostDto = Partial<PostDto>
