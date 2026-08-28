@@ -128,8 +128,8 @@ export class RobokassaService {
 				'https://services.robokassa.ru/RefundService/Refund/Create',
 				{
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(jwt)
+					headers: { 'Content-Type': 'text/plain' },
+					body: jwt
 				}
 			)
 			const text = await res.text()
