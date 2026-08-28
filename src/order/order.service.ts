@@ -406,6 +406,23 @@ export class OrderService {
 		this.retailCRM.updateOrderStatus(id, dto.status).catch(() => null)
 
 		if (
+			dto.status === 'cancelled' &&
+			order.status === 'payed' &&
+			order.invoiceId
+		) {
+			this.robokassa
+				.refundByInvoiceId(order.invoiceId, order.totalPrice)
+				.then(refundSucceeded =>
+					this.logger.log(
+						`Refund for order ${id} (invId=${order.invoiceId}): ${
+							refundSucceeded ? 'succeeded' : 'failed'
+						}`
+					)
+				)
+				.catch(e => this.logger.error(`Refund for order ${id} threw: ${e}`))
+		}
+
+		if (
 			dto.status === 'delivered' &&
 			order.status !== 'delivered' &&
 			updated.userId
