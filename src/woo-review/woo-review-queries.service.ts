@@ -13,6 +13,13 @@ export class WooReviewQueriesService {
 		return this.woo.fetchProduct(wooProductId)
 	}
 
+	private readonly LEGACY_ZERO_RATING_CUTOFF = new Date('2026-08-29T00:00:00Z')
+
+	private normalizeWooRating(rating: number, dateCreated: string): number {
+		if (rating > 0) return rating
+		return new Date(dateCreated) <= this.LEGACY_ZERO_RATING_CUTOFF ? 5 : 0
+	}
+
 	private isWooSpam(text: string, reviewer?: string): boolean {
 		if (/https?:\/\//i.test(text)) return true
 		if (/[؀-ۿݐ-ݿࢠ-ࣿ]/.test(text)) return true
@@ -107,7 +114,7 @@ export class WooReviewQueriesService {
 					id: `woo-${r.id}`,
 					message: text,
 					images: [],
-					rating: r.rating,
+					rating: this.normalizeWooRating(r.rating, r.date_created),
 					isPublic: r.status === 'approved',
 					wooStatus: (detectedSpam ? 'trash' : r.status) as
 						| 'approved'
@@ -184,12 +191,14 @@ export class WooReviewQueriesService {
 		)
 
 		const wooOnlyReviews = approvedWooReviews
-			.filter((r: any) => r.product_id === wooProductId && !localWooIds.has(r.id))
+			.filter(
+				(r: any) => r.product_id === wooProductId && !localWooIds.has(r.id)
+			)
 			.map((r: any) => ({
 				id: `woo-${r.id}`,
 				message: r.review?.replace(/<[^>]*>/g, '') ?? '',
 				images: [] as string[],
-				rating: r.rating,
+				rating: this.normalizeWooRating(r.rating, r.date_created),
 				createdAt: r.date_created,
 				wooProductId,
 				user: { id: null as null, name: r.reviewer, avatarPath: '' }
@@ -218,9 +227,9 @@ export class WooReviewQueriesService {
 			const pid: number = r.product_id
 			if (!wooProductIds.includes(pid)) continue
 			wooCountByProduct[pid] = (wooCountByProduct[pid] || 0) + 1
-			if (r.rating > 0) {
-				wooRatingSumByProduct[pid] =
-					(wooRatingSumByProduct[pid] || 0) + r.rating
+			const rating = this.normalizeWooRating(r.rating, r.date_created)
+			if (rating > 0) {
+				wooRatingSumByProduct[pid] = (wooRatingSumByProduct[pid] || 0) + rating
 				wooRatedCountByProduct[pid] = (wooRatedCountByProduct[pid] || 0) + 1
 			}
 		}
@@ -306,7 +315,7 @@ export class WooReviewQueriesService {
 				id: `woo-${r.id}`,
 				message: r.review?.replace(/<[^>]*>/g, '') ?? '',
 				images: [] as string[],
-				rating: r.rating,
+				rating: this.normalizeWooRating(r.rating, r.date_created),
 				isPublic: true,
 				wooStatus: 'approved' as const,
 				rejectReason: null as string | null,
