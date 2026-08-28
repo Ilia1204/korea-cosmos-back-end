@@ -129,7 +129,7 @@ export class RobokassaService {
 				{
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: jwt
+					body: JSON.stringify(jwt)
 				}
 			)
 			const text = await res.text()
