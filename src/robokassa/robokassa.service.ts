@@ -120,7 +120,7 @@ export class RobokassaService {
 	}
 
 	async refundByOpKey(opKey: string, amount: number): Promise<boolean> {
-		const payload = { opKey, refundSum: Number(amount.toFixed(2)) }
+		const payload = { OpKey: opKey, RefundSum: Number(amount.toFixed(2)) }
 		const jwt = this.signJwt(payload, this.pass3)
 
 		try {
