@@ -13,3 +13,12 @@ export interface IReceipt {
 	email?: string
 	phone?: string
 }
+
+export interface IRefundInvoiceItem {
+	Name: string
+	Quantity: number
+	Cost: number
+	Tax: IReceiptItem['tax']
+	PaymentMethod: IReceiptItem['payment_method']
+	PaymentObject: IReceiptItem['payment_object']
+}

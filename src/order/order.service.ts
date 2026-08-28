@@ -406,8 +406,23 @@ export class OrderService {
 			order.status === 'payed' &&
 			order.invoiceId
 		) {
+			const receiptItems = buildReceiptItems(
+				order.items.map(i => ({
+					name: `${i.productName || 'Товар'}${
+						(i as any).variationLabel ? ` (${(i as any).variationLabel})` : ''
+					}`,
+					quantity: i.quantity,
+					price: i.price
+				})),
+				order.deliveryPrice || 0,
+				order.totalPrice
+			)
 			this.robokassa
-				.refundByInvoiceId(order.invoiceId, order.totalPrice)
+				.refundByInvoiceId(
+					order.invoiceId,
+					order.totalPrice,
+					this.robokassa.toRefundInvoiceItems(receiptItems)
+				)
 				.then(refundSucceeded =>
 					this.logger.log(
 						`Refund for order ${id} (invId=${order.invoiceId}): ${
@@ -593,9 +608,21 @@ export class OrderService {
 		let refundSucceeded = false
 		if (order.status === 'payed' && order.invoiceId) {
 			try {
+				const receiptItems = buildReceiptItems(
+					order.items.map((i: any) => ({
+						name: `${i.productName || 'Товар'}${
+							i.variationLabel ? ` (${i.variationLabel})` : ''
+						}`,
+						quantity: i.quantity,
+						price: i.price
+					})),
+					order.deliveryPrice || 0,
+					order.totalPrice
+				)
 				refundSucceeded = await this.robokassa.refundByInvoiceId(
 					order.invoiceId,
-					order.totalPrice
+					order.totalPrice,
+					this.robokassa.toRefundInvoiceItems(receiptItems)
 				)
 				this.logger.log(
 					`Refund for order ${id} (invId=${order.invoiceId}): ${

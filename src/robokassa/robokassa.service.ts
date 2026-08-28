@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
-import { IReceipt, IReceiptItem } from './robokassa.interface'
+import { IReceipt, IReceiptItem, IRefundInvoiceItem } from './robokassa.interface'
 
 @Injectable()
 export class RobokassaService {
@@ -119,8 +119,27 @@ export class RobokassaService {
 		}
 	}
 
-	async refundByOpKey(opKey: string, amount: number): Promise<boolean> {
-		const payload = { OpKey: opKey, RefundSum: Number(amount.toFixed(2)) }
+	toRefundInvoiceItems(items: IReceiptItem[]): IRefundInvoiceItem[] {
+		return items.map(i => ({
+			Name: i.name,
+			Quantity: i.quantity,
+			Cost: i.sum,
+			Tax: i.tax,
+			PaymentMethod: i.payment_method,
+			PaymentObject: i.payment_object
+		}))
+	}
+
+	async refundByOpKey(
+		opKey: string,
+		amount: number,
+		invoiceItems?: IRefundInvoiceItem[]
+	): Promise<boolean> {
+		const payload: Record<string, unknown> = {
+			OpKey: opKey,
+			RefundSum: Number(amount.toFixed(2))
+		}
+		if (invoiceItems?.length) payload.InvoiceItems = invoiceItems
 		const jwt = this.signJwt(payload, this.pass3)
 
 		try {
@@ -179,10 +198,14 @@ export class RobokassaService {
 		}>
 	}
 
-	async refundByInvoiceId(invoiceId: number, amount: number): Promise<boolean> {
+	async refundByInvoiceId(
+		invoiceId: number,
+		amount: number,
+		invoiceItems?: IRefundInvoiceItem[]
+	): Promise<boolean> {
 		const opKey = await this.getOpKey(invoiceId)
 		if (!opKey) return false
-		return this.refundByOpKey(opKey, amount)
+		return this.refundByOpKey(opKey, amount, invoiceItems)
 	}
 
 	generateInvoiceId(): number {
