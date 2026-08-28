@@ -158,19 +158,47 @@ export class WooReviewQueriesService {
 	}
 
 	async getByWooProductId(wooProductId: number) {
-		return this.prisma.wooReview.findMany({
-			where: { wooProductId, isPublic: true },
-			orderBy: { createdAt: 'desc' },
-			select: {
-				id: true,
-				message: true,
-				images: true,
-				rating: true,
-				createdAt: true,
-				wooProductId: true,
-				user: { select: { id: true, name: true, avatarPath: true } }
-			}
-		})
+		const [localReviews, approvedWooReviews] = await Promise.all([
+			this.prisma.wooReview.findMany({
+				where: { wooProductId, isPublic: true },
+				orderBy: { createdAt: 'desc' },
+				select: {
+					id: true,
+					message: true,
+					images: true,
+					rating: true,
+					createdAt: true,
+					wooProductId: true,
+					wooReviewId: true,
+					user: { select: { id: true, name: true, avatarPath: true } }
+				}
+			}),
+			this.woo.fetchReviews('approved')
+		])
+
+		// Отзывы, оставленные на сайте напрямую (не через приложение), не имеют
+		// локальной записи — показываем их тоже, но не дублируем те, что уже
+		// синхронизированы (wooReviewId), иначе один и тот же отзыв покажется дважды
+		const localWooIds = new Set(
+			localReviews.map(r => r.wooReviewId).filter(Boolean)
+		)
+
+		const wooOnlyReviews = approvedWooReviews
+			.filter((r: any) => r.product_id === wooProductId && !localWooIds.has(r.id))
+			.map((r: any) => ({
+				id: `woo-${r.id}`,
+				message: r.review?.replace(/<[^>]*>/g, '') ?? '',
+				images: [] as string[],
+				rating: r.rating,
+				createdAt: r.date_created,
+				wooProductId,
+				user: { id: null as null, name: r.reviewer, avatarPath: '' }
+			}))
+
+		return [...localReviews, ...wooOnlyReviews].sort(
+			(a, b) =>
+				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		)
 	}
 
 	async getBatchRatings(wooProductIds: number[]) {
@@ -278,7 +306,7 @@ export class WooReviewQueriesService {
 				id: `woo-${r.id}`,
 				message: r.review?.replace(/<[^>]*>/g, '') ?? '',
 				images: [] as string[],
-				rating: r.rating || 5,
+				rating: r.rating,
 				isPublic: true,
 				wooStatus: 'approved' as const,
 				rejectReason: null as string | null,

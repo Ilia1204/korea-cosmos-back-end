@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { NotificationsService } from 'src/notifications/notifications.service'
+import {
+	getCorrectFormWord,
+	productForms
+} from 'src/utils/get-correct-form-word'
 import { WooApiClient } from 'src/woo-sync/woo-api.client'
 
 interface DiscountGroup {
@@ -129,13 +133,22 @@ export class WooDiscountReminderService {
 		]
 
 		const messages = [
-			`${count} товаров со скидкой до -${maxDiscount}% — успейте купить! 🏃‍♀️`,
+			`${count} ${getCorrectFormWord(
+				count,
+				productForms
+			)} со скидкой до -${maxDiscount}% — успейте купить! 🏃‍♀️`,
 			`Выгодные цены на лучшую косметику. Скидки до -${maxDiscount}%! ✨`,
 			`Побалуйте себя любимой косметикой по суперцене 💅`,
-			`Скидка до -${maxDiscount}% на ${count} товаров — предложение ограничено ⏰`,
+			`Скидка до -${maxDiscount}% на ${count} ${getCorrectFormWord(
+				count,
+				productForms
+			)} — предложение ограничено ⏰`,
 			`Откройте для себя выгодные предложения прямо сейчас 🌸`,
 			`Идеальный момент обновить уходовую рутину 💖`,
-			`Только сейчас: ${count} товаров по специальной цене 🎉`
+			`Только сейчас: ${count} ${getCorrectFormWord(
+				count,
+				productForms
+			)} по специальной цене 🎉`
 		]
 
 		const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]

@@ -292,8 +292,6 @@ export class UserService {
 		return user
 	}
 
-	// Ищем клиента в RetailCRM по телефону, а если его нет (частый случай для
-	// сайтовых клиентов — WooCommerce не всегда хранит телефон) — по email
 	private async findRetailCrmCustomer(
 		phone?: string | null,
 		email?: string | null
@@ -359,12 +357,6 @@ export class UserService {
 			const retailDiscount: number = account.level?.privilegeSize ?? 0
 			const retailLevelType: string | undefined = account.level?.type
 
-			// Сумму считаем напрямую по доставленным заказам в приложении —
-			// это источник истины. Из RetailCRM берём её только как стартовое
-			// значение для тех, у кого ещё нет ни одного доставленного заказа
-			// (например, покупали раньше на сайте/в CRM до установки приложения),
-			// иначе сумма из CRM (может включать заказы любых статусов) при
-			// каждом логине перезатирала бы корректную локальную сумму
 			const existing = await this.prisma.userLoyalty.findUnique({
 				where: { userId }
 			})
@@ -401,16 +393,11 @@ export class UserService {
 				})
 			}
 
-			// Пересчитываем уровень по реальной сумме — берём наивысший подходящий из локальной БД
 			const calculatedLevel = await this.prisma.loyaltyLevel.findFirst({
 				where: { minAmount: { lte: ordersSum } },
 				orderBy: { minAmount: 'desc' }
 			})
 
-			// Уровень пользователя всегда определяется реально посчитанной суммой,
-			// а не «сырым» уровнем из CRM — иначе название статуса в CRM
-			// (не всегда синхронное с суммой заказов в приложении) навязывало бы
-			// скидку в обход фактических покупок
 			const bestLevel = calculatedLevel ?? retailLevel
 
 			await this.prisma.userLoyalty.upsert({
@@ -469,8 +456,6 @@ export class UserService {
 		}
 	}
 
-	// Дата рождения указывается пользователем впервые — пушим её в RetailCRM,
-	// чтобы CRM оставалась источником истины при следующих логинах/синках
 	private async pushDateOfBirthToRetailCrm(phone: string, dateOfBirth: string) {
 		try {
 			const retailUrl =
@@ -546,7 +531,6 @@ export class UserService {
 				displayName,
 				name: firstName,
 				surname: lastName,
-				// Телефон из WC тянем только если в приложении он ещё не установлен
 				...(!currentUser?.phone && { phone: wcCustomer.billing?.phone || '' })
 			}
 		})
@@ -629,8 +613,6 @@ export class UserService {
 				)
 		}
 
-		// Дату рождения можно установить только один раз — дальше она либо
-		// пришла из RetailCRM, либо указана пользователем и уже уехала в CRM
 		if (!isAdmin && dto.dateOfBirth !== undefined && currentUser?.dateOfBirth) {
 			const currentIso = currentUser.dateOfBirth.toISOString().slice(0, 10)
 			const nextIso = new Date(dto.dateOfBirth).toISOString().slice(0, 10)
@@ -665,7 +647,6 @@ export class UserService {
 			})
 		}
 
-		// Если телефон только что добавили/сменили — подтягиваем лояльность и недостающие поля профиля из розницы
 		if (dto.phone && dto.phone !== currentUser?.phone) {
 			this.syncLoyaltyFromRetailCRM(id, dto.phone, dto.email).catch(() => null)
 			this.fillProfileFromRetailCrm(id, dto.phone, dto.email).catch(() => null)

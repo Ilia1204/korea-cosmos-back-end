@@ -22,9 +22,6 @@ export class WooProxyService {
 		private readonly cache: WooCacheService
 	) {}
 
-	// Refreshes the catalog cache before it expires so real app requests
-	// (on app launch, when traffic is low) always hit a warm cache instead
-	// of waiting on WooCommerce directly.
 	@Cron('*/2 * * * *')
 	async warmProductsCache() {
 		try {

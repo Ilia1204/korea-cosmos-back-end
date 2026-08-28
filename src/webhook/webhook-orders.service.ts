@@ -55,7 +55,6 @@ export class WebhookOrdersService {
 		})
 
 		if (!existing) {
-			// Заказ с сайта без записи в локальной БД: ищем пользователя по email
 			const customerEmail = order.customer?.email || order.email
 			this.logger.log(
 				`[RetailCRM webhook] no local order for externalId=${order.externalId}, email=${customerEmail}`
@@ -92,9 +91,6 @@ export class WebhookOrdersService {
 			| string
 			| undefined
 
-		// Атомарный переход: если статус успел измениться между чтением и
-		// записью (гонка с order.service.ts/WC webhook/cron), пропускаем
-		// побочные эффекты — их уже применил победивший вызов
 		const guard = await this.prisma.order.updateMany({
 			where: { id: existing.id, status: existing.status },
 			data: {
@@ -113,7 +109,11 @@ export class WebhookOrdersService {
 			if (localStatus === 'delivered') {
 				const amountToAdd =
 					(existing.totalPrice ?? 0) - (existing.deliveryPrice ?? 0)
-				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd, updated.id)
+				await this.applyLoyaltyOnDelivery(
+					updated.userId,
+					amountToAdd,
+					updated.id
+				)
 			}
 		}
 
@@ -240,14 +240,12 @@ export class WebhookOrdersService {
 
 		if (order.status === localStatus) return { ok: true }
 
-		// Не понижать статус (race condition: WC pending webhook приходит после оплаты)
 		if (localStatus !== 'cancelled') {
 			const curPriority = STATUS_PRIORITY[order.status] ?? -1
 			const newPriority = STATUS_PRIORITY[localStatus] ?? -1
 			if (newPriority < curPriority) return { ok: true }
 		}
 
-		// Атомарный переход: guard от гонки с order.service.ts/RetailCRM webhook/cron
 		const guard = await this.prisma.order.updateMany({
 			where: { id: order.id, status: order.status },
 			data: { status: localStatus as any }
@@ -262,7 +260,11 @@ export class WebhookOrdersService {
 			await this.notifyOrderStatus(updated.userId, updated.id, localStatus)
 			if (localStatus === 'delivered') {
 				const amountToAdd = (order.totalPrice ?? 0) - (order.deliveryPrice ?? 0)
-				await this.applyLoyaltyOnDelivery(updated.userId, amountToAdd, updated.id)
+				await this.applyLoyaltyOnDelivery(
+					updated.userId,
+					amountToAdd,
+					updated.id
+				)
 			}
 		}
 

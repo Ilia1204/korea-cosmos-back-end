@@ -215,8 +215,6 @@ export class WooOrdersService {
 				`[WC createOrder] customerId=${customerId} email=${userEmail}`
 			)
 
-			// productId is the WooCommerce product ID itself (products are proxied
-			// live from WC, not stored locally), so it can be used directly.
 			const lineItems = items
 				.map(item => {
 					const wcProductId = item.productId ? parseInt(item.productId) : NaN
@@ -243,7 +241,7 @@ export class WooOrdersService {
 				payment_method: isPodeli ? 'podeli' : 'all',
 				payment_method_title: isPodeli
 					? 'Подели'
-					: 'Банковской картой в приложение',
+					: 'Банковской картой в приложении',
 				billing: {
 					email: userEmail,
 					first_name: isOtherRecipient
@@ -295,7 +293,7 @@ export class WooOrdersService {
 				body.shipping = {
 					first_name: order.recipientName || '',
 					last_name: order.recipientSurname || '',
-					address_1: 'ул. Гончарова 34, ТЦ Садко, бутик 221',
+					address_1: 'ул. Гончарова 34, ТЦ Садко, 1 этаж, бутик 221',
 					city: 'Ульяновск',
 					country: 'RU'
 				}

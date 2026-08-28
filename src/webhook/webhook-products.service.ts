@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma.service'
 import { NotificationsService } from 'src/notifications/notifications.service'
+import {
+	getCorrectFormWord,
+	productForms
+} from 'src/utils/get-correct-form-word'
 
 const SALE_DEBOUNCE_MS = 2 * 60 * 1000
 
@@ -116,7 +120,6 @@ export class WebhookProductsService {
 		else if (discountType === 'fixed_cart' || discountType === 'fixed_product')
 			discountText = `−${amount}₽`
 
-		// Персональный купон: телефон в описании — любой формат (+7 (937) 75-70-876, 79..., 89...)
 		const phoneMatch = description
 			?.replace(/[\s\-\(\)\+]/g, '')
 			.match(/[78]\d{10}/)
@@ -343,18 +346,25 @@ export class WebhookProductsService {
 		let navData: object
 
 		if (allBrands.length === 1) {
-			body = `Скидки на товары бренда «${allBrands[0]}» — ${products.length} товаров! 🔥`
+			body = `Скидки на товары бренда «${allBrands[0]}» — ${
+				products.length
+			} ${getCorrectFormWord(products.length, productForms)}! 🔥`
 			navData = { categorySlug: allBrands[0].toLowerCase() }
 		} else if (allCategories.length === 1) {
-			body = `Скидки в разделе «${allCategories[0]}» — ${products.length} товаров! 🔥`
+			body = `Скидки в разделе «${allCategories[0]}» — ${
+				products.length
+			} ${getCorrectFormWord(products.length, productForms)}! 🔥`
 			navData = { categorySlug: products[0].slug }
 		} else if (allBrands.length > 1) {
 			body = `Скидки на ${allBrands.slice(0, 2).join(', ')} и другие — ${
 				products.length
-			} товаров! 🔥`
+			} ${getCorrectFormWord(products.length, productForms)}! 🔥`
 			navData = {}
 		} else {
-			body = `${products.length} товаров со скидками — успейте! 🔥`
+			body = `${products.length} ${getCorrectFormWord(
+				products.length,
+				productForms
+			)} со скидками — успейте! 🔥`
 			navData = {}
 		}
 

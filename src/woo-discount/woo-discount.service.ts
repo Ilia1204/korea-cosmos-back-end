@@ -65,7 +65,6 @@ export class WooDiscountService {
 		})
 		if (simpleUpdates.length) await this.batchUpdateWc(simpleUpdates)
 
-		// Вариативные товары — обновляем категорию родителя + каждую вариацию
 		if (variableProducts.length) {
 			const parentUpdates = variableProducts.map(p => ({
 				id: p.id,
@@ -152,7 +151,6 @@ export class WooDiscountService {
 		}))
 		if (simpleUpdates.length) await this.batchUpdateWc(simpleUpdates)
 
-		// Вариативные товары — убираем категорию у родителя + сбрасываем вариации
 		if (variableProducts.length) {
 			const parentUpdates = variableProducts.map(p => ({
 				id: p.id,
@@ -193,7 +191,6 @@ export class WooDiscountService {
 	private async resolveNotificationNav(
 		dto: ApplyWooDiscountDto
 	): Promise<object> {
-		// Для одного раздела или одной категории — переходим прямо на него
 		if (dto.type === 'section' && dto.ids.length === 1) {
 			const section = await this.prisma.section.findFirst({
 				where: { id: dto.ids[0] },

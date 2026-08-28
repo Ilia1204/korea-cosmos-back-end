@@ -258,8 +258,6 @@ export class NotificationsService {
 		return notification
 	}
 
-	// favoriteIds хранит id товара из WooCommerce (см. IProduct.id во фронте),
-	// поэтому матчим по wcProductId, а не по id локальной таблицы Product
 	async notifyFavoriteUsersAboutPriceDrop(
 		wcProductId: string,
 		slug: string,
