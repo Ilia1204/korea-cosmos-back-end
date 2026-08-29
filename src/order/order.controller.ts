@@ -45,6 +45,22 @@ export class OrderController {
 		return this.orderService.payOrder(orderId)
 	}
 
+	@HttpCode(200)
+	@Auth()
+	@Post(':orderId/payment-url-saved-card')
+	async payOrderWithSavedCard(
+		@Param('orderId') orderId: string,
+		@CurrentUser('id') userId: string
+	) {
+		return this.orderService.payOrderWithSavedCard(orderId, userId)
+	}
+
+	@Get('has-saved-card')
+	@Auth()
+	async hasSavedCard(@CurrentUser('id') userId: string) {
+		return { hasSavedCard: await this.orderService.hasSavedCard(userId) }
+	}
+
 	@Get()
 	@Auth('manager')
 	getAll() {
@@ -114,16 +130,18 @@ export class OrderController {
 		@CurrentUser('id') actorId: string
 	) {
 		const result = await this.orderWoo.updateOrderStatus(wcId, status)
-		this.auditService.log({
-			action: 'order.status',
-			entity: 'Order',
-			entityId: String(wcId),
-			entityName: `WooCommerce #${wcId}`,
-			actorId,
-			before: prevStatus ? { status: prevStatus } : undefined,
-			after: { status },
-			revertible: false
-		}).catch(() => null)
+		this.auditService
+			.log({
+				action: 'order.status',
+				entity: 'Order',
+				entityId: String(wcId),
+				entityName: `WooCommerce #${wcId}`,
+				actorId,
+				before: prevStatus ? { status: prevStatus } : undefined,
+				after: { status },
+				revertible: false
+			})
+			.catch(() => null)
 		return result
 	}
 

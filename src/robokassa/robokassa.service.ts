@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto'
-import { IReceipt, IReceiptItem, IRefundInvoiceItem } from './robokassa.interface'
+import {
+	IReceipt,
+	IReceiptItem,
+	IRefundInvoiceItem
+} from './robokassa.interface'
 
 @Injectable()
 export class RobokassaService {
@@ -64,6 +68,37 @@ export class RobokassaService {
 		})
 
 		return `https://auth.robokassa.ru/Merchant/Index.aspx?${params.toString()}`
+	}
+
+	buildSavedCardPaymentUrl(
+		opKey: string,
+		invoiceId: number,
+		amount: number,
+		receiptItems: IReceiptItem[],
+		email?: string,
+		phone?: string
+	): string {
+		const outSum = amount.toFixed(2)
+		const receiptData: IReceipt = { sno: 'usn_income', items: receiptItems }
+		if (email) receiptData.email = email
+		else if (phone) receiptData.phone = phone
+		const receipt = JSON.stringify(receiptData)
+
+		const sig = this.md5(
+			`${this.login}:${outSum}:${invoiceId}:${receipt}::${opKey}:${this.pass1}`
+		)
+
+		const params = new URLSearchParams({
+			MerchantLogin: this.login,
+			OutSum: outSum,
+			InvId: String(invoiceId),
+			Receipt: receipt,
+			Token: opKey,
+			SignatureValue: sig,
+			...(this.isTest && { IsTest: '1' })
+		})
+
+		return `https://auth.robokassa.ru/Merchant/Payment/CoFPayment?${params.toString()}`
 	}
 
 	verifyResult(outSum: string, invId: string, sig: string): boolean {

@@ -45,6 +45,17 @@ export class RobokassaController {
 
 		this.orderService.markAsPaid(updated.id)
 
+		this.robokassa
+			.getOpKey(invoiceId)
+			.then(opKey => {
+				if (!opKey) return
+				return this.prisma.user.update({
+					where: { id: updated.userId },
+					data: { robokassaOpKey: opKey }
+				})
+			})
+			.catch(() => null)
+
 		setTimeout(async () => {
 			const notification = await this.notificationService.saveNotification(
 				updated.userId,

@@ -42,6 +42,7 @@ model User {
   avatarPath         String?   @default("/uploads/default/default-avatar.png") @map("avatar_path")
   phone              String?   @default("")
   resetPasswordCount Int       @default(0) @map("reset_password_count")
+  robokassaOpKey     String?   @map("robokassa_op_key")
 
   addresses            Address[]
   orders               Order[]

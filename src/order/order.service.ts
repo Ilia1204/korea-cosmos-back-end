@@ -367,6 +367,63 @@ export class OrderService {
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}
 
+	async hasSavedCard(userId: string): Promise<boolean> {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			select: { robokassaOpKey: true }
+		})
+		return !!user?.robokassaOpKey
+	}
+
+	async payOrderWithSavedCard(orderId: string, userId: string) {
+		const order = await this.prisma.order.findUnique({
+			where: { id: orderId },
+			select: {
+				userId: true,
+				totalPrice: true,
+				invoiceId: true,
+				deliveryPrice: true,
+				items: true,
+				user: { select: { email: true, phone: true, robokassaOpKey: true } }
+			}
+		})
+		if (!order) throw new NotFoundException('Заказ не найден')
+		if (order.userId !== userId)
+			throw new ForbiddenException('Это не ваш заказ')
+		if (!order.user.robokassaOpKey)
+			throw new BadRequestException('Сохранённая карта не найдена')
+
+		let invoiceId = order.invoiceId
+		if (!invoiceId) {
+			invoiceId = this.robokassa.generateInvoiceId()
+			await this.prisma.order.update({
+				where: { id: orderId },
+				data: { invoiceId }
+			})
+		}
+
+		const receiptItems = buildReceiptItems(
+			order.items.map(i => ({
+				name: `${i.productName || 'Товар'}${
+					(i as any).variationLabel ? ` (${(i as any).variationLabel})` : ''
+				}`,
+				quantity: i.quantity,
+				price: i.price
+			})),
+			order.deliveryPrice || 0,
+			order.totalPrice
+		)
+		const paymentUrl = this.robokassa.buildSavedCardPaymentUrl(
+			order.user.robokassaOpKey,
+			invoiceId,
+			order.totalPrice,
+			receiptItems,
+			order.user.email,
+			normalizeReceiptPhone(order.user.phone)
+		)
+		return { confirmation: { confirmation_url: paymentUrl } }
+	}
+
 	async update(id: string, dto: UpdateOrderDto, actorId?: string) {
 		const order = await this.getById(id)
 		if (!order) throw new NotFoundException('Заказ не найден')
