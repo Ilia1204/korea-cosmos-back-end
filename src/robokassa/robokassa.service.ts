@@ -145,9 +145,11 @@ export class RobokassaService {
 		return info?.opKey ?? null
 	}
 
-	async getOpInfo(
-		invoiceId: number
-	): Promise<{ opKey: string; cardMask: string | null } | null> {
+	async getOpInfo(invoiceId: number): Promise<{
+		opKey: string
+		cardMask: string | null
+		isBankCard: boolean
+	} | null> {
 		const sig = this.md5(`${this.login}:${invoiceId}:${this.pass2}`)
 		const url = `https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt?MerchantLogin=${encodeURIComponent(
 			this.login
@@ -163,10 +165,15 @@ export class RobokassaService {
 			}
 			const accountMatch = text.match(/<IncAccount>([^<]*)<\/IncAccount>/)
 			const cardMask = accountMatch?.[1] || null
-			this.logger.log(
-				`Robokassa OpStateExt: OpKey=${opKeyMatch[1]} IncAccount=${cardMask}`
+			const methodMatch = text.match(
+				/<PaymentMethod>.*?<Description>([^<]*)<\/Description>/s
 			)
-			return { opKey: opKeyMatch[1], cardMask }
+			const methodDescription = methodMatch?.[1] || ''
+			const isBankCard = /карт/i.test(methodDescription)
+			this.logger.log(
+				`Robokassa OpStateExt: OpKey=${opKeyMatch[1]} IncAccount=${cardMask} PaymentMethod=${methodDescription}`
+			)
+			return { opKey: opKeyMatch[1], cardMask, isBankCard }
 		} catch (e) {
 			this.logger.error(`Robokassa OpStateExt error: ${e}`)
 			return null

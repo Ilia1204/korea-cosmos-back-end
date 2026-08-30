@@ -380,6 +380,14 @@ export class OrderService {
 		}
 	}
 
+	async unlinkSavedCard(userId: string) {
+		await this.prisma.user.update({
+			where: { id: userId },
+			data: { robokassaOpKey: null, robokassaCardMask: null }
+		})
+		return { success: true }
+	}
+
 	async payOrderWithSavedCard(orderId: string, userId: string) {
 		const order = await this.prisma.order.findUnique({
 			where: { id: orderId },

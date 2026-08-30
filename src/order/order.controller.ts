@@ -61,6 +61,13 @@ export class OrderController {
 		return this.orderService.hasSavedCard(userId)
 	}
 
+	@HttpCode(200)
+	@Delete('saved-card')
+	@Auth()
+	async unlinkSavedCard(@CurrentUser('id') userId: string) {
+		return this.orderService.unlinkSavedCard(userId)
+	}
+
 	@Get()
 	@Auth('manager')
 	getAll() {

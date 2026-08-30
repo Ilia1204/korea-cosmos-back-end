@@ -48,7 +48,7 @@ export class RobokassaController {
 		this.robokassa
 			.getOpInfo(invoiceId)
 			.then(info => {
-				if (!info) return
+				if (!info || !info.isBankCard) return
 				return this.prisma.user.update({
 					where: { id: updated.userId },
 					data: {
