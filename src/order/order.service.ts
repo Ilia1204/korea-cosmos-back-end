@@ -367,12 +367,17 @@ export class OrderService {
 		return { confirmation: { confirmation_url: paymentUrl } }
 	}
 
-	async hasSavedCard(userId: string): Promise<boolean> {
+	async hasSavedCard(
+		userId: string
+	): Promise<{ hasSavedCard: boolean; cardMask: string | null }> {
 		const user = await this.prisma.user.findUnique({
 			where: { id: userId },
-			select: { robokassaOpKey: true }
+			select: { robokassaOpKey: true, robokassaCardMask: true }
 		})
-		return !!user?.robokassaOpKey
+		return {
+			hasSavedCard: !!user?.robokassaOpKey,
+			cardMask: user?.robokassaCardMask ?? null
+		}
 	}
 
 	async payOrderWithSavedCard(orderId: string, userId: string) {

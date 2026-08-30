@@ -46,12 +46,15 @@ export class RobokassaController {
 		this.orderService.markAsPaid(updated.id)
 
 		this.robokassa
-			.getOpKey(invoiceId)
-			.then(opKey => {
-				if (!opKey) return
+			.getOpInfo(invoiceId)
+			.then(info => {
+				if (!info) return
 				return this.prisma.user.update({
 					where: { id: updated.userId },
-					data: { robokassaOpKey: opKey }
+					data: {
+						robokassaOpKey: info.opKey,
+						robokassaCardMask: info.cardMask
+					}
 				})
 			})
 			.catch(() => null)

@@ -58,7 +58,7 @@ export class OrderController {
 	@Get('has-saved-card')
 	@Auth()
 	async hasSavedCard(@CurrentUser('id') userId: string) {
-		return { hasSavedCard: await this.orderService.hasSavedCard(userId) }
+		return this.orderService.hasSavedCard(userId)
 	}
 
 	@Get()

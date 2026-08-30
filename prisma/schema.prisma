@@ -43,6 +43,7 @@ model User {
   phone              String?   @default("")
   resetPasswordCount Int       @default(0) @map("reset_password_count")
   robokassaOpKey     String?   @map("robokassa_op_key")
+  robokassaCardMask  String?   @map("robokassa_card_mask")
 
   addresses            Address[]
   orders               Order[]

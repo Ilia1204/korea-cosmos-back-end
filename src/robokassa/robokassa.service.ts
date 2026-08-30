@@ -141,6 +141,13 @@ export class RobokassaService {
 	}
 
 	async getOpKey(invoiceId: number): Promise<string | null> {
+		const info = await this.getOpInfo(invoiceId)
+		return info?.opKey ?? null
+	}
+
+	async getOpInfo(
+		invoiceId: number
+	): Promise<{ opKey: string; cardMask: string | null } | null> {
 		const sig = this.md5(`${this.login}:${invoiceId}:${this.pass2}`)
 		const url = `https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt?MerchantLogin=${encodeURIComponent(
 			this.login
@@ -149,13 +156,17 @@ export class RobokassaService {
 		try {
 			const res = await fetch(url)
 			const text = await res.text()
-			const match = text.match(/<OpKey>([^<]+)<\/OpKey>/)
-			if (!match) {
+			const opKeyMatch = text.match(/<OpKey>([^<]+)<\/OpKey>/)
+			if (!opKeyMatch) {
 				this.logger.warn(`Robokassa OpStateExt: OpKey not found: ${text}`)
 				return null
 			}
-			this.logger.log(`Robokassa OpStateExt: OpKey=${match[1]}`)
-			return match[1]
+			const accountMatch = text.match(/<IncAccount>([^<]*)<\/IncAccount>/)
+			const cardMask = accountMatch?.[1] || null
+			this.logger.log(
+				`Robokassa OpStateExt: OpKey=${opKeyMatch[1]} IncAccount=${cardMask}`
+			)
+			return { opKey: opKeyMatch[1], cardMask }
 		} catch (e) {
 			this.logger.error(`Robokassa OpStateExt error: ${e}`)
 			return null
