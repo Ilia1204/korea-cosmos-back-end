@@ -84,9 +84,8 @@ export class RobokassaService {
 		else if (phone) receiptData.phone = phone
 		const receipt = JSON.stringify(receiptData)
 
-		const sig = this.md5(
-			`${this.login}:${outSum}:${invoiceId}:${receipt}::${opKey}:${this.pass1}`
-		)
+		const sigSource = `${this.login}:${outSum}:${invoiceId}:${receipt}::${opKey}:${this.pass1}`
+		const sig = this.md5(sigSource)
 
 		const params = new URLSearchParams({
 			MerchantLogin: this.login,
@@ -98,7 +97,16 @@ export class RobokassaService {
 			...(this.isTest && { IsTest: '1' })
 		})
 
-		return `https://auth.robokassa.ru/Merchant/Payment/CoFPayment?${params.toString()}`
+		const url = `https://auth.robokassa.ru/Merchant/Payment/CoFPayment?${params.toString()}`
+
+		this.logger.log(
+			`CoFPayment debug: sigSource=${sigSource.replace(
+				this.pass1,
+				'***'
+			)} sig=${sig} opKey=${opKey} invoiceId=${invoiceId} url=${url}`
+		)
+
+		return url
 	}
 
 	verifyResult(outSum: string, invId: string, sig: string): boolean {
