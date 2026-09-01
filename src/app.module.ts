@@ -11,6 +11,7 @@ import { CategoryModule } from './category/category.module'
 import { EmailModule } from './email/email.module'
 import { FileModule } from './file/file.module'
 import { LabelProductModule } from './label-product/label-product.module'
+import { LegalModule } from './legal/legal.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { OrderModule } from './order/order.module'
 import { PostModule } from './post/post.module'
@@ -77,7 +78,8 @@ import { WooProxyModule } from './woo-proxy/woo-proxy.module'
 		AuditModule,
 		ChatModule,
 		WooProxyModule,
-		BannerModule
+		BannerModule,
+		LegalModule
 	],
 	providers: []
 })
