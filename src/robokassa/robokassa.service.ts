@@ -79,9 +79,8 @@ export class RobokassaService {
 		phone?: string
 	): string {
 		const outSum = amount.toFixed(2)
+
 		const receiptData: IReceipt = { sno: 'usn_income', items: receiptItems }
-		if (email) receiptData.email = email
-		else if (phone) receiptData.phone = phone
 		const receipt = JSON.stringify(receiptData)
 
 		const sigSource = `${this.login}:${outSum}:${invoiceId}:${receipt}::${opKey}:${this.pass1}`
@@ -91,10 +90,12 @@ export class RobokassaService {
 			MerchantLogin: this.login,
 			OutSum: outSum,
 			InvId: String(invoiceId),
-			Receipt: receipt,
+			Receipt: encodeURIComponent(receipt),
 			Token: opKey,
 			SignatureValue: sig,
-			...(this.isTest && { IsTest: '1' })
+			...(this.isTest && { IsTest: '1' }),
+			...(email && { Email: email }),
+			...(!email && phone && { Phone: phone })
 		})
 
 		const url = `https://auth.robokassa.ru/Merchant/Payment/CoFPayment?${params.toString()}`
