@@ -240,10 +240,15 @@ export class AuthService {
 				const retailCustomer = await this.retailCrm.findCustomerByPhone(
 					'+' + normalized
 				)
-				const retailEmail = retailCustomer?.email || null
+				// Реальный email заводим только если он реально пришёл из RetailCRM —
+				// техническую заглушку для телефонных пользователей больше не генерируем
+				// здесь, она подставляется лениво, только когда правда понадобится
+				// (см. OrderService.createPayment — там нужна для WooCommerce/RetailCRM).
+				const email = retailCustomer?.email || null
 
-				const email = retailEmail || `${normalized}@phone.koreacosmos.ru`
-				user = await this.prisma.user.findUnique({ where: { email } })
+				user = email
+					? await this.prisma.user.findUnique({ where: { email } })
+					: null
 				if (!user) {
 					user = retailCustomer
 						? await this.userService.createFromRetailCrm(
@@ -254,16 +259,18 @@ export class AuthService {
 						  )
 						: await this.prisma.user.create({
 								data: {
-									email,
+									email: null,
 									password: await hash(this.generateRandomPassword()),
 									phone: '+' + normalized,
 									emailVerified: true
 								}
 						  })
-					this.createWordPressAccount(
-						email,
-						this.generateRandomPassword()
-					).catch(() => null)
+					if (email) {
+						this.createWordPressAccount(
+							email,
+							this.generateRandomPassword()
+						).catch(() => null)
+					}
 					this.notificationsService
 						.sendPushNotificationToAdmins(
 							'👤 Новый пользователь',

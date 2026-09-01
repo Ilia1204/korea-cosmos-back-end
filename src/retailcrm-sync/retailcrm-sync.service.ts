@@ -139,7 +139,7 @@ export class RetailCRMSyncService {
 			externalId,
 			channel: 'mobile-app',
 			tags: [{ name: 'Мобильное приложение' }],
-			customer: { email: user.email },
+			customer: { email: user.email || undefined },
 			firstName: isOtherRecipient
 				? order.recipientName || user.name || ''
 				: user.name || '',

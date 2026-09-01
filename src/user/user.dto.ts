@@ -5,13 +5,16 @@ import {
 	IsNumber,
 	IsOptional,
 	IsString,
-	MinLength
+	MinLength,
+	ValidateIf
 } from 'class-validator'
 import { Role } from '@prisma/client'
 
 export class UserDto {
+	// @IsOptional() пропускает только undefined/null, а не пустую строку —
+	// а пустую строку шлёт фронт, когда телефонный пользователь оставляет email пустым.
+	@ValidateIf(o => o.email !== undefined && o.email !== null && o.email !== '')
 	@IsEmail()
-	@IsOptional()
 	email: string
 
 	@IsOptional()

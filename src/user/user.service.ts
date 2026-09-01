@@ -267,7 +267,7 @@ export class UserService {
 	}
 
 	async createFromRetailCrm(
-		email: string,
+		email: string | null,
 		password: string,
 		phone: string,
 		retailCustomer: any
@@ -591,12 +591,18 @@ export class UserService {
 	}
 
 	async update(id: string, dto: UserDto, isAdmin = false) {
-		const isSameUser = await this.prisma.user.findUnique({
-			where: { email: dto.email }
-		})
+		// Пустую строку с фронта (юзер оставил поле email пустым) трактуем как
+		// "не менять" — иначе несколько таких обновлений столкнутся на уникальности.
+		if (dto.email === '') dto.email = undefined
 
-		if (isSameUser && id !== isSameUser.id)
-			throw new BadRequestException('Данный email уже занят')
+		if (dto.email) {
+			const isSameUser = await this.prisma.user.findUnique({
+				where: { email: dto.email }
+			})
+
+			if (isSameUser && id !== isSameUser.id)
+				throw new BadRequestException('Данный email уже занят')
+		}
 
 		const currentUser = await this.prisma.user.findUnique({
 			where: { id },

@@ -156,6 +156,9 @@ export class OrderService {
 			this.prisma.order.count({ where: { userId } })
 		])
 
+		if (!user.email)
+			throw new BadRequestException('Пожалуйста, укажите email в профиле')
+
 		const welcomeDiscount = previousOrdersCount === 0 ? 20 : 0
 		const discount = getApplicableDiscount(
 			userLoyalty?.currentDiscount ?? 0,
