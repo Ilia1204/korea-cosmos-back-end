@@ -25,6 +25,28 @@ export class WpPostClient {
 		return res.data as any[]
 	}
 
+	async getPublicPage(page: number, perPage: number) {
+		const res = await this.api.get('/blog-posts', {
+			params: {
+				per_page: perPage,
+				page,
+				status: 'publish',
+				_embed: 'wp:featuredmedia'
+			}
+		})
+		return {
+			data: res.data as any[],
+			totalPages: Number(res.headers['x-wp-totalpages'] ?? 1)
+		}
+	}
+
+	async getPublicBySlug(slug: string) {
+		const res = await this.api.get('/blog-posts', {
+			params: { slug, _embed: 'wp:featuredmedia' }
+		})
+		return res.data as any[]
+	}
+
 	async getById(id: number) {
 		const res = await this.api.get(`/blog-posts/${id}`, {
 			params: { _embed: 'wp:featuredmedia' }

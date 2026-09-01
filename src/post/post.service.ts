@@ -1,15 +1,55 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression } from '@nestjs/schedule'
 import { PrismaService } from 'src/prisma.service'
+import { WooCacheService } from 'src/woo-proxy/woo-cache.service'
 import { UpdateWpPostDto } from './post.dto'
 import { WpPostClient } from './wp-post.client'
 import { mapWpPostAdmin } from './wp-post.mapper'
 
+const PUBLIC_PAGE_TTL_MS = 3 * 60 * 1000
+const PUBLIC_SLUG_TTL_MS = 5 * 60 * 1000
+
 @Injectable()
 export class PostService {
+	private readonly logger = new Logger(PostService.name)
+
 	constructor(
 		private prisma: PrismaService,
-		private wpPostClient: WpPostClient
+		private wpPostClient: WpPostClient,
+		private cache: WooCacheService
 	) {}
+
+	@Cron(CronExpression.EVERY_5_MINUTES)
+	async warmPublicPostsCache() {
+		try {
+			await this.fetchAndCachePage(1, 10)
+		} catch (err) {
+			this.logger.warn(`[warmPublicPostsCache] failed: ${err}`)
+		}
+	}
+
+	private async fetchAndCachePage(page: number, perPage: number) {
+		const key = `wp-posts-public?page=${page}&perPage=${perPage}`
+		const result = await this.wpPostClient.getPublicPage(page, perPage)
+		this.cache.store(key, result, PUBLIC_PAGE_TTL_MS)
+		return result
+	}
+
+	async getPublicPage(page = 1, perPage = 10) {
+		const key = `wp-posts-public?page=${page}&perPage=${perPage}`
+		const cached = this.cache.hit<{ data: any[]; totalPages: number }>(key)
+		if (cached) return cached
+		return this.fetchAndCachePage(page, perPage)
+	}
+
+	async getPublicBySlug(slug: string) {
+		const key = `wp-post-public?slug=${slug}`
+		const cached = this.cache.hit<any[]>(key)
+		if (cached) return cached
+		const result = await this.wpPostClient.getPublicBySlug(slug)
+		this.cache.store(key, result, PUBLIC_SLUG_TTL_MS)
+		return result
+	}
 
 	async getWpEngagement(slug: string) {
 		const post = await this.prisma.post.findUnique({ where: { slug } })

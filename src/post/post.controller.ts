@@ -25,6 +25,22 @@ import { PostService } from './post.service'
 export class PostController {
 	constructor(private readonly postService: PostService) {}
 
+	@Get('wp/public')
+	async getPublicPage(
+		@Query('page') page?: string,
+		@Query('perPage') perPage?: string
+	) {
+		return this.postService.getPublicPage(
+			Number(page) || 1,
+			Number(perPage) || 10
+		)
+	}
+
+	@Get('wp/public/by-slug')
+	async getPublicBySlug(@Query('slug') slug: string) {
+		return this.postService.getPublicBySlug(slug)
+	}
+
 	@Get('wp/:slug/engagement')
 	async getWpEngagement(@Param('slug') slug: string) {
 		return this.postService.getWpEngagement(slug)

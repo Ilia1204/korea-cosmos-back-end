@@ -6,6 +6,7 @@ import { ServeStaticModule } from '@nestjs/serve-static'
 import { path } from 'app-root-path'
 import { AddressModule } from './address/address.module'
 import { AuthModule } from './auth/auth.module'
+import { BannerModule } from './banner/banner.module'
 import { CategoryModule } from './category/category.module'
 import { EmailModule } from './email/email.module'
 import { FileModule } from './file/file.module'
@@ -39,7 +40,10 @@ import { WooProxyModule } from './woo-proxy/woo-proxy.module'
 		ThrottlerModule.forRoot([{ ttl: 60000, limit: 5 }]),
 		ScheduleModule.forRoot(),
 		ServeStaticModule.forRoot({
-			rootPath: process.env.NODE_ENV === 'production' ? '/data/uploads' : `${path}/uploads`,
+			rootPath:
+				process.env.NODE_ENV === 'production'
+					? '/data/uploads'
+					: `${path}/uploads`,
 			serveRoot: '/uploads',
 			serveStaticOptions: { index: false }
 		}),
@@ -72,7 +76,8 @@ import { WooProxyModule } from './woo-proxy/woo-proxy.module'
 		WooDiscountModule,
 		AuditModule,
 		ChatModule,
-		WooProxyModule
+		WooProxyModule,
+		BannerModule
 	],
 	providers: []
 })
