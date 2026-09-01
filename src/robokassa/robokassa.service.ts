@@ -83,7 +83,8 @@ export class RobokassaService {
 		const receiptData: IReceipt = { sno: 'usn_income', items: receiptItems }
 		const receipt = JSON.stringify(receiptData)
 
-		const sigSource = `${this.login}:${outSum}:${invoiceId}:${receipt}::${opKey}:${this.pass1}`
+		const receiptEncoded = encodeURIComponent(receipt)
+		const sigSource = `${this.login}:${outSum}:${invoiceId}:${receiptEncoded}:${opKey}:${this.pass1}`
 		const sig = this.md5(sigSource)
 
 		const params = new URLSearchParams({
