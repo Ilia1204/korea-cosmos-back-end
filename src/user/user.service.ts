@@ -414,6 +414,78 @@ export class UserService {
 					levelId: bestLevel?.id ?? null
 				}
 			})
+
+			await this.backfillLoyaltyHistoryFromRetailCRM(userId, customer.id)
+		} catch {
+			// silent fail
+		}
+	}
+
+	private async backfillLoyaltyHistoryFromRetailCRM(
+		userId: string,
+		customerId: number
+	) {
+		try {
+			const apiKey = process.env.RETAILCRM_API_KEY
+			if (!apiKey) return
+			const retailUrl =
+				process.env.RETAILCRM_URL || 'https://koreacosmos.retailcrm.ru'
+
+			const localOrders = await this.prisma.order.findMany({
+				where: { userId },
+				select: { wcOrderId: true }
+			})
+			const localExternalIds = new Set(
+				localOrders
+					.map(o => o.wcOrderId)
+					.filter(Boolean)
+					.map(String)
+			)
+
+			const params = new URLSearchParams({ limit: '100', page: '1' })
+			params.append('filter[customerId]', String(customerId))
+			const res = await fetch(`${retailUrl}/api/v5/orders?${params}`, {
+				headers: { 'X-API-KEY': apiKey }
+			})
+			const data = await res.json()
+			const orders: any[] = data?.orders ?? []
+			if (!orders.length) return
+
+			// Только доставленные заказы, которых ещё нет локально (иначе задвоим с историей из приложения)
+			const deliveredOrders = orders.filter(
+				o =>
+					o.status === 'complete' &&
+					!(o.externalId && localExternalIds.has(String(o.externalId)))
+			)
+			if (!deliveredOrders.length) return
+
+			const existing = await this.prisma.loyaltyTransaction.findMany({
+				where: { userId, orderId: null },
+				select: { reason: true }
+			})
+			const existingNumbers = new Set(
+				existing.map(t => t.reason.match(/№(\S+)/)?.[1]).filter(Boolean)
+			)
+
+			for (const o of deliveredOrders) {
+				const number = String(o.number ?? o.id)
+				if (existingNumbers.has(number)) continue
+
+				const amount = Math.round(
+					(o.totalSumm ?? o.summ ?? 0) - (o.delivery?.cost ?? 0)
+				)
+				if (amount <= 0) continue
+
+				await this.prisma.loyaltyTransaction.create({
+					data: {
+						userId,
+						amount,
+						orderId: null,
+						reason: `Заказ №${number} (перенесено с сайта)`,
+						createdAt: o.createdAt ? new Date(o.createdAt) : new Date()
+					}
+				})
+			}
 		} catch {
 			// silent fail
 		}
