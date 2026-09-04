@@ -61,6 +61,34 @@ export class PostService {
 		}
 	}
 
+	async getWpEngagementBatch(slugs: string[]) {
+		if (!slugs.length) return {}
+		const posts = await this.prisma.post.findMany({
+			where: { slug: { in: slugs } }
+		})
+		const bySlug = new Map(posts.map(p => [p.slug, p]))
+
+		const result: Record<
+			string,
+			{
+				countViews: number
+				countLikes: number
+				likesIdsUsers: string[]
+				id: string | null
+			}
+		> = {}
+		for (const slug of slugs) {
+			const post = bySlug.get(slug)
+			result[slug] = {
+				countViews: post?.countViews ?? 0,
+				countLikes: post?.countLikes ?? 0,
+				likesIdsUsers: post?.likesIdsUsers ?? [],
+				id: post?.id ?? null
+			}
+		}
+		return result
+	}
+
 	async incrementWpViews(slug: string) {
 		return this.prisma.post.upsert({
 			where: { slug },

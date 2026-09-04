@@ -41,6 +41,15 @@ export class PostController {
 		return this.postService.getPublicBySlug(slug)
 	}
 
+	@Get('wp/engagement/batch')
+	async getWpEngagementBatch(@Query('slugs') slugs?: string) {
+		const list = (slugs ?? '')
+			.split(',')
+			.map(s => s.trim())
+			.filter(Boolean)
+		return this.postService.getWpEngagementBatch(list)
+	}
+
 	@Get('wp/:slug/engagement')
 	async getWpEngagement(@Param('slug') slug: string) {
 		return this.postService.getWpEngagement(slug)
