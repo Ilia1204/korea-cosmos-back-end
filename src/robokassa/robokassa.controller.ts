@@ -78,7 +78,7 @@ export class RobokassaController {
 				{
 					orderUserId: updated.id,
 					status: updated.status,
-					notification: notification.id
+					notificationId: notification.id
 				},
 				'orders'
 			)

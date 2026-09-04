@@ -585,7 +585,7 @@ export class OrderService {
 				{
 					orderUserId: updated.id,
 					status: updated.status,
-					notification: notification.id
+					notificationId: notification.id
 				},
 				'orders'
 			)
@@ -721,7 +721,11 @@ export class OrderService {
 				userId,
 				'❌ Заказ отменён',
 				messages.userMessage,
-				{ orderUserId: id, status: 'cancelled', notification: notification.id },
+				{
+					orderUserId: id,
+					status: 'cancelled',
+					notificationId: notification.id
+				},
 				'orders'
 			)
 		}, 1000)

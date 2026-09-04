@@ -323,8 +323,8 @@ export class WooReviewModerationService {
 		setTimeout(() => {
 			this.notifications.sendPushNotificationToAdmins(
 				'📝 Новый отзыв с сайта!',
-				`${reviewer} оставил отзыв на "${productName}"`,
-				{ wooReviewId: String(wooReviewId), isRead: true },
+				`${reviewer} оставил отзыв на «${productName}»`,
+				{ reviewId: `woo-${wooReviewId}`, isRead: true },
 				['admin']
 			)
 		}, 2000)

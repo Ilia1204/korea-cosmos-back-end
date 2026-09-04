@@ -118,7 +118,7 @@ export class RetailCRMSyncService {
 					{
 						orderUserId: updated.id,
 						status: localStatus,
-						notification: notification.id
+						notificationId: notification.id
 					},
 					'orders'
 				)

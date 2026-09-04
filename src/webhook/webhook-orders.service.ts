@@ -146,7 +146,7 @@ export class WebhookOrdersService {
 			user.id,
 			icon,
 			title,
-			{ ...data, notification: notification.id },
+			{ ...data, notificationId: notification.id },
 			'orders'
 		)
 	}
@@ -291,7 +291,7 @@ export class WebhookOrdersService {
 			userId,
 			icon,
 			title,
-			{ ...data, notification: notification.id },
+			{ ...data, notificationId: notification.id },
 			'orders'
 		)
 	}

@@ -193,7 +193,7 @@ export class WooSyncService {
 					.toUpperCase()} ${getOrderStatusTranslation(localStatus)}`
 				const icon = getOrderStatusIcons(localStatus)
 				const data = { orderUserId: order.id, status: localStatus }
-				await this.notifications.saveNotification(
+				const notification = await this.notifications.saveNotification(
 					order.userId,
 					icon,
 					title,
@@ -203,7 +203,7 @@ export class WooSyncService {
 					order.userId,
 					icon,
 					title,
-					data,
+					{ ...data, notificationId: notification.id },
 					'orders'
 				)
 
