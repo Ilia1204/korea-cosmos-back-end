@@ -241,6 +241,8 @@ export class WebhookProductsService {
 				)
 				return { ok: true }
 			}
+
+			return { ok: true }
 		}
 
 		const body = description
