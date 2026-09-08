@@ -41,6 +41,16 @@ export class UserController {
 		return this.userService.clearFavorites(id)
 	}
 
+	@HttpCode(200)
+	@Auth()
+	@Delete('account')
+	async deleteAccount(
+		@CurrentUser('id') id: string,
+		@Body('password') password?: string
+	) {
+		return this.userService.deleteAccount(id, password)
+	}
+
 	@Get('profile')
 	@Auth()
 	async getProfile(@CurrentUser('id') id: string) {
@@ -76,7 +86,12 @@ export class UserController {
 		@Query('role') role?: string,
 		@Query('hasOrders') hasOrders?: string
 	) {
-		return this.userService.getAdminUsers(search, page ? Number(page) : 1, role, hasOrders)
+		return this.userService.getAdminUsers(
+			search,
+			page ? Number(page) : 1,
+			role,
+			hasOrders
+		)
 	}
 
 	@UsePipes(new ValidationPipe())
@@ -92,16 +107,18 @@ export class UserController {
 		const updated = await this.userService.update(id, dto, true)
 
 		if (before && (dto as any).role && (dto as any).role !== before.role) {
-			this.auditService.log({
-				action: 'user.role',
-				entity: 'User',
-				entityId: id,
-				entityName: before.email,
-				actorId,
-				before: { role: before.role },
-				after: { role: (dto as any).role },
-				revertible: false
-			}).catch(() => null)
+			this.auditService
+				.log({
+					action: 'user.role',
+					entity: 'User',
+					entityId: id,
+					entityName: before.email,
+					actorId,
+					before: { role: before.role },
+					after: { role: (dto as any).role },
+					revertible: false
+				})
+				.catch(() => null)
 		}
 
 		return updated

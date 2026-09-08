@@ -18,7 +18,9 @@ export const DELETE_ACCOUNT_PAGE_HTML = `<!DOCTYPE html>
 <div class="lang-block">
 <h1>Удаление аккаунта — Korea Cosmos</h1>
 
-<p>Если вы хотите удалить свой аккаунт в приложении <strong>Korea Cosmos</strong> (KoreaCosmos: магазин косметики) и связанные с ним данные, отправьте письмо на адрес:</p>
+<p>Самый быстрый способ — удалить аккаунт прямо в приложении <strong>Korea Cosmos</strong> (KoreaCosmos: магазин косметики): откройте <strong>Профиль → Настройки аккаунта → Удалить аккаунт</strong> и подтвердите удаление. Данные удаляются сразу.</p>
+
+<p>Если у вас нет доступа к приложению, отправьте письмо на адрес:</p>
 
 <p><a href="mailto:koreacosmos.app@gmail.com?subject=Удаление%20аккаунта">koreacosmos.app@gmail.com</a></p>
 
@@ -38,6 +40,7 @@ export const DELETE_ACCOUNT_PAGE_HTML = `<!DOCTYPE html>
 	<li>Аватар профиля</li>
 	<li>Push-токен устройства (уведомления)</li>
 	<li>История переписки с поддержкой</li>
+	<li>Пароль от аккаунта на сайте koreacosmos.ru (если он был создан вместе с аккаунтом в приложении) — сбрасывается, вход с прежними данными станет невозможен</li>
 </ul>
 
 <h2>Какие данные могут быть сохранены и почему</h2>
@@ -47,7 +50,9 @@ export const DELETE_ACCOUNT_PAGE_HTML = `<!DOCTYPE html>
 <div class="lang-block">
 <h1>Account deletion — Korea Cosmos</h1>
 
-<p>If you would like to delete your <strong>Korea Cosmos</strong> (KoreaCosmos: магазин косметики) account and associated data, please email:</p>
+<p>The fastest way is to delete your account right in the <strong>Korea Cosmos</strong> (KoreaCosmos: магазин косметики) app: open <strong>Profile → Account settings → Delete account</strong> and confirm. Your data is deleted immediately.</p>
+
+<p>If you don't have access to the app, please email:</p>
 
 <p><a href="mailto:koreacosmos.app@gmail.com?subject=Account%20deletion">koreacosmos.app@gmail.com</a></p>
 
@@ -67,6 +72,7 @@ export const DELETE_ACCOUNT_PAGE_HTML = `<!DOCTYPE html>
 	<li>Profile avatar</li>
 	<li>Device push token (notifications)</li>
 	<li>Support chat history</li>
+	<li>Your password on the koreacosmos.ru website (if it was created together with your app account) — it is reset, so signing in with the old credentials will no longer work</li>
 </ul>
 
 <h2>Data that may be retained, and why</h2>

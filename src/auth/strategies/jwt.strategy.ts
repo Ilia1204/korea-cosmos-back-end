@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
 import { ExtractJwt, Strategy } from 'passport-jwt'
@@ -18,6 +18,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 	}
 
 	async validate({ id }: { id: string }) {
-		return this.userService.getById(id)
+		const user = await this.userService.getById(id)
+
+		if (!user || (user as any).deletedAt) {
+			throw new UnauthorizedException('Аккаунт удалён')
+		}
+		return user
 	}
 }

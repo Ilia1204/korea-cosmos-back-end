@@ -1,20 +1,26 @@
 import {
 	BadRequestException,
 	Injectable,
-	NotFoundException
+	NotFoundException,
+	UnauthorizedException
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import { hash } from 'argon2'
+import { hash, verify } from 'argon2'
 import axios from 'axios'
+import { randomBytes } from 'crypto'
 import { AuthDto } from 'src/auth/dto/auth.dto'
 import { PrismaService } from 'src/prisma.service'
+import { RetailCrmService } from 'src/statistics/retail-crm.service'
 import { returnNotificationObject } from './../notifications/return-notification.object'
 import { returnUserObject } from './return-user.object'
 import { UserDto } from './user.dto'
 
 @Injectable()
 export class UserService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private retailCrm: RetailCrmService
+	) {}
 
 	async getById(id: string, selectObject: Prisma.UserSelect = {}) {
 		const user = await this.prisma.user.findUnique({
@@ -663,8 +669,6 @@ export class UserService {
 	}
 
 	async update(id: string, dto: UserDto, isAdmin = false) {
-		// Пустую строку с фронта (юзер оставил поле email пустым) трактуем как
-		// "не менять" — иначе несколько таких обновлений столкнутся на уникальности.
 		if (dto.email === '') dto.email = undefined
 
 		if (dto.email) {
@@ -787,5 +791,96 @@ export class UserService {
 		})
 
 		return { message: 'Все товары удалены из избранного' }
+	}
+
+	private async anonymizeWordPressAccount(email: string) {
+		try {
+			const wcCustomer = await this.getWooCommerceCustomer(email)
+			if (!wcCustomer) return
+
+			await axios.put(
+				`${process.env.WP_URL}/wp-json/wc/v3/customers/${wcCustomer.id}`,
+				{
+					password: randomBytes(32).toString('hex'),
+					first_name: '',
+					last_name: ''
+				},
+				{
+					auth: {
+						username: process.env.WC_CONSUMER_KEY,
+						password: process.env.WC_CONSUMER_SECRET
+					}
+				}
+			)
+		} catch {
+			// best-effort
+		}
+	}
+
+	async deleteAccount(userId: string, password?: string) {
+		const user = await this.prisma.user.findUnique({ where: { id: userId } })
+		if (!user) throw new NotFoundException('Пользователь не найден')
+
+		if (!user.phone) {
+			if (!password)
+				throw new BadRequestException('Введите пароль для подтверждения')
+			const isValid = await verify(user.password, password)
+			if (!isValid) throw new UnauthorizedException('Неверный пароль')
+		}
+
+		if (user.phone) {
+			this.retailCrm
+				.findCustomerByPhone(user.phone)
+				.then(customer => {
+					if (customer?.id)
+						return this.retailCrm.updateCustomer(customer.id, {
+							firstName: 'Аккаунт удалён',
+							lastName: ''
+						})
+				})
+				.catch(() => null)
+		}
+
+		if (user.email) {
+			this.anonymizeWordPressAccount(user.email).catch(() => null)
+		}
+
+		await this.prisma.$transaction([
+			this.prisma.order.updateMany({
+				where: { userId },
+				data: { addressId: null }
+			}),
+			this.prisma.address.deleteMany({ where: { userId } }),
+			this.prisma.pushToken.deleteMany({ where: { userId } }),
+			this.prisma.cartItem.deleteMany({ where: { userId } }),
+			this.prisma.notification.deleteMany({ where: { userId } }),
+			this.prisma.productSubscriptions.deleteMany({ where: { userId } }),
+			this.prisma.groupChatParticipant.deleteMany({ where: { userId } }),
+			this.prisma.loyaltyTransaction.deleteMany({ where: { userId } }),
+			this.prisma.userLoyalty.deleteMany({ where: { userId } }),
+			this.prisma.chatMessage.deleteMany({ where: { room: { userId } } }),
+			this.prisma.chatRoom.deleteMany({ where: { userId } }),
+			this.prisma.user.update({
+				where: { id: userId },
+				data: {
+					email: null,
+					phone: '',
+					name: '',
+					surname: '',
+					displayName: '',
+					dateOfBirth: null,
+					avatarPath: '/uploads/default/default-avatar.png',
+					pushToken: '',
+					notificationPreferences: {},
+					favoriteIds: { set: [] },
+					robokassaOpKey: null,
+					robokassaCardMask: null,
+					password: await hash(randomBytes(32).toString('hex')),
+					deletedAt: new Date()
+				}
+			})
+		])
+
+		return { message: 'Аккаунт удалён' }
 	}
 }

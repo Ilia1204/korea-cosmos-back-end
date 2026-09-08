@@ -1,8 +1,21 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, OnModuleDestroy } from '@nestjs/common'
+
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000
 
 @Injectable()
-export class WooCacheService {
+export class WooCacheService implements OnModuleDestroy {
 	private readonly cache = new Map<string, { data: any; expires: number }>()
+
+	private readonly sweepInterval = setInterval(() => {
+		const now = Date.now()
+		for (const [key, entry] of this.cache) {
+			if (entry.expires <= now) this.cache.delete(key)
+		}
+	}, SWEEP_INTERVAL_MS)
+
+	onModuleDestroy() {
+		clearInterval(this.sweepInterval)
+	}
 
 	hit<T>(key: string): T | null {
 		const entry = this.cache.get(key)
@@ -14,8 +27,6 @@ export class WooCacheService {
 		this.cache.set(key, { data, expires: Date.now() + ttlMs })
 	}
 
-	// Called after an admin product edit so stale cached responses (product
-	// detail, product lists, slug lookups) aren't served for up to their TTL.
 	invalidateProducts() {
 		for (const key of this.cache.keys()) {
 			if (
