@@ -5,7 +5,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module'
 import { PrismaService } from 'src/prisma.service'
 import { RetailCRMSyncModule } from 'src/retailcrm-sync/retailcrm-sync.module'
 import { RobokassaModule } from 'src/robokassa/robokassa.module'
-import { UserService } from 'src/user/user.service'
+import { UserModule } from 'src/user/user.module'
 import { WooSyncModule } from 'src/woo-sync/woo-sync.module'
 import { AuditService } from 'src/audit/audit.service'
 import { OrderController } from './order.controller'
@@ -19,10 +19,11 @@ import { OrderWooService } from './order-woo.service'
 		RetailCRMSyncModule,
 		LoyaltyLevelModule,
 		DeliveryModule,
+		UserModule,
 		forwardRef(() => RobokassaModule)
 	],
 	controllers: [OrderController],
-	providers: [OrderService, OrderWooService, PrismaService, UserService, AuditService],
+	providers: [OrderService, OrderWooService, PrismaService, AuditService],
 	exports: [OrderService]
 })
 export class OrderModule {}

@@ -4,7 +4,7 @@ import { LoyaltyLevelModule } from 'src/loyalty-level/loyalty-level.module'
 import { NotificationsModule } from 'src/notifications/notifications.module'
 import { PrismaService } from 'src/prisma.service'
 import { RetailCRMSyncModule } from 'src/retailcrm-sync/retailcrm-sync.module'
-import { UserService } from 'src/user/user.service'
+import { UserModule } from 'src/user/user.module'
 import { WooSyncModule } from 'src/woo-sync/woo-sync.module'
 import { OrderModule } from 'src/order/order.module'
 import { AuditService } from 'src/audit/audit.service'
@@ -18,10 +18,11 @@ import { RobokassaService } from './robokassa.service'
 		RetailCRMSyncModule,
 		LoyaltyLevelModule,
 		DeliveryModule,
+		UserModule,
 		forwardRef(() => OrderModule)
 	],
 	controllers: [RobokassaController],
-	providers: [RobokassaService, PrismaService, UserService, AuditService],
+	providers: [RobokassaService, PrismaService, AuditService],
 	exports: [RobokassaService]
 })
 export class RobokassaModule {}

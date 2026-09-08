@@ -17,6 +17,6 @@ import { UserService } from './user.service'
 		AuditService,
 		RetailCrmService
 	],
-	exports: [UserService]
+	exports: [UserService, RetailCrmService]
 })
 export class UserModule {}
